@@ -1,0 +1,1810 @@
+/* ==========================================================================
+   ROOT THEME TOKENS (GLOBAL COLORS, RADII, SPACING)
+   --------------------------------------------------------------------------
+   - Change these values to reskin the entire game.
+   - Especially important:
+       • --bg / --bg-alt / --border: overall dark theme
+       • --accent / --danger / --gold: key highlight colors
+       • --radius: corner rounding for most panels
+       • --panel-gap: VERTICAL SPACE between stacked game panels on the
+         main game screen (HUD, Enemy panel, Scene, Quest, Log Filter, Log,
+         Actions).
+   ========================================================================== */
+
+:root {
+  --bg: #05070f;
+  --bg-alt: #0d1220;
+  --accent: #4fc3f7;
+  --accent-soft: rgba(79,195,247,0.2);
+  --danger: #ff5252;
+  --danger-soft: rgba(255,82,82,0.24);
+  --text: #f5f7ff;
+  --muted: #9ca3c5;
+  --border: #232846;
+  --gold: #f6d365;
+  --radius: 10px;
+
+  /* 🔧 MAIN PANEL GAP:
+     Controls vertical spacing between major panels in the GAME screen:
+     - HUD ↔ Enemy panel
+     - Enemy panel ↔ Scene
+     - Scene ↔ Quest
+     - Quest ↔ Log Filter
+     - Log Filter ↔ Log
+     - Log ↔ Actions
+     Increase this value if the game feels too “stacked” vertically. */
+  --panel-gap: 4px;
+}
+.theme-arcane {
+  --bg: #0d1028;
+  --bg-alt: #161b3a;
+  --border: #2e3a7f;
+  --text: #dbe4ff;
+  --muted: #8894c7;
+
+  --accent: #8fb1ff;
+  --accent-soft: rgba(143,177,255,0.22);
+
+  --danger: #ff6b81;
+  --danger-soft: rgba(255,107,129,0.25);
+
+  --gold: #c8b8ff;
+}
+.theme-inferno {
+  --bg: #1a0600;
+  --bg-alt: #300b00;
+  --border: #802000;
+  --text: #ffe8d9;
+  --muted: #c78f73;
+
+  --accent: #ff7a2f;
+  --accent-soft: rgba(255,122,47,0.25);
+
+  --danger: #ff3b2f;
+  --danger-soft: rgba(255,59,47,0.25);
+
+  --gold: #ffb347;
+}
+.theme-forest {
+  --bg: #07140c;
+  --bg-alt: #0e2317;
+  --border: #1f4d32;
+  --text: #e1ffe6;
+  --muted: #94c7a5;
+
+  --accent: #4dff85;
+  --accent-soft: rgba(77,255,133,0.22);
+
+  --danger: #ff7070;
+  --danger-soft: rgba(255,112,112,0.25);
+
+  --gold: #d2ff96;
+}
+.theme-holy {
+  --bg: #f7f3e8;
+  --bg-alt: #ece5d6;
+  --border: #d7caaa;
+  --text: #3a2f1c;
+  --muted: #857a68;
+
+  --accent: #ffe585;
+  --accent-soft: rgba(255,229,133,0.35);
+
+  --danger: #d9534f;
+  --danger-soft: rgba(217,83,79,0.22);
+
+  --gold: #e4c96b;
+}
+.theme-shadow {
+  --bg: #05050a;
+  --bg-alt: #0a0a13;
+  --border: #2b2348;
+  --text: #dcd2f9;
+  --muted: #948bb5;
+
+  --accent: #a16bff;
+  --accent-soft: rgba(161,107,255,0.30);
+
+  --danger: #ff2e63;
+  --danger-soft: rgba(255,46,99,0.25);
+
+  --gold: #b48dfd;
+}
+
+/* ==========================================================================
+   THEME ENGINE — Dynamically reskins the entire UI using CSS variables.
+   Apply themes by adding a class to <body>:
+     <body class="theme-arcane">
+   ========================================================================== */
+
+/* Default theme (already your current one) */
+:root {
+  --theme-name: "default";
+}
+
+/* Each theme overrides these variables: */
+.theme-arcane,
+.theme-inferno,
+.theme-forest,
+.theme-holy,
+.theme-shadow {
+  --transition-speed: 0.25s;
+
+  transition:
+    background-color var(--transition-speed) ease,
+    color var(--transition-speed) ease,
+    border-color var(--transition-speed) ease,
+    box-shadow var(--transition-speed) ease;
+}
+
+/* ==========================================================================
+   BASE LAYOUT / GLOBAL RESET
+   --------------------------------------------------------------------------
+   - Applies to the whole page: body, app container, base typography.
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* removes blue tap flash on mobile */
+}
+
+html,
+body {
+  height: 100%; /* full viewport height for mobile layout */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #151a33 0, #05070f 55%, #000 100%);
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  min-height: 100vh;
+  touch-action: manipulation; /* improves touch responsiveness */
+  overflow: hidden; /* no page-level scrolling; game handles its own scrolls */
+}
+
+#app {
+  width: 100%;
+  max-width: 480px;       /* “phone in a frame” on desktop */
+  height: 100vh;          /* lock app to viewport height */
+  background: linear-gradient(180deg, #05070f 0, #05070f 40%, #090d18 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  gap: 8px;               /* spacing between FULL screens (main menu vs game) */
+}
+
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;          /* allows inner panels to scroll */
+}
+
+/* Utility class used to hide entire screens or modal */
+.hidden {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+/* ==========================================================================
+   HEADINGS / TEXT BASICS
+   ========================================================================== */
+
+h1, h2, h3 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+h1 { font-size: 1.3rem; }  /* main title (e.g. game title) */
+h2 { font-size: 1.05rem; } /* section titles (Settings, Create Hero, etc.) */
+h3 { font-size: 0.95rem; } /* modal titles, sub-panels */
+
+.center {
+  text-align: center;
+}
+
+/* ==========================================================================
+   CARD SHELL (MAIN MENU, SETTINGS, CHARACTER CREATION, ETC.)
+   ========================================================================== */
+
+.card {
+  background: radial-gradient(circle at top, #141a32 0, #05070f 60%, #05070f 100%);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 12px;
+  box-shadow: 0 14px 35px rgba(0,0,0,0.65);
+  animation: panelDropIn 0.22s ease-out;
+}
+
+/* Stacks multiple cards nicely on menu-ish screens */
+.card + .card {
+  margin-top: 8px;
+}
+
+/* ==========================================================================
+   BUTTON SYSTEM
+   ========================================================================== */
+
+.btn {
+  position: relative;
+  overflow: hidden; /* keep future visual effects clipped to pill shape */
+  border-radius: 999px;     /* fully pill-shaped buttons */
+
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(135deg, #101424, #060817);
+  background-size: 200% 200%;
+
+  color: var(--text);
+  padding: 12px;
+  width: 100%;             /* full width in most layouts */
+  font-size: 0.95rem;
+  margin-top: 8px;
+
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out,
+    border-color 0.18s ease-out,
+    background 0.25s ease-out,
+    filter 0.18s ease-out;
+}
+
+/* PRIMARY BUTTON */
+.btn.primary {
+  background: linear-gradient(135deg, #4fc3f7, #7c4dff);
+  background-size: 200% 200%;
+  color: #05070f;
+  border-color: rgba(255,255,255,0.18);
+}
+
+.btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+  background-position: 100% 0;
+}
+
+/* DANGER BUTTON */
+.btn.danger {
+  background: linear-gradient(135deg, #ff5252, #ff8a65);
+  background-size: 200% 200%;
+  color: #05070f;
+  border-color: rgba(255,255,255,0.18);
+}
+
+.btn.danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+  background-position: 100% 0;
+}
+
+/* OUTLINE BUTTON */
+.btn.outline {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+/* SMALL BUTTONS */
+.btn.small {
+  padding: 6px 10px;
+  background: transparent;
+  font-size: 0.8rem;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* Optional glowing attract mode */
+.btn.glow,
+.btn.primary.glow {
+  animation: btnGlow 1.6s ease-in-out infinite;
+}
+
+/* Narrow buttons inside grid / actions */
+#actions .btn.small {
+  width: 100%;
+  margin-top: 5px;
+}
+
+/* ==========================================================================
+   ICON BUTTONS (MENU TOGGLE, MODAL CLOSE, SMALL ROUND CONTROLS)
+   ========================================================================== */
+
+.icon-btn {
+  position: relative;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #060818;
+  color: var(--muted);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.86rem;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out,
+    border-color 0.18s ease-out,
+    background 0.18s ease-out;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+  border-color: var(--accent);
+  background: radial-gradient(circle at top, #151b33 0, #05070f 70%);
+}
+
+.icon-btn:active {
+  transform: translateY(1px) scale(0.96);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45) inset;
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   HINT / SECTION LABELS
+   ========================================================================== */
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 6px;
+  text-align: center;
+}
+
+.section-title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.18em;
+  margin-bottom: 6px;
+}
+
+/* ==========================================================================
+   CHANGELOG MODAL
+   ========================================================================== */
+
+.changelog-modal {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.changelog-modal details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+  margin-bottom: 6px;
+  background: var(--bg-alt);
+}
+
+.changelog-modal summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8rem;
+}
+
+.changelog-modal summary::-webkit-details-marker {
+  display: none;
+}
+
+.changelog-modal summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 4px;
+  transform: translateY(-0.5px);
+}
+
+.changelog-modal details[open] summary::before {
+  content: '▾';
+}
+
+.changelog-modal h4 {
+  margin: 4px 0 2px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.changelog-modal ul {
+  margin: 0 0 4px 1.1rem;
+  padding-left: 0;
+}
+
+.changelog-modal li {
+  margin-bottom: 2px;
+}
+
+/* ==========================================================================
+   FORM FIELDS / CHARACTER CREATION / FEEDBACK FORM
+   ========================================================================== */
+
+.field {
+  margin-top: 4px;
+}
+
+.field label {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+/* Text input */
+.field input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #050816;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.field input[type="text"]:focus-visible {
+  outline: 1px solid var(--accent);
+  background: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+}
+
+/* Textarea */
+.field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #050816;
+  color: var(--text);
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 90px;
+}
+
+.field textarea:focus-visible {
+  outline: 1px solid var(--accent);
+  background: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+}
+
+/* Select dropdown */
+.field select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #050816;
+  color: var(--text);
+  font-size: 0.9rem;
+  appearance: none;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  background-image: linear-gradient(180deg, #050816, #050816);
+}
+
+.field select:focus-visible {
+  outline: 1px solid var(--accent);
+  background: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+}
+
+/* ==========================================================================
+   NAME ROW (CHARACTER CREATION)
+   ========================================================================== */
+
+.name-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.name-input-row input[type="text"] {
+  flex: 1 1 auto;
+}
+
+.name-random-btn {
+  flex: 0 0 auto;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+}
+
+/* ==========================================================================
+   DIFFICULTY PILL OPTIONS
+   ========================================================================== */
+
+/* Keep all options on ONE row, force shrinking instead of wrapping */
+.option-row {
+  display: flex;
+  flex-wrap: nowrap;   /* <- prevents wrapping */
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+  overflow: hidden;     /* prevents row overflow */
+}
+
+/* Each pill evenly shares space & shrinks when needed */
+.pill-option {
+  flex: 1 1 0;            /* grow + shrink equally */
+  min-width: 0;           /* allows shrinking smaller than content */
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+
+  /* Text auto-adjusts dynamically */
+  font-size: clamp(0.6rem, 1.6vw, 0.85rem);
+  line-height: 1.15;
+  white-space: nowrap;    /* keep text on one line */
+
+  color: var(--muted);
+  cursor: pointer;
+  text-align: center;
+
+  transition:
+    transform 0.12s ease-out,
+    border-color 0.18s ease-out,
+    background 0.18s ease-out;
+}
+
+/* Selected effect unchanged */
+.pill-option.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(79,195,247,0.3);
+  color: var(--text);
+  background: radial-gradient(circle at top, #18243c 0, #060815 70%);
+}
+
+/* Make the dev cheats pill behave like the difficulty pills */
+.dev-cheats-pill {
+  cursor: pointer;
+}
+
+/* Label layout inside the pill */
+.dev-cheats-pill .dev-cheats-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Hide the actual checkbox – we just use it for state */
+.dev-cheats-pill input[type="checkbox"] {
+  display: none;
+}
+
+/* Title line inside the pill */
+.dev-cheats-pill .dev-cheats-title {
+  font-weight: 600;
+  font-size: clamp(0.7rem, 1.6vw, 0.85rem);
+}
+
+/* Subtext under the title, scales a bit on small screens */
+.dev-cheats-pill .dev-cheats-subtitle {
+  margin-top: 0.25rem;
+  font-size: clamp(0.65rem, 1.4vw, 0.78rem);
+  opacity: 0.8;
+  line-height: 1.25;
+}
+/* ==========================================================================
+   Cheat menu – styled similar to changelog
+   ========================================================================== */
+
+.cheat-modal {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+/* Outer container for each collapsible section */
+.cheat-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 6px;
+  background: #050816;
+  color: var(--muted);
+  padding: 4px 6px;
+  overflow: hidden;
+}
+
+/* Make header text use the same muted color as changelog sections */
+.cheat-section-header {
+  width: 100%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);          /* <- key line */
+}
+
+.cheat-section-header:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Triangle icon – inherit header color so it matches */
+.cheat-section-chevron {
+  display: inline-block;
+  min-width: 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.85;
+  transform: translateY(-0.5px);
+  color: inherit;               /* <- makes it same color as title */
+}
+
+/* Title text – also inherit header color */
+.cheat-section-title {
+  flex: 1;
+  text-align: left;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: inherit;               /* <- instead of var(--muted) directly */
+}
+
+.cheat-section-body {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+
+/* ==========================================================================
+   TAVERN GAME PILLS (CHOOSE YOUR GAME)
+   ========================================================================== */
+
+/* Allow the "Choose your game" row to wrap cleanly */
+.tavern-game-row {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+/* Base pill for each tavern game */
+.tavern-game-pill {
+  /* Override .btn.small's full-width behavior */
+  width: auto;
+
+  /* Let them form a responsive grid-ish layout */
+  flex: 1 1 calc(50% - 6px);
+  min-width: 0;
+  max-width: 100%;
+
+  border-radius: 999px;
+  border: 1px solid var(--border);
+
+  padding: 6px 8px;
+
+  /* Text that scales and never gets cut off */
+  font-size: clamp(0.6rem, 1.8vw, 0.8rem);
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;      /* allow wrapping inside pill */
+  word-break: break-word;   /* break long words if needed */
+}
+
+/* Selected game gets a clear highlight similar to other pills */
+.tavern-game-pill.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(79,195,247,0.3);
+  background: radial-gradient(circle at top, var(--accent-soft), #050816);
+  color: var(--text);
+}
+/* ==========================================================================
+   TAVERN GAMES FOOTER (PLAY / LEAVE)
+   ========================================================================== */
+
+.tavern-footer-actions {
+  margin-top: 4px;
+  padding-top: 0px;
+  
+  /* Behave like a footer row inside the scrollable modal body */
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+
+  /* Keep it visually pinned to the bottom of the modal's scroll viewport */
+  position: sticky;
+  bottom: 0;
+  padding-bottom: 4px;
+  z-index: 1;
+}
+
+/* Make both buttons share the space nicely */
+.tavern-footer-actions .btn {
+  flex: 1 1 0;
+}
+
+/* ==========================================================================
+   CLASS SELECTION SCROLLER
+   ========================================================================== */
+
+#classScrollContainer {
+  max-height: 40vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: 6px;
+  padding-right: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+#classScrollContainer::-webkit-scrollbar {
+  display: none;
+}
+
+#classScrollContainer::-webkit-scrollbar-thumb {
+  display: none;
+}
+
+#classOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Individual class card */
+.class-card {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #060815;
+  color: var(--text);
+  margin-bottom: 1px;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  transition: 0.18s ease;
+}
+
+.class-card:hover {
+  background: #0b1122;
+  border-color: var(--accent);
+}
+
+.class-card.selected {
+  background: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(79,195,247,0.3);
+}
+
+.class-card-icon {
+  font-size: 1.8rem;
+}
+
+.class-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.class-card-name {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.class-card-desc {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+/* ==========================================================================
+   HUD (TOP PANEL IN GAME SCREEN)
+   ========================================================================== */
+
+#hud {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: radial-gradient(circle at top, #151b33 0, #05070f 70%);
+  animation: panelDropIn 0.22s ease-out;
+}
+
+#hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#hud-name {
+  font-weight: 600;
+}
+
+#hud-class-diff {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+#hud-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Bars */
+.bar {
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: #050816;
+  overflow: hidden;
+  position: relative;
+  font-size: 0.7rem;
+}
+
+.bar-fill {
+  height: 100%;
+  width: 0;
+  transition: width 0.25s ease-out;
+}
+
+.bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+}
+
+.hp-fill {
+  background: linear-gradient(90deg, #ff5252, #ffb74d);
+}
+
+.resource-fill.mana {
+  background: linear-gradient(90deg, #4fc3f7, #7c4dff);
+}
+
+.resource-fill.fury {
+  background: linear-gradient(90deg, #ff8a65, #ff5722);
+}
+
+.resource-fill.blood {
+  background: linear-gradient(90deg, #f06292, #c62828);
+}
+.resource-fill.essence {
+  background: linear-gradient(90deg, #8e24aa, #ce93d8);
+}
+
+#hud-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  gap: 8px;
+}
+
+#hud-bottom span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#hud-bottom .gold {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   ENEMY PANEL
+   ========================================================================== */
+
+.enemy-panel {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: radial-gradient(circle at top, #151b33 0, #05070f 70%);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  animation: panelDropIn 0.22s ease-out;
+}
+
+.enemy-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 6px;
+}
+
+.enemy-name {
+  font-weight: 600;
+}
+
+.enemy-tags {
+  font-size: 0.65rem;
+  opacity: 0.8;
+}
+
+.enemy-hp-bar {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+
+.enemy-hp-fill {
+  height: 100%;
+}
+
+.enemy-hp-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.62rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.enemy-status-line {
+  min-height: 0.8rem;
+  font-size: 0.65rem;
+  opacity: 0.85;
+}
+
+/* ==========================================================================
+   GAME MAIN AREA LAYOUT
+   ========================================================================== */
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  padding-bottom: 2px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer;
+}
+
+.panel-chevron {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  transition: transform 0.18s ease;
+}
+
+#questBox.collapsed .panel-chevron,
+#log.collapsed .panel-chevron {
+  transform: rotate(-90deg);
+}
+
+#gameScreen {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap);
+  min-height: 0;
+  overflow: hidden;
+}
+
+#gameMain {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap);
+  min-height: 0;
+}
+
+/* ==========================================================================
+   SCENE PANEL
+   ========================================================================== */
+
+#scene {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: radial-gradient(circle at top, #11172b 0, #05070f 70%);
+  animation: panelDropIn 0.22s ease-out;
+}
+
+#sceneTitle {
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+#sceneText {
+  font-size: 0.88rem;
+  color: #e5e7ff;
+}
+
+/* ==========================================================================
+   QUEST BOX
+   ========================================================================== */
+
+#questBox {
+  flex-shrink: 0;
+  padding: 4px;
+  border-radius: var(--radius);
+  border: 1px dashed rgba(252, 211, 77, 0.45);
+  background: radial-gradient(circle at top, rgba(252, 211, 77, 0.12), transparent 60%);
+  font-size: 0.78rem;
+  color: #ffe082;
+  margin: 0;
+  transition: max-height 0.2s ease, padding 0.2s ease;
+  overflow: hidden;
+  animation: panelDropIn 0.22s ease-out;
+}
+
+#questBox.collapsed {
+  max-height: 26px;
+  padding-bottom: 2px;
+}
+
+#questBox.collapsed #questDesc {
+  display: none;
+}
+
+#questTitle {
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+#questDesc {
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   LOG FILTER PANEL
+   ========================================================================== */
+
+#logFilterPanel {
+  flex-shrink: 0;
+}
+
+.log-filter-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.log-filter-row::-webkit-scrollbar {
+  display: none;
+}
+
+.log-chip {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(5, 8, 22, 0.95);
+  color: var(--muted);
+
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  padding: 3px 8px;
+  min-height: 22px;
+  line-height: 1;
+
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+
+  transition:
+    background 0.18s ease-out,
+    color 0.18s ease-out,
+    border-color 0.18s ease-out,
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out;
+}
+
+.log-chip:active {
+  transform: translateY(1px) scale(0.96);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45) inset;
+}
+
+.log-chip-active {
+  background: radial-gradient(circle at top, var(--accent-soft), #050816);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.log-chip.log-chip-active:hover,
+.log-chip.log-chip-active:active {
+  background: radial-gradient(circle at top, var(--accent-soft), #050816);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* ==========================================================================
+   BATTLE LOG PANEL
+   ========================================================================== */
+
+#log {
+  flex: 1 1 auto;
+  min-height: 60px;
+  max-height: none;
+  padding: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: radial-gradient(circle at top, #151b33 0, #05070f 70%);
+  font-size: 0.78rem;
+  color: var(--muted);
+  overflow-y: auto;
+  margin: 0;
+  animation: panelDropIn 0.22s ease-out;
+}
+
+.log-line {
+  margin: 0;
+  padding: 2px 0;
+}
+
+.log-line.system { color: var(--accent); }
+.log-line.danger { color: var(--danger); }
+.log-line.good   { color: #a5d6a7; }
+
+/* ==========================================================================
+   ACTIONS BOX (BOTTOM BUTTON GRID)
+   ========================================================================== */
+
+#actions {
+  flex: 0 0 auto;
+  margin-top: 0;
+
+  max-height: 150px;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  padding: 4px;
+
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-gap: 4px;
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(0,0,0,0.25);
+
+  -webkit-overflow-scrolling: touch;
+  animation: panelDropIn 0.22s ease-out;
+}
+
+/* ==========================================================================
+   MODAL (INVENTORY / MERCHANT / CHEATS / SPELLS / GAME OVER)
+   ========================================================================== */
+
+#modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.68);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20;
+}
+
+#modalPanel {
+  width: calc(100% - 24px);
+  max-width: 460px;
+  max-height: 80vh;
+  border-radius: var(--radius);
+  background: radial-gradient(circle at top, #151b32 0, #05070f 70%);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 18px 42px rgba(0,0,0,0.7);
+  animation: panelPopIn 0.22s ease-out;
+}
+
+#modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+#modalBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 4px 4px 4px;
+  font-size: 0.82rem;
+
+  /* Add these: hide scrollbars but keep scrolling */
+  scrollbar-width: none;           /* Firefox */
+}
+
+#modalBody::-webkit-scrollbar {
+  display: none;                   /* Chrome / Edge / Safari */
+}
+
+.modal-subtitle {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 2px 0 6px;
+}
+
+/* One “row” inside modals: items, spells, options, etc. */
+.item-row {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #050816;
+}
+
+.item-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.item-name {
+  font-weight: 600;
+}
+
+.item-meta {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.item-actions {
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   COMPANION ACTIONS STRIP
+   ========================================================================== */
+
+.companion-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 0 4px 2px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+
+  scrollbar-width: none;
+}
+
+.companion-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.companion-actions > * {
+  flex: 0 0 auto;
+}
+
+.companion-actions .btn,
+.companion-actions button,
+.companion-actions .companion-pill {
+  width: auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ==========================================================================
+   TAGS / BADGES
+   ========================================================================== */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.tag.gold {
+  color: var(--gold);
+  border-color: rgba(246,211,101,0.6);
+}
+
+.tag.boss {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ==========================================================================
+   FEEDBACK MODAL: SPECIFIC OVERRIDES
+   ========================================================================== */
+
+#feedbackType {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #050816;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+#feedbackText {
+  width: 100%;
+  min-height: 90px;
+  max-height: 180px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #050816;
+  color: var(--text);
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+/* ==========================================================================
+   SETTINGS SCREEN
+   ========================================================================== */
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  font-size: 0.85rem;
+}
+
+.settings-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.settings-control select,
+.settings-control input[type="range"] {
+  background: #050816;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 4px 8px;
+}
+/* ==========================================================================
+   IN GAME SETTINGS MENU
+   ========================================================================== */
+
+/* In-game settings modal layout */
+.settings-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* One row = label | control | value, styled like a pill panel */
+.settings-modal-body .settings-row {
+  display: grid;
+  grid-template-columns: 1.5fr 3fr 4ch;  /* fixed value column */
+  align-items: center;
+  gap: 0.75rem;
+
+  }
+
+/* Label styling, scoped to the in-game modal */
+.settings-modal-body .settings-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* Fixed-width value so the slider doesn't "jump" as the text changes */
+.settings-modal-body .settings-value {
+  width: 4ch;                 /* enough for '200%' */
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- SLIDER: volume / text speed ---------------------------------------- */
+
+.settings-modal-body input[type="range"] {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 22px;
+  cursor: pointer;
+}
+
+/* Track */
+.settings-modal-body input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04),
+    rgba(255,255,255,0.02)
+  );
+}
+
+.settings-modal-body input[type="range"]::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04),
+    rgba(255,255,255,0.02)
+  );
+}
+
+/* Thumb */
+.settings-modal-body input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  margin-top: -4px; /* center on track */
+  background: radial-gradient(circle at 30% 20%, #ffffff, var(--accent));
+  border: 1px solid rgba(255,255,255,0.85);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+}
+
+.settings-modal-body input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 20%, #ffffff, var(--accent));
+  border: 1px solid rgba(255,255,255,0.85);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+}
+
+/* Active / focus states */
+.settings-modal-body input[type="range"]:focus-visible {
+  outline: none;
+}
+
+.settings-modal-body input[type="range"]:focus-visible::-webkit-slider-thumb,
+.settings-modal-body input[type="range"]:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px rgba(79,195,247,0.5);
+}
+
+.settings-modal-body input[type="range"]:focus-visible::-moz-range-thumb,
+.settings-modal-body input[type="range"]:active::-moz-range-thumb {
+  box-shadow: 0 0 0 2px rgba(79,195,247,0.5);
+}
+
+/* --- SELECTS: difficulty / UI theme ------------------------------------- */
+
+.settings-modal-body .settings-select {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: #050816;
+  color: var(--muted);
+  font-size: 0.78rem;
+
+  appearance: none;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+
+  background-image: linear-gradient(180deg, #050816, #050816);
+  cursor: pointer;
+
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out,
+    border-color 0.18s ease-out,
+    background 0.18s ease-out,
+    color 0.18s ease-out;
+}
+
+/* Focus ring matches other interactive controls */
+.settings-modal-body .settings-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  background: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  color: var(--text);
+}
+
+/* “Selected / active” highlight to match other selected pills/tabs */
+.settings-modal-body .settings-select.settings-select-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(79,195,247,0.35);
+  background: radial-gradient(circle at top, var(--accent-soft), #050816);
+  color: var(--text);
+}
+/* ==========================================================================
+   CHARACTER SHEET UI (TABS + PANELS)
+   ========================================================================== */
+
+.char-tabs-wrapper {
+  width: 100%;
+}
+
+.char-tabs {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding: 6px 2px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  -webkit-overflow-scrolling: touch;
+}
+
+.char-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.char-tab {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: #050816;
+  color: var(--muted);
+
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  white-space: nowrap;
+
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out,
+    border-color 0.18s ease-out,
+    background 0.18s ease-out,
+    color 0.18s ease-out;
+}
+
+.char-tab:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+}
+
+.char-tab:active {
+  transform: translateY(1px) scale(0.96);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45) inset;
+}
+
+.char-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.char-tab.active {
+  background: radial-gradient(circle at top, var(--accent-soft), #050816);
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(79,195,247,0.35);
+}
+
+.char-tab-panel {
+  display: none;
+}
+
+.char-tab-panel.active {
+  display: block;
+}
+
+.char-divider-top {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.char-section {
+  margin-bottom: 10px;
+}
+
+.char-section-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 4px 8px;
+  font-size: 0.82rem;
+}
+
+.stat-label {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  text-align: right;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.stat-note {
+  font-size: 0.68rem;
+  color: var(--muted);
+  display: block;
+}
+
+.char-stat-icon {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.stat-value.stat-attack {
+  color: #ef5350 !important;
+  font-weight: 700;
+}
+
+.stat-value.stat-magic {
+  color: #b39ddb !important;
+  font-weight: 700;
+}
+
+.stat-value.stat-armor {
+  color: #64b5f6 !important;
+  font-weight: 700;
+}
+
+.stat-value.stat-speed {
+  color: #4db6ac !important;
+  font-weight: 700;
+}
+
+.equip-row {
+  font-size: 0.8rem;
+  margin-bottom: 2px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.equip-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.char-companion-desc {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.3;
+}
+
+/* ==========================================================================
+   GENERIC ANIMATIONS
+   ========================================================================== */
+
+/* Button glow: used by .btn.glow, .btn.primary.glow */
+@keyframes btnGlow {
+  0% {
+    box-shadow: 0 0 0 rgba(79,195,247,0.0);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(79,195,247,0.55);
+    filter: brightness(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(79,195,247,0.0);
+    filter: brightness(1);
+  }
+}
+
+/* Panel drop-in: used on main in-game panels and cards */
+@keyframes panelDropIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Modal pop-in: used for #modalPanel */
+@keyframes panelPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE / DESKTOP WRAP
+   ========================================================================== */
+
+@media (min-width: 520px) {
+  #app {
+    margin: 10px auto;
+    border-radius: 16px;
+    border: 1px solid #14172b;
+  }
+}
