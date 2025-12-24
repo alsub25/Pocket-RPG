@@ -7,6 +7,7 @@
         content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 <div id="app">
 
@@ -19,10 +20,10 @@
       <button class="btn outline" id="btnNewGame">New Game</button>
       <button class="btn outline" id="btnLoadGame">Load Game</button>
       <button class="btn outline" id="btnSettingsMain">Settings</button>
-	  
-	  <!-- NEW: Changelog button -->
-    <button class="btn outline" id="btnChangelog">Changelog</button>
-	
+
+      <!-- Changelog button -->
+      <button class="btn outline" id="btnChangelog">Changelog</button>
+
       <button class="btn outline" id="btnFeedback">Feedback / Bug Report</button>
 
       <p class="hint">Progress is stored locally on this device using browser storage.</p>
@@ -38,15 +39,12 @@
         <label for="inputName">Name</label>
         <div class="name-input-row">
           <input id="inputName" type="text" maxlength="16" placeholder="Aria, Thorne, etc.">
-          <button type="button" id="btnRandomName" class="icon-btn" title="Random Name">
-            🎲
-          </button>
+          <button type="button" id="btnRandomName" class="icon-btn" title="Random Name">🎲</button>
         </div>
       </div>
 
       <div class="field">
         <label>Class</label>
-        <!-- Scrollable container -->
         <div id="classScrollContainer">
           <div id="classOptions"></div>
         </div>
@@ -56,23 +54,21 @@
         <label>Difficulty</label>
         <div class="option-row" id="difficultyOptions"></div>
       </div>
-	  
-	  <div class="field">
-  <label>Developer Cheats</label>
 
-  <div class="option-row">
-    <div class="pill-option dev-cheats-pill">
-      <label class="dev-cheats-label">
-        <input type="checkbox" id="devCheatsToggle">
-        <span class="dev-cheats-title">Enable developer cheats</span>
-      </label>
-      <div class="dev-cheats-subtitle">
-        Shows the Cheat menu in-game for this character (testing only).
+      <div class="field">
+        <label>Developer Cheats</label>
+        <div class="option-row">
+          <div class="pill-option dev-cheats-pill">
+            <label class="dev-cheats-label">
+              <input type="checkbox" id="devCheatsToggle">
+              <span class="dev-cheats-title">Enable developer cheats</span>
+            </label>
+            <div class="dev-cheats-subtitle">
+              Shows the Cheat menu in-game for this character (testing only).
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-</div>
-	  
 
       <button class="btn outline" id="btnStartGame">Begin Adventure</button>
       <button class="btn outline" id="btnBackToMenu">Back</button>
@@ -89,6 +85,7 @@
         </div>
         <button id="btnGameMenu" class="icon-btn" title="Menu">≡</button>
       </div>
+
       <div id="hud-bars">
         <div class="bar">
           <div class="bar-fill hp-fill" id="hpFill"></div>
@@ -99,6 +96,7 @@
           <div class="bar-label" id="resLabel">Resource</div>
         </div>
       </div>
+
       <div id="hud-bottom">
         <span id="hud-level">Lv 1 • 0/100 XP</span>
         <span id="hud-gold"><span class="gold">0</span> Gold</span>
@@ -135,7 +133,7 @@
         <div id="questDesc">None yet.</div>
       </div>
 
-      <!-- NEW: Log Filter as its own panel -->
+      <!-- Log Filter panel -->
       <div id="logFilterPanel">
         <div id="logFilters" class="log-filter-row">
           <button class="log-chip" data-log-filter="all">All</button>
@@ -151,51 +149,45 @@
     <div id="actions"></div>
   </div>
 
-<!-- SETTINGS SCREEN (from main menu) -->
-<div id="settingsScreen" class="screen hidden">
-  <div class="card">
-    <h2>Settings</h2>
-    <p class="hint">Customize your Pocket Quest experience.</p>
+  <!-- SETTINGS SCREEN (from main menu) -->
+  <div id="settingsScreen" class="screen hidden">
+    <div class="card">
+      <h2>Settings</h2>
+      <p class="hint">Customize your Pocket Quest experience.</p>
 
-    <!-- Theme Selector -->
-    <div class="settings-row">
-      <div class="settings-label">Theme</div>
-      <div class="settings-control">
-        <select id="themeSelect">
-          <option value="default">Default</option>
-          <option value="arcane">Arcane</option>
-          <option value="inferno">Inferno</option>
-          <option value="forest">Forest</option>
-          <option value="holy">Holy</option>
-          <option value="shadow">Shadow</option>
-        </select>
+      <div class="settings-row">
+        <div class="settings-label">Theme</div>
+        <div class="settings-control">
+          <select id="themeSelect">
+            <option value="default">Default</option>
+            <option value="arcane">Arcane</option>
+            <option value="inferno">Inferno</option>
+            <option value="forest">Forest</option>
+            <option value="holy">Holy</option>
+            <option value="shadow">Shadow</option>
+          </select>
+        </div>
       </div>
-    </div>
 
-    <!-- Master Volume -->
-    <div class="settings-row">
-      <div class="settings-label">Master Volume</div>
-      <div class="settings-control">
-        <input type="range" id="settingsVolume" min="0" max="100" value="80">
+      <div class="settings-row">
+        <div class="settings-label">Master Volume</div>
+        <div class="settings-control">
+          <input type="range" id="settingsVolume" min="0" max="100" value="80">
+        </div>
       </div>
-    </div>
 
-    <!-- Text Speed -->
-    <div class="settings-row">
-      <div class="settings-label">Text Speed</div>
-      <div class="settings-control">
-        <input type="range" id="settingsTextSpeed" min="0" max="100" value="100">
+      <div class="settings-row">
+        <div class="settings-label">Text Speed</div>
+        <div class="settings-control">
+          <input type="range" id="settingsTextSpeed" min="0" max="100" value="100">
+        </div>
       </div>
-    </div>
 
-    <!-- Back Button -->
-    <button class="btn outline" id="btnSettingsBack">
-      Back
-    </button>
+      <button class="btn outline" id="btnSettingsBack">Back</button>
+    </div>
   </div>
-</div>
 
-  <!-- MODAL (inventory / merchant / cheats / pause / spells / game over) -->
+  <!-- MODAL -->
   <div id="modal" class="hidden">
     <div id="modalPanel">
       <div id="modalHeader">
@@ -207,10 +199,10 @@
   </div>
 
 </div>
-	
 
-<!-- after -->
-<script type="module" src="userAcceptance.js"></script>	
+<!-- Scripts -->
+<script type="module" src="userAcceptance.js"></script>
+
 <!-- ✅ Bootstrap loads and then injects the chosen game file -->
 <script type="module" src="bootstrap.js"></script>
 
