@@ -435,6 +435,52 @@ h3 { font-size: 0.95rem; } /* modal titles, sub-panels */
   margin-bottom: 2px;
 }
 
+/* Version picker overlay (bootstrap.js) */
+.version-overlay{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.65);
+  z-index:9999;
+}
+
+.version-panel{
+  width:min(520px,92vw);
+  background:#111;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:14px;
+  padding:18px;
+  box-shadow:0 18px 60px rgba(0,0,0,.55);
+}
+
+.version-title{
+  font-size:18px;
+  font-weight:700;
+  margin-bottom:6px;
+}
+
+.version-hint{
+  opacity:.8;
+  font-size:13px;
+  margin-bottom:14px;
+}
+
+.version-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.version-change-btn{
+  position:fixed;
+  right:12px;
+  bottom:12px;
+  z-index:9998;
+}
+
+
 /* ==========================================================================
    FORM FIELDS / CHARACTER CREATION / FEEDBACK FORM
    ========================================================================== */
