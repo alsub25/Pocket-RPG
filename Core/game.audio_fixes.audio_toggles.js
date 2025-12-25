@@ -2016,6 +2016,8 @@ function renderExploreActions(actionsEl) {
 
   // 🔹 VILLAGE SUBMENU MODE ---------------------------------------------------
   if (showVillageMenu) {
+    
+    
     actionsEl.appendChild(
       makeActionButton('Tavern', () => {
         openTavernModal();
@@ -2040,12 +2042,6 @@ function renderExploreActions(actionsEl) {
       })
     );
 
-    // ✅ Only available in the village (and accessible from the village submenu)
-    actionsEl.appendChild(
-      makeActionButton('Realm & Council', () => {
-        openGovernmentModal();
-      })
-    );
 
     actionsEl.appendChild(
       makeActionButton('Back', () => {
