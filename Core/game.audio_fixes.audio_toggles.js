@@ -2242,6 +2242,14 @@ function toggleHudEntity() {
   if (id === 'normal') div.classList.add('selected');
 });
 }
+// Reset the character-creation dev-cheats UI so it never "sticks"
+function resetDevCheatsCreationUI() {
+  const pill = document.querySelector('.dev-cheats-pill');
+  const cb = document.getElementById('devCheatsToggle');
+
+  if (pill) pill.classList.remove('selected');
+  if (cb) cb.checked = false;
+}
 // --- DEV CHEATS PILL TOGGLE ----------------------------------------------
 const devCheatsPill = document.querySelector('.dev-cheats-pill');
 const devCheatsCheckbox = document.getElementById('devCheatsToggle');
@@ -7087,9 +7095,10 @@ if (btnRandomName && inputName) {
   const btnNewGame = document.getElementById('btnNewGame');
   if (btnNewGame) {
     btnNewGame.addEventListener('click', () => {
-      buildCharacterCreationOptions();
-      switchScreen('character');
-    });
+  resetDevCheatsCreationUI();      // ✅ add
+  buildCharacterCreationOptions();
+  switchScreen('character');
+});
   }
 
     const btnLoadGame = document.getElementById('btnLoadGame');
@@ -7134,8 +7143,9 @@ if (btnFeedback) {
   const btnBackToMenu = document.getElementById('btnBackToMenu');
   if (btnBackToMenu) {
     btnBackToMenu.addEventListener('click', () => {
-      switchScreen('mainMenu');
-    });
+  resetDevCheatsCreationUI();      // ✅ add
+  switchScreen('mainMenu');
+});
   }
 
   // --- SETTINGS SCREEN --------------------------------------------------------
