@@ -1353,6 +1353,17 @@ h3 { font-size: 0.95rem; } /* modal titles, sub-panels */
   text-align: center;
 }
 
+/* ===== Version Picker (bootstrap.js) — uses existing #modal styles ===== */
+.version-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* In modals, avoid double vertical spacing (gap + .btn margin-top) */
+.version-modal-list .btn {
+  margin-top: 0;
+}
 /* ==========================================================================
    TAGS / BADGES
    ========================================================================== */
