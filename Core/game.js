@@ -6392,7 +6392,15 @@ function initLogFilterChips() {
 
   // --- INITIAL SETUP & EVENT LISTENERS ------------------------------------------
 
-document.addEventListener('DOMContentLoaded', () => {
+function onDocReady(fn) {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", fn, { once: true });
+  } else {
+    fn();
+  }
+}
+
+onDocReady(() => {
   // HUD: tap on name to open character sheet
   const hudName = document.getElementById('hud-name');
   if (hudName) {
