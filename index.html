@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Emberwood: The Blackbark Oath</title>
+  <title>EMBERWOOD: THE BLACKBARK OATH</title>
   <meta name="viewport"
         content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="style.css">
@@ -13,8 +13,8 @@
   <!-- MAIN MENU -->
   <div id="mainMenu" class="screen">
     <div class="card center">
-      <h1>Emberwood: The Blackbark Oath</h1>
-      <div class="hint">Fantasy RPG • V0.7.0</div>
+      <h1>EMBERWOOD: THE BLACKBARK OATH</h1>
+      <div class="hint">Fantasy RPG • V0.8.0</div>
 
       <button class="btn outline" id="btnNewGame">New Game</button>
       <button class="btn outline" id="btnLoadGame">Load Game</button>
@@ -179,6 +179,28 @@
         <input type="range" id="settingsVolume" min="0" max="100" value="80">
       </div>
     </div>
+    <!-- Music Toggle -->
+    <div class="settings-row">
+      <div class="settings-label">Music</div>
+      <div class="settings-control">
+        <label>
+          <input type="checkbox" id="settingsMusicToggle" checked>
+          Enabled
+        </label>
+      </div>
+    </div>
+
+    <!-- SFX Toggle -->
+    <div class="settings-row">
+      <div class="settings-label">SFX</div>
+      <div class="settings-control">
+        <label>
+          <input type="checkbox" id="settingsSfxToggle" checked>
+          Enabled
+        </label>
+      </div>
+    </div>
+
 
     <!-- Text Speed -->
     <div class="settings-row">
@@ -210,6 +232,6 @@
 
 <!-- after -->
 <script type="module" src="userAcceptance.js"></script>
-<script type="module" src="Core/game.js"></script>
+<script type="module" src="bootstrap.js"></script>
 </body>
 </html>
