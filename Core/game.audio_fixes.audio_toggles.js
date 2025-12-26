@@ -5158,12 +5158,14 @@ if (ab.type === 'ward') {
   }
 
   // --- compute "damage baseline" as the fallback option ---
-  const plainDamageEstimate = estimatePlainDamage();
-  // represent fallback damage as a comparative score
-  const damageFallbackScore = plainDamageEstimate * 8; // scaled into same domain as score
+const plainDamageEstimate = estimatePlainDamage();
 
-  // If no ability chosen or chosen ability isn't better than a plain attack, do plain damage.
-  if (!chosenAbility || chosenScore < damageFallbackScore - 6) {
+// IMPORTANT: Keep this baseline on the same *scale* as ability scores.
+// The old "* 8" made the baseline so large that companions eventually stopped using abilities.
+const damageFallbackScore = plainDamageEstimate * 1.6;
+
+// If no ability chosen or chosen ability isn't meaningfully better than a plain attack, do plain damage.
+if (!chosenAbility || chosenScore < damageFallbackScore - 2) {
     // Default to doing damage (most basic behavior)
     const dmg = Math.max(1, calcCompanionDamage(comp, false));
     enemy.hp -= dmg;
