@@ -2,6 +2,80 @@
 // ES6 module: structured changelog data for Pocket Quest
 
 export const CHANGELOG = [
+  {
+  version: "0.8.0",
+  title: "Bootstrap Version Picker & Audio Settings Controls",
+  sections: [
+    {
+      heading: "Added",
+      items: [
+        {
+          title: "Multi-build version picker (bootstrap loader)",
+          bullets: [
+            "New bootstrap loader dynamically injects the selected game entry module at runtime.",
+            "Added a Change Version button on the main menu to swap between Main and a preserved Prior Patch v0.7.0 build.",
+            "Supports selecting builds via a ?v= query param and persists the choice to local storage for future launches.",
+            "Includes recovery UX: if a build fails to load, the picker re-opens so players/devs can switch builds."
+          ]
+        },
+        {
+          title: "Audio settings toggles (Music / SFX) + persistence",
+          bullets: [
+            "Settings now include Music and SFX enable toggles alongside Master Volume.",
+            "Audio preferences are saved to local storage and apply immediately without requiring a reload."
+          ]
+        }
+      ]
+    },
+    {
+      heading: "Changed",
+      items: [
+        {
+          title: "User Acceptance gating is now hard-locked",
+          bullets: [
+            "Acceptance modal blocks closing via ✕, overlay click, and ESC while the gate is active.",
+            "Clicks on New Game / Load Game / Begin Adventure are intercepted until both documents are accepted."
+          ]
+        },
+        {
+          title: "Settings now actively drive audio runtime state",
+          bullets: [
+            "Master volume and channel mute state are applied during settings hydration and on-change.",
+            "Music/SFX toggles update live audio behavior immediately."
+          ]
+        }
+      ]
+    },
+    {
+      heading: "Fixed / Stability",
+      items: [
+        {
+          title: "Modal cleanup for cross-feature UI",
+          bullets: [
+            "Acceptance modal clears stray footer elements from other flows to prevent modal bleed and layout conflicts."
+          ]
+        },
+        {
+          title: "Bootstrap fallback on load failure",
+          bullets: [
+            "If the selected build fails to load, the version picker opens so the user can recover by selecting another build."
+          ]
+        }
+      ]
+    },
+    {
+      heading: "Dev Notes",
+      items: [
+        {
+          title: "Version string consistency sweep",
+          bullets: [
+            "Align GAME_PATCH, README 'Current patch', and the main menu version label to 0.8.0 for a clean release."
+          ]
+        }
+      ]
+    }
+  ]
+},
 	{
   version: "0.7.0",
   title: "Court History, Audio Pass & In-Game Changelog",
