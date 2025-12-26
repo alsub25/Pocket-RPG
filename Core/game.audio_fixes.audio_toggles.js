@@ -4270,7 +4270,72 @@ function openCheatMenu() {
 
 
 // --- SKILLS -------------------------------------------------------------------
+function autoDistributeSkillPoints(p) {
+  if (!p || !p.skills) return;
+  if (p.skillPoints == null) p.skillPoints = 0;
+  if (p.skillPoints <= 0) return;
 
+  const keys = ['strength', 'endurance', 'willpower'];
+
+  // Use your class starting distribution as the long-run "target" ratio.
+  const baseWeights =
+    CLASS_STARTING_SKILLS[p.classId] || CLASS_STARTING_SKILLS.default;
+
+  // Small smoothing so 0-weight stats can still receive a point occasionally (dynamic builds).
+  const weights = {};
+  keys.forEach(k => (weights[k] = (baseWeights[k] ?? 0) + 0.25));
+
+  const sumW = keys.reduce((a, k) => a + weights[k], 0);
+  const prob = {};
+  keys.forEach(k => (prob[k] = weights[k] / sumW));
+
+  const before = { ...p.skills };
+  const pointsToSpend = p.skillPoints;
+
+  while (p.skillPoints > 0) {
+    const totalNow = keys.reduce((a, k) => a + (p.skills[k] || 0), 0);
+    const totalAfter = totalNow + 1;
+
+    let bestKey = keys[0];
+    let bestScore = -Infinity;
+
+    keys.forEach(k => {
+      const current = p.skills[k] || 0;
+      const target = totalAfter * prob[k];
+      const deficit = target - current;
+
+      // Tie-break slightly toward the class-weighted stat
+      const score = deficit + prob[k] * 0.01;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestKey = k;
+      }
+    });
+
+    p.skills[bestKey] = (p.skills[bestKey] || 0) + 1;
+    p.skillPoints -= 1;
+  }
+
+  // Recalc + heal like your manual "Increase" path expects
+  recalcPlayerStats();
+  p.hp = p.maxHp;
+  p.resource = p.maxResource;
+  updateHUD();
+
+  // Build a nice log message showing what it did
+  const deltas = keys
+    .map(k => {
+      const d = (p.skills[k] || 0) - (before[k] || 0);
+      return d > 0 ? `+${d} ${k}` : null;
+    })
+    .filter(Boolean);
+
+  addLog(
+    `Auto-distributed ${pointsToSpend} skill point(s): ${deltas.join(', ')}.`,
+    'good'
+  );
+}
 
 
   function openSkillLevelUpModal() {
@@ -4295,6 +4360,19 @@ function openCheatMenu() {
     pointsEl.className = 'modal-subtitle';
     pointsEl.textContent = 'Unspent skill points: ' + p.skillPoints;
     body.appendChild(pointsEl);
+    
+    const autoBtn = document.createElement('button');
+autoBtn.className = 'btn';
+autoBtn.textContent = 'Auto Distribute';
+autoBtn.addEventListener('click', () => {
+  if (p.skillPoints <= 0) return;
+
+  autoDistributeSkillPoints(p);
+
+  // close out the forced-choice modal once points are spent
+  closeModal();
+});
+body.appendChild(autoBtn);
 
     const skills = [
       {
