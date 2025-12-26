@@ -4362,7 +4362,7 @@ function autoDistributeSkillPoints(p) {
     body.appendChild(pointsEl);
     
     const autoBtn = document.createElement('button');
-autoBtn.className = 'btn outline';
+autoBtn.className = 'btn outline small';
 autoBtn.textContent = 'Auto Distribute';
 autoBtn.addEventListener('click', () => {
   if (p.skillPoints <= 0) return;
