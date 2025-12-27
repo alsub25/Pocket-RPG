@@ -1,10 +1,14 @@
 // Locations/Village/tavern.js
-// Tavern UI: resting, rumors, and access to tavern games.
+// Tavern UI: resting, rumors, and tavern games.
 //
-// Goals for V1 polish:
-// - Make "Rest" advance ALL day-based systems that depend on the new day.
-// - Make rumor text reflect the current world state (economy + town hall).
-// - Keep the DOM code small, readable, and consistent with other village modules.
+// This module is intentionally dependency-injected (see TavernDeps) so it can stay
+// decoupled from your main game loop while still triggering all day-based systems.
+//
+// Notes:
+// - "Rent a Room" renders the gold price using the same <span class="tag gold">…</span>
+//   pill used elsewhere (e.g., merchant UI).
+// - Rest advances to next morning, then runs the daily tick pipeline (preferred) or
+//   falls back to individual ticks for compatibility.
 
 /** @typedef {{
  *  state: any,
@@ -15,37 +19,59 @@
  *  handleEconomyAfterPurchase: (state: any, goldSpent: number, context?: string) => void,
  *  jumpToNextMorning: (state: any) => any,
  *  runDailyTicks?: (state: any, absoluteDay: number, hooks?: any) => void,
- *  handleEconomyDayTick: (state: any, absoluteDay: number) => void,
- *  handleGovernmentDayTick: (state: any, absoluteDay: number, hooks?: any) => void,
+ *  handleEconomyDayTick?: (state: any, absoluteDay: number) => void,
+ *  handleGovernmentDayTick?: (state: any, absoluteDay: number, hooks?: any) => void,
  *  handleTownHallDayTick?: (state: any, absoluteDay: number, hooks?: any) => void,
  *  handlePopulationDayTick?: (state: any, absoluteDay: number, hooks?: any) => void,
  *  updateHUD: () => void,
  *  updateTimeDisplay: () => void,
  *  saveGame: () => void,
  *  closeModal: () => void,
- *  openGambleModal: () => void,
+ *  openGambleModal?: () => void,
  * }} TavernDeps
  */
 
 function el(tag, opts = {}) {
   const node = document.createElement(tag);
   if (opts.className) node.className = opts.className;
+
+  // Prefer text unless HTML is explicitly provided.
   if (opts.text != null) node.textContent = String(opts.text);
   if (opts.html != null) node.innerHTML = String(opts.html);
+
   if (opts.attrs) {
-    Object.entries(opts.attrs).forEach(([k, v]) => node.setAttribute(k, String(v)));
+    for (const [k, v] of Object.entries(opts.attrs)) node.setAttribute(k, String(v));
   }
-  if (opts.onClick) node.addEventListener("click", opts.onClick);
-  if (Array.isArray(opts.children)) opts.children.forEach(c => c && node.appendChild(c));
+  if (typeof opts.onClick === "function") node.addEventListener("click", opts.onClick);
+  if (Array.isArray(opts.children)) {
+    for (const c of opts.children) if (c) node.appendChild(c);
+  }
   return node;
 }
 
 function safeGet(obj, path, fallback = null) {
   try {
-    return path.reduce((acc, k) => (acc != null ? acc[k] : undefined), obj) ?? fallback;
+    // eslint-disable-next-line no-null/no-null
+    const v = path.reduce((acc, k) => (acc != null ? acc[k] : undefined), obj);
+    return v ?? fallback;
   } catch {
     return fallback;
   }
+}
+
+function uniqueStrings(arr) {
+  return Array.from(new Set(arr.filter(Boolean).map(String)));
+}
+
+function randChoice(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function formatGoldTag(amount) {
+  const n = Number(amount);
+  const safe = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  return `<span class="tag gold">${safe}g</span>`;
 }
 
 function isActiveDecree(state) {
@@ -56,6 +82,7 @@ function isActiveDecree(state) {
 }
 
 function buildRumorPool(state, econSummary) {
+  /** @type {string[]} */
   const rumors = [];
 
   // --- Town Hall / Decrees -------------------------------------------------
@@ -81,27 +108,19 @@ function buildRumorPool(state, econSummary) {
     rumors.push(`The barkeep mentions ${title}.${label} Some patrons are already arguing over what it will cost them.`);
   }
 
-
-
   // --- Economy -------------------------------------------------------------
   const tier = econSummary && econSummary.tier;
   if (tier && tier.id) {
     if (tier.id === "thriving") {
-      rumors.push(
-        "Caravans are arriving on time—someone swears Emberwood’s coin has been unusually ‘lucky’ lately."
-      );
+      rumors.push("Caravans are arriving on time—someone swears Emberwood’s coin has been unusually ‘lucky’ lately.");
     } else if (tier.id === "stable") {
-      rumors.push(
-        "Business feels steady. Merchants aren’t grinning too wide, which is usually a good sign."
-      );
+      rumors.push("Business feels steady. Merchants aren’t grinning too wide, which is usually a good sign.");
     } else if (tier.id === "struggling") {
-      rumors.push(
-        "You catch talk of thin purses and thinner patience—prices climb, and tempers climb faster."
-      );
+      rumors.push("You catch talk of thin purses and thinner patience—prices climb, and tempers climb faster.");
     }
   }
 
-  // --- Population mood (if available) --------------------------------------
+  // --- Population mood (if available) -------------------------------------
   const mood = safeGet(state, ["village", "population", "mood"], null);
   if (typeof mood === "number") {
     if (mood >= 40) {
@@ -120,27 +139,22 @@ function buildRumorPool(state, econSummary) {
     "A traveler insists the dragon’s roar can still be heard on stormy nights—though nobody agrees on which direction it comes from."
   );
 
-  return Array.from(new Set(rumors));
+  return uniqueStrings(rumors);
 }
 
 function buildOvernightSummary({ state, econSummary }) {
+  /** @type {string[]} */
   const lines = [];
+
   const tier = econSummary?.tier;
-  if (tier) {
-    lines.push(`Economy: ${tier.name} (${tier.priceDescriptor}).`);
-  }
+  if (tier) lines.push(`Economy: ${tier.name} (${tier.priceDescriptor}).`);
 
   const eff = safeGet(state, ["government", "townHallEffects"], null);
-  if (eff && isActiveDecree(state)) {
-    lines.push(`Decree in effect: ${eff.title || "(unnamed decree)"}.`);
-  }
+  if (eff && isActiveDecree(state)) lines.push(`Decree in effect: ${eff.title || "(unnamed decree)"}.`);
 
   const hall = safeGet(state, ["government", "townHall"], null);
-  if (hall?.councilRecess) {
-    lines.push("Town Hall: Council in recess.");
-  } else if (hall?.currentPetition?.status === "pending") {
-    lines.push("Town Hall: A petition is pending.");
-  }
+  if (hall?.councilRecess) lines.push("Town Hall: Council in recess.");
+  else if (hall?.currentPetition?.status === "pending") lines.push("Town Hall: A petition is pending.");
 
   const mood = safeGet(state, ["village", "population", "mood"], null);
   if (typeof mood === "number") {
@@ -149,6 +163,72 @@ function buildOvernightSummary({ state, econSummary }) {
   }
 
   return lines;
+}
+
+function removeLeakedTavernFooter(modalBody) {
+  const modalPanel = modalBody?.parentElement;
+  if (!modalPanel) return;
+  modalPanel.querySelectorAll(".tavern-footer-actions").forEach(n => n.remove());
+}
+
+function makeCardFactory(body) {
+  /**
+   * @param {{
+   *  title: string,
+   *  rightTag?: string, // may be plain text OR small HTML (e.g., gold pill)
+   *  desc?: string,
+   *  actions?: HTMLElement[],
+   * }} args
+   */
+  return function addCard({ title, rightTag, desc, actions }) {
+    const card = el("div", { className: "item-row" });
+
+    const header = el("div", { className: "item-row-header" });
+    header.appendChild(el("div", { html: `<span class="item-name">${title}</span>` }));
+
+    const meta = el("div", { className: "item-meta" });
+    if (typeof rightTag === "string" && rightTag.includes("<")) meta.innerHTML = rightTag;
+    else meta.textContent = rightTag || "";
+    header.appendChild(meta);
+
+    card.appendChild(header);
+
+    if (desc) card.appendChild(el("div", { className: "modal-subtitle", text: desc }));
+
+    if (Array.isArray(actions) && actions.length) {
+      const row = el("div", { className: "item-actions", children: actions });
+      card.appendChild(row);
+    }
+
+    body.appendChild(card);
+    return card;
+  };
+}
+
+function runDayTicks(deps, absoluteDay) {
+  const {
+    state,
+    addLog,
+    runDailyTicks,
+    handleEconomyDayTick,
+    handleGovernmentDayTick,
+    handleTownHallDayTick,
+    handlePopulationDayTick
+  } = deps;
+
+  if (typeof absoluteDay !== "number") return;
+
+  // Preferred: a centralized daily tick pipeline.
+  if (typeof runDailyTicks === "function") {
+    runDailyTicks(state, absoluteDay, { addLog });
+    return;
+  }
+
+  // Back-compat fallback: tick systems individually.
+  if (typeof handleEconomyDayTick === "function") handleEconomyDayTick(state, absoluteDay);
+  if (typeof handleGovernmentDayTick === "function") handleGovernmentDayTick(state, absoluteDay, { addLog });
+  if (typeof handleTownHallDayTick === "function") handleTownHallDayTick(state, absoluteDay, { addLog });
+  if (typeof handlePopulationDayTick === "function") handlePopulationDayTick(state, absoluteDay, { addLog });
 }
 
 /**
@@ -164,11 +244,6 @@ export function openTavernModalImpl(deps) {
     getRestCost,
     handleEconomyAfterPurchase,
     jumpToNextMorning,
-    runDailyTicks,
-    handleEconomyDayTick,
-    handleGovernmentDayTick,
-    handleTownHallDayTick,
-    handlePopulationDayTick,
     updateHUD,
     updateTimeDisplay,
     saveGame,
@@ -177,19 +252,14 @@ export function openTavernModalImpl(deps) {
   } = deps;
 
   const player = state?.player;
-  if (!player) return;
+  if (!player || typeof openModal !== "function") return;
 
-  const econSummary = getVillageEconomySummary(state);
+  const econSummary = getVillageEconomySummary?.(state);
   const tier = econSummary?.tier;
 
   openModal("Emberwood Tavern", body => {
     body.innerHTML = "";
-
-    // Defensive: if any tavern-games footer leaked into the modal panel, remove it.
-    const modalPanel = body.parentElement;
-    if (modalPanel) {
-      modalPanel.querySelectorAll(".tavern-footer-actions").forEach(el => el.remove());
-    }
+    removeLeakedTavernFooter(body);
 
     // --- Intro -------------------------------------------------------------
     body.appendChild(
@@ -208,85 +278,65 @@ export function openTavernModalImpl(deps) {
       })
     );
 
-    // --- Card helper -------------------------------------------------------
-    const addCard = ({ title, rightTag, desc, actions }) => {
-      const card = el("div", { className: "item-row" });
-      const header = el("div", { className: "item-row-header" });
-      header.appendChild(el("div", { html: `<span class="item-name">${title}</span>` }));
-      header.appendChild(el("div", { className: "item-meta", text: rightTag || "" }));
-      card.appendChild(header);
-      if (desc) card.appendChild(el("div", { className: "modal-subtitle", text: desc }));
-      if (actions) {
-        const row = el("div", { className: "item-actions", children: actions });
-        card.appendChild(row);
-      }
-      body.appendChild(card);
-      return card;
-    };
+    const addCard = makeCardFactory(body);
 
     // --- REST --------------------------------------------------------------
-    const restCost = getRestCost(state);
+    const initialRestCost = getRestCost?.(state) ?? 0;
+
     const restBtn = el("button", {
       className: "btn small",
       text: "Rest until Morning",
       onClick: () => {
-        const cost = getRestCost(state);
-        if (player.gold < cost) {
-          addLog("You cannot afford a room right now.", "system");
+        const cost = getRestCost?.(state) ?? 0;
+
+        if (Number(player.gold) < Number(cost)) {
+          addLog?.("You cannot afford a room right now.", "system");
           return;
         }
 
-        // Pay & restore
+        // Pay & restore core resources
         player.gold -= cost;
         player.hp = player.maxHp;
-        player.resource = player.maxResource;
+        if (typeof player.maxResource === "number") player.resource = player.maxResource;
+
+        // Clear common wound-over-time effects
         if (player.status) {
-          player.status.bleedTurns = 0;
-          player.status.bleedDamage = 0;
+          if ("bleedTurns" in player.status) player.status.bleedTurns = 0;
+          if ("bleedDamage" in player.status) player.status.bleedDamage = 0;
         }
 
         // Local spending feeds the village economy.
-        handleEconomyAfterPurchase(state, cost, "village");
+        if (typeof handleEconomyAfterPurchase === "function") handleEconomyAfterPurchase(state, cost, "village");
 
         // Jump time and tick all day-based systems.
-        const newTime = jumpToNextMorning(state);
+        const newTime = typeof jumpToNextMorning === "function" ? jumpToNextMorning(state) : null;
         const absoluteDay = newTime?.absoluteDay;
 
-        if (typeof absoluteDay === "number") {
-          // Prefer the centralized daily tick pipeline when provided by the caller.
-          if (typeof runDailyTicks === "function") {
-            runDailyTicks(state, absoluteDay, { addLog });
-          } else {
-            // Back-compat fallback: tick systems individually.
-            handleEconomyDayTick?.(state, absoluteDay);
-            handleGovernmentDayTick?.(state, absoluteDay, { addLog });
-            handleTownHallDayTick?.(state, absoluteDay, { addLog });
-            handlePopulationDayTick?.(state, absoluteDay, { addLog });
-          }
-        }
+        runDayTicks(deps, absoluteDay);
 
-        const refreshedEcon = getVillageEconomySummary(state);
+        // Post-rest log summary
+        const refreshedEcon = getVillageEconomySummary?.(state);
         const summaryLines = buildOvernightSummary({ state, econSummary: refreshedEcon });
 
-        addLog(
-          `You rest at the tavern and wake on ${newTime.weekdayName} morning (Year ${newTime.year}).`,
-          "good"
-        );
-        if (summaryLines.length) {
-          addLog("Overnight: " + summaryLines.join(" "), "system");
-        }
+        const weekday = newTime?.weekdayName || "the next";
+        const year = newTime?.year ?? newTime?.yea; // tolerate older shapes
+        const yearStr = typeof year === "number" ? ` (Year ${year})` : "";
 
-        updateHUD();
-        updateTimeDisplay();
-        saveGame();
-        closeModal();
+        addLog?.(`You rest at the tavern and wake on ${weekday} morning${yearStr}.`, "good");
+        if (summaryLines.length) addLog?.("Overnight: " + summaryLines.join(" "), "system");
+
+        updateHUD?.();
+        updateTimeDisplay?.();
+        saveGame?.();
+        closeModal?.();
       }
     });
-    restBtn.disabled = player.gold < restCost;
+
+    restBtn.disabled = Number(player.gold) < Number(initialRestCost);
 
     addCard({
       title: "Rent a Room",
-      rightTag: `${restCost}g`,
+      rightTag: formatGoldTag(initialRestCost),
       desc: "Rest until morning, fully restoring health and class resources while washing away most wounds.",
       actions: [restBtn]
     });
@@ -301,11 +351,11 @@ export function openTavernModalImpl(deps) {
       className: "btn small outline",
       text: "Listen",
       onClick: () => {
-        const pool = buildRumorPool(state, getVillageEconomySummary(state));
-        const rumor = pool[Math.floor(Math.random() * pool.length)];
+        const pool = buildRumorPool(state, getVillageEconomySummary?.(state));
+        const rumor = randChoice(pool) || "You overhear nothing useful—just laughter and half-finished stories.";
         rumorText.textContent = rumor;
-        addLog("Tavern rumor: " + rumor, "system");
-        saveGame();
+        addLog?.("Tavern rumor: " + rumor, "system");
+        saveGame?.();
       }
     });
 
@@ -327,7 +377,7 @@ export function openTavernModalImpl(deps) {
           className: "btn small outline",
           text: "Play Tavern Games",
           onClick: () => {
-            closeModal();
+            closeModal?.();
             if (typeof openGambleModal === "function") openGambleModal();
           }
         })
