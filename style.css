@@ -1945,7 +1945,6 @@ h3 { font-size: 0.95rem; } /* modal titles, sub-panels */
 .inv-tab.active,
 .inv-tab.selected {
   outline: 1px solid var(--accent);
-  box-shadow: 0 0 0 1px rgba(79,195,247,0.35);
   background: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
 }
 
