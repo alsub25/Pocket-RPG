@@ -1,7 +1,7 @@
 // bootstrap.js
 
 const VERSIONS = [
-  { id: "future", label: "Future (Patch V1.0.0)", entry: "./Future/Future.js" },
+  { id: "future", label: "Future (Patch V1.0.0)", entry: "./Future/Future_UPDATED_loot.v4.updated.js" },
   { id: "core", label: "Main", entry: "./Core/Main.js" },
   { id: "dev",  label: "Prior Patch V0.7.0",  entry: "./Core/Old.js" },
 ];
