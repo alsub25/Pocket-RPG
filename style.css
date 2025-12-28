@@ -1940,8 +1940,10 @@ h3 { font-size: 0.95rem; } /* modal titles, sub-panels */
 /* stays outlined until another tab is selected */
 .inv-tab.active,
 .inv-tab.selected {
-  outline: 1px solid var(--accent);
-  background: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background: radial-gradient(circle at top, var(--accent-soft), #050816);
+  color: var(--text);
+  border-color: var(--accent);
+}
 }
 
 .inv-list {
