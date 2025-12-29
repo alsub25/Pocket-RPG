@@ -9,6 +9,8 @@ import {
     jumpToNextMorning
 } from './Systems/timeSystem.js'
 
+import { finiteNumber, clampFinite } from './Systems/safety.js'
+
 import {
     initVillageEconomyState,
     getVillageEconomySummary,
@@ -26,7 +28,10 @@ import {
 } from './Systems/kingdomGovernment.js'
 import { openBankModalImpl } from './Locations/Village/bank.js'
 import { openTavernModalImpl } from './Locations/Village/tavern.js' // ⬅️ NEW
-import { openMerchantModalImpl } from './Locations/Village/merchant.js' // ⬅️ NEW
+import {
+    openMerchantModalImpl,
+    handleMerchantDayTick
+} from './Locations/Village/merchant.js' // ⬅️ NEW
 import {
     generateLootDrop,
     getItemPowerScore,
@@ -35,32 +40,161 @@ import {
 } from './Systems/lootGenerator.js'
 import {
     openTownHallModalImpl,
-    handleTownHallDayTick
+    handleTownHallDayTick,
+    cleanupTownHallEffects
 } from './Locations/Village/townHall.js'
 import {
     ensureVillagePopulation,
     handlePopulationDayTick
 } from './Locations/Village/villagePopulation.js'
+import { QUEST_DEFS } from './Quests/questDefs.js'
+
 
 // --- Centralized daily tick -------------------------------------------------
 // Keep day-change side effects in one place so 'rest' and 'explore' can't diverge.
 function runDailyTicks(state, absoluteDay, hooks = {}) {
-    if (typeof absoluteDay !== 'number') return
+    if (!state || typeof absoluteDay !== 'number' || !Number.isFinite(absoluteDay)) return
 
-    // Defensive: some older saves may not have population initialized yet.
+    // Create sim container (persisted) if missing.
+    if (!state.sim || typeof state.sim !== 'object') {
+        state.sim = { lastDailyTickDay: null }
+    }
+
+    const targetDay = Math.max(0, Math.floor(absoluteDay))
+    let lastDay =
+        typeof state.sim.lastDailyTickDay === 'number' && Number.isFinite(state.sim.lastDailyTickDay)
+            ? Math.max(0, Math.floor(state.sim.lastDailyTickDay))
+            : null
+
+    // If we've never ticked before, assume we need to tick *this* day once.
+    if (lastDay === null) lastDay = targetDay - 1
+
+    // Catch-up loop (handles skipped days). Cap so we never lock up the UI.
+    const MAX_CATCH_UP_DAYS = 30
+    let startDay = lastDay + 1
+    if (targetDay - startDay + 1 > MAX_CATCH_UP_DAYS) {
+        startDay = targetDay - MAX_CATCH_UP_DAYS + 1
+    }
+
+    for (let day = startDay; day <= targetDay; day++) {
+        // Defensive: some older saves may not have population initialized yet.
+        try {
+            ensureVillagePopulation(state)
+        } catch (_) {
+            // ignore
+        }
+
+        handleEconomyDayTick(state, day)
+        handleGovernmentDayTick(state, day, hooks)
+        handleTownHallDayTick(state, day, hooks)
+        handlePopulationDayTick(state, day, hooks)
+
+        // Merchant stock restock (keeps shops from becoming permanently empty on long runs).
+        try {
+            handleMerchantDayTick(state, day, cloneItemDef)
+        } catch (_) {
+            // ignore
+        }
+    }
+
+    state.sim.lastDailyTickDay = targetDay
+}
+// --- GAME DATA -----------------------------------------------------------------
+const GAME_PATCH = '1.0.9' // current patch/version
+const SAVE_SCHEMA = 3 // bump when the save structure changes (migrations run on load)
+
+/* --------------------------- Safety helpers --------------------------- */
+// Imported from ./Systems/safety.js (keep NaN/Infinity guards consistent across systems).
+
+// Minimal state sanitation to prevent NaN/Infinity cascades from corrupting the run.
+function sanitizeCoreState() {
     try {
-        ensureVillagePopulation(state)
+        if (!state) return
+        const p = state.player
+        if (p) {
+            p.maxHp = Math.max(1, Math.floor(finiteNumber(p.maxHp, 1)))
+            p.hp = clampFinite(p.hp, 0, p.maxHp, p.maxHp)
+
+            p.maxResource = Math.max(0, Math.floor(finiteNumber(p.maxResource, 0)))
+            p.resource = clampFinite(p.resource, 0, p.maxResource, p.maxResource)
+
+            p.gold = Math.max(0, Math.floor(finiteNumber(p.gold, 0)))
+        }
+
+        const e = state.currentEnemy
+        if (e) {
+            e.maxHp = Math.max(1, Math.floor(finiteNumber(e.maxHp, e.hp || 1)))
+            e.hp = clampFinite(e.hp, 0, e.maxHp, e.maxHp)
+        }
+
+        if (state.time && typeof state.time === 'object') {
+            state.time.dayIndex = Math.max(0, Math.floor(finiteNumber(state.time.dayIndex, 0)))
+            state.time.partIndex = clampFinite(state.time.partIndex, 0, 2, 0)
+        }
     } catch (_) {
         // ignore
     }
-
-    handleEconomyDayTick(state, absoluteDay)
-    handleGovernmentDayTick(state, absoluteDay, hooks)
-    handleTownHallDayTick(state, absoluteDay, hooks)
-    handlePopulationDayTick(state, absoluteDay, hooks)
 }
-// --- GAME DATA -----------------------------------------------------------------
-const GAME_PATCH = '0.7.1' // ← put your current patch/version here
+
+
+/* --------------------------- Crash catcher --------------------------- */
+let lastCrashReport = null
+
+function recordCrash(kind, err, extra = {}) {
+    try {
+        const message =
+            (err && err.message) ||
+            (typeof err === 'string' ? err : '') ||
+            'Unknown error'
+        const stack = err && err.stack ? String(err.stack) : ''
+        lastCrashReport = {
+            kind,
+            message: String(message),
+            stack: stack,
+            time: Date.now(),
+            patch: GAME_PATCH,
+            schema: SAVE_SCHEMA,
+            area: state && state.area ? state.area : null,
+            player:
+                state && state.player
+                    ? {
+                          name: state.player.name,
+                          classId: state.player.classId,
+                          level: state.player.level
+                      }
+                    : null,
+            extra
+        }
+
+        // Keep a short in-game breadcrumb too.
+        try {
+            if (typeof addLog === 'function') {
+                addLog('⚠️ An error occurred. Use Feedback to copy a report.', 'danger')
+            }
+        } catch (_) {}
+    } catch (_) {
+        // ignore
+    }
+}
+
+function initCrashCatcher() {
+    if (window.__pqCrashCatcherInstalled) return
+    window.__pqCrashCatcherInstalled = true
+
+    window.addEventListener('error', (e) => {
+        recordCrash(
+            'error',
+            e && e.error ? e.error : new Error(e && e.message ? e.message : 'Script error'),
+            { filename: e && e.filename, lineno: e && e.lineno, colno: e && e.colno }
+        )
+    })
+
+    window.addEventListener('unhandledrejection', (e) => {
+        const reason = e && e.reason ? e.reason : new Error('Unhandled promise rejection')
+        recordCrash('unhandledrejection', reason)
+    })
+}
+
 const DIFFICULTY_CONFIG = {
     easy: {
         id: 'easy',
@@ -95,6 +229,12 @@ const DIFFICULTY_CONFIG = {
         aiSmartness: 0.8
     }
 }
+
+// --- Progression / special encounters --------------------------------------
+const MAX_PLAYER_LEVEL = 50 // used by dev cheats; raise if you want a longer grind
+const ELITE_BASE_CHANCE = 0.08 // non-boss elite chance (tuned per difficulty)
+
+
 
 function getActiveDifficultyConfig() {
     // Before state exists, just use Normal
@@ -1979,11 +2119,17 @@ function createEmptyState() {
     let savedMusicEnabled = true
     let savedSfxEnabled = true
     try {
-        const v = Number(localStorage.getItem('pq-master-volume'))
-        if (!isNaN(v)) savedVolume = Math.max(0, Math.min(100, v))
+        const vRaw = localStorage.getItem('pq-master-volume')
+        if (vRaw !== null) {
+            const v = Number(vRaw)
+            if (!isNaN(v)) savedVolume = Math.max(0, Math.min(100, v))
+        }
 
-        const t = Number(localStorage.getItem('pq-text-speed'))
-        if (!isNaN(t)) savedTextSpeed = Math.max(30, Math.min(200, t))
+        const tRaw = localStorage.getItem('pq-text-speed')
+        if (tRaw !== null) {
+            const t = Number(tRaw)
+            if (!isNaN(t)) savedTextSpeed = Math.max(30, Math.min(200, t))
+        }
 
         const m = localStorage.getItem('pq-music-enabled')
         if (m !== null) savedMusicEnabled = m === '1' || m === 'true'
@@ -2013,7 +2159,10 @@ function createEmptyState() {
             struggleStreak: 0
         },
 
-        quests: {},
+        quests: {
+            main: null,
+            side: {}
+        },
         flags: {
             metElder: false,
             goblinBossDefeated: false,
@@ -2040,6 +2189,28 @@ function createEmptyState() {
 
             // NEW: gate the Cheat menu behind a dev toggle
             devCheatsEnabled: false
+,
+            // --- Blackbark Oath (Chapter II) ---------------------------------
+            blackbarkChapterStarted: false,
+            barkScribeMet: false,
+
+            // Oath-Splinters (Step 10)
+            oathShardSapRun: false,
+            oathShardWitchReed: false,
+            oathShardBoneChar: false,
+
+            // Quiet Roots Trial / Ash-Warden / Gate / Choice
+            quietRootsTrialDone: false,
+            ashWardenMet: false,
+            blackbarkGateFound: false,
+            blackbarkChoiceMade: false,
+            blackbarkChoice: null,
+
+            // Warden gestures (Side quest: "The Warden’s Gesture")
+            wardenGestureMercy: false,
+            wardenGestureRestraint: false,
+            wardenGestureProtection: false,
+            wardenGesturesCompleted: false
         },
         inCombat: false,
         currentEnemy: null,
@@ -2054,6 +2225,12 @@ function createEmptyState() {
         bank: null,
         villageMerchantNames: null,
         merchantStock: null,
+        merchantStockMeta: null,
+
+        // Simulation meta (used for catch-up ticks & anti-exploit guards)
+        sim: {
+            lastDailyTickDay: null
+        },
 
         // NEW: container for village-level state (population, etc.)
         village: null,
@@ -2653,6 +2830,80 @@ const modalTitleEl = document.getElementById('modalTitle')
 const modalBodyEl = document.getElementById('modalBody')
 let modalOnClose = null // optional one-shot callback run when closeModal() is called
 
+// --- MODAL ACCESSIBILITY (focus + escape + focus trap) -----------------------
+let _modalLastFocusEl = null
+let _modalTrapHandler = null
+
+function _getFocusableElements(root) {
+    if (!root) return []
+    const sel = [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(',')
+    return Array.from(root.querySelectorAll(sel)).filter((el) => {
+        if (!el) return false
+        const style = window.getComputedStyle(el)
+        if (style.display === 'none' || style.visibility === 'hidden') return false
+        // Some controls can be hidden inside collapsed <details>
+        if (el.offsetParent === null && style.position !== 'fixed') return false
+        return true
+    })
+}
+
+function _installModalFocusTrap() {
+    if (!modalEl) return
+    if (_modalTrapHandler) return
+
+    _modalTrapHandler = (e) => {
+        if (!modalEl || modalEl.classList.contains('hidden')) return
+
+        // Escape closes the modal
+        if (e.key === 'Escape') {
+            e.preventDefault()
+            closeModal()
+            return
+        }
+
+        // Basic focus trap for Tab / Shift+Tab
+        if (e.key !== 'Tab') return
+
+        const focusables = _getFocusableElements(modalEl)
+        if (!focusables.length) {
+            e.preventDefault()
+            return
+        }
+
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        const active = document.activeElement
+
+        if (e.shiftKey) {
+            if (active === first || !modalEl.contains(active)) {
+                e.preventDefault()
+                last.focus()
+            }
+        } else {
+            if (active === last) {
+                e.preventDefault()
+                first.focus()
+            }
+        }
+    }
+
+    document.addEventListener('keydown', _modalTrapHandler)
+}
+
+function _removeModalFocusTrap() {
+    if (_modalTrapHandler) {
+        document.removeEventListener('keydown', _modalTrapHandler)
+        _modalTrapHandler = null
+    }
+}
+
 // If we close one interior modal and immediately open another (e.g., Tavern → Gambling),
 // we don't want the interior music to stop/restart between those transitions.
 let pendingInteriorCloseTimer = null
@@ -2677,6 +2928,9 @@ function openModal(title, builderFn) {
         pendingInteriorCloseTimer = null
     }
 
+    // Record current focus so we can restore it on close.
+    _modalLastFocusEl = document.activeElement
+
     modalTitleEl.textContent = title
 
     // 🔹 Clean up any tavern-game footer carried over from a previous modal
@@ -2691,11 +2945,57 @@ function openModal(title, builderFn) {
     // 🔹 Clear old content and build the new modal
     modalBodyEl.innerHTML = ''
     builderFn(modalBodyEl)
+
+    // Accessibility: label + focus trap
+    try {
+        const panel = document.getElementById('modalPanel')
+        if (panel) {
+            panel.setAttribute('role', 'dialog')
+            panel.setAttribute('aria-modal', 'true')
+            panel.setAttribute('aria-labelledby', 'modalTitle')
+            panel.tabIndex = -1
+        }
+        if (modalEl) {
+            modalEl.setAttribute('aria-hidden', 'false')
+            modalEl.dataset.open = '1'
+        }
+    } catch (_) {}
+
     modalEl.classList.remove('hidden')
+    _installModalFocusTrap()
+
+    // Focus first focusable control (or the panel itself)
+    try {
+        const panel = document.getElementById('modalPanel')
+        const focusables = _getFocusableElements(panel || modalEl)
+        if (focusables.length) focusables[0].focus()
+        else if (panel) panel.focus()
+    } catch (_) {}
 }
 
 function closeModal() {
+    // Tear down focus trap *before* hiding so focus doesn't get stuck.
+    _removeModalFocusTrap()
+
     modalEl.classList.add('hidden')
+
+    try {
+        if (modalEl) {
+            modalEl.setAttribute('aria-hidden', 'true')
+            modalEl.dataset.open = '0'
+        }
+    } catch (_) {}
+
+    // Always remove any pinned tavern-game footer actions on close so they
+    // can't leak into future modals or leave hidden interactive elements around.
+    try {
+        if (modalEl) {
+            modalEl.querySelectorAll('.tavern-footer-actions').forEach((el) => el.remove())
+        }
+    } catch (_) {
+        // ignore
+    }
+
     // Ensure close button is restored for non-skill modals
     const closeBtn = document.getElementById('modalClose')
     if (closeBtn) closeBtn.style.display = ''
@@ -2712,6 +3012,14 @@ function closeModal() {
     } else {
         modalOnClose = null
     }
+
+    // Restore focus to whatever opened the modal (if it still exists in DOM)
+    try {
+        if (_modalLastFocusEl && typeof _modalLastFocusEl.focus === 'function' && document.contains(_modalLastFocusEl)) {
+            _modalLastFocusEl.focus()
+        }
+    } catch (_) {}
+    _modalLastFocusEl = null
 
     // If we were inside the bank/tavern, defer flipping interiorOpen off by one tick.
     // This prevents Tavern.wav from cutting out/restarting when transitioning between
@@ -2740,39 +3048,131 @@ function closeModal() {
 }
 // --- LOG & UI RENDERING -------------------------------------------------------
 
+// Log render state (for incremental DOM updates)
+let _logSeq = 0
+let _logUi = {
+    filter: 'all',
+    lastFirstId: null,
+    renderedUpToId: 0
+}
+
+function nextLogId() {
+    _logSeq += 1
+    return _logSeq
+}
+
+function ensureLogIds() {
+    if (!state || !Array.isArray(state.log)) return
+    let maxId = 0
+    state.log.forEach((e) => {
+        if (e && typeof e === 'object') {
+            const id = finiteNumber(e.id, 0)
+            if (id > maxId) maxId = id
+        }
+    })
+    if (maxId <= 0) {
+        // Old saves had no ids; assign them
+        state.log.forEach((e) => {
+            if (!e || typeof e !== 'object') return
+            maxId += 1
+            e.id = maxId
+        })
+    }
+    _logSeq = Math.max(_logSeq, maxId)
+}
+
+// Filter predicate (kept in one place)
+function logPassesFilter(entry, activeFilter) {
+    if (!entry || !entry.type || activeFilter === 'all') return true
+    if (activeFilter === 'system') return entry.type === 'system'
+    if (activeFilter === 'danger') return entry.type === 'danger'
+    if (activeFilter === 'good') return entry.type === 'good'
+    return true
+}
+
 function addLog(text, type) {
-    state.log.push({ text, type: type || 'normal' })
-    if (state.log.length > 80) state.log.shift()
+    // Normalize legacy / inconsistent log types.
+    if (type === 'info') type = 'system'
+
+    if (!state.log) state.log = []
+    ensureLogIds()
+
+    state.log.push({ id: nextLogId(), text, type: type || 'normal' })
+
+    // Keep logs bounded; if we shift, force a full re-render (since indices changed)
+    if (state.log.length > 80) {
+        state.log.shift()
+        _logUi.lastFirstId = null
+        _logUi.renderedUpToId = 0
+    }
+
     renderLog()
 }
 
 function renderLog() {
     const logEl = document.getElementById('log')
     if (!logEl) return
+    if (!state || !Array.isArray(state.log)) return
 
-    logEl.innerHTML = ''
+    // Only auto-scroll if the player is already near the bottom.
+    const prevScrollTop = logEl.scrollTop
+    const wasNearBottom =
+        logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 30
+
+    ensureLogIds()
 
     const activeFilter = state.logFilter || 'all'
+    const firstId = state.log.length ? state.log[0].id : null
 
-    const toRender = state.log.filter((entry) => {
-        if (!entry.type || activeFilter === 'all') return true
-        if (activeFilter === 'system') return entry.type === 'system'
-        if (activeFilter === 'danger') return entry.type === 'danger'
-        if (activeFilter === 'good') return entry.type === 'good'
-        return true
-    })
+    const filterChanged = _logUi.filter !== activeFilter
+    const trimmed = _logUi.lastFirstId !== firstId
+    const needsFull = filterChanged || trimmed || !_logUi.renderedUpToId
 
-    toRender.forEach((entry) => {
-        const p = document.createElement('p')
-        p.className = 'log-line'
-        if (entry.type && entry.type !== 'normal') {
-            p.classList.add(entry.type)
-        }
-        p.textContent = entry.text
-        logEl.appendChild(p)
-    })
+    if (needsFull) {
+        logEl.innerHTML = ''
+        const frag = document.createDocumentFragment()
 
-    logEl.scrollTop = logEl.scrollHeight
+        state.log.forEach((entry) => {
+            if (!logPassesFilter(entry, activeFilter)) return
+            const p = document.createElement('p')
+            p.className = 'log-line'
+            if (entry.type && entry.type !== 'normal') p.classList.add(entry.type)
+            p.textContent = entry.text
+            frag.appendChild(p)
+            _logUi.renderedUpToId = entry.id
+        })
+
+        logEl.appendChild(frag)
+        _logUi.filter = activeFilter
+        _logUi.lastFirstId = firstId
+    } else {
+        // Incremental append: only add newly-added entries since last render
+        const frag = document.createDocumentFragment()
+        let any = false
+
+        state.log.forEach((entry) => {
+            if (!entry || entry.id <= _logUi.renderedUpToId) return
+            if (!logPassesFilter(entry, activeFilter)) return
+
+            const p = document.createElement('p')
+            p.className = 'log-line'
+            if (entry.type && entry.type !== 'normal') p.classList.add(entry.type)
+            p.textContent = entry.text
+            frag.appendChild(p)
+            _logUi.renderedUpToId = entry.id
+            any = true
+        })
+
+        if (any) logEl.appendChild(frag)
+    }
+
+    if (wasNearBottom) {
+        logEl.scrollTop = logEl.scrollHeight
+    } else {
+        // Preserve reading position when the player scrolls up.
+        const maxTop = Math.max(0, logEl.scrollHeight - logEl.clientHeight)
+        logEl.scrollTop = Math.min(prevScrollTop, maxTop)
+    }
 }
 
 // NEW: optional small time label, if you add <div id="timeLabel"></div> in HTML
@@ -2783,60 +3183,505 @@ function updateTimeDisplay() {
     label.textContent = formatTimeLong(info)
 }
 function setScene(title, text) {
-    document.getElementById('sceneTitle').textContent = title
-    document.getElementById('sceneText').textContent = text
+    const t = document.getElementById('sceneTitle')
+    const b = document.getElementById('sceneText')
+    if (t) t.textContent = title
+    if (b) {
+        b.textContent = text
+        // Keep long story beats readable without pushing the UI.
+        b.scrollTop = 0
+    }
 }
 
+
+function ensureQuestStructures() {
+    if (!state.quests) state.quests = {}
+    if (!state.quests.main) state.quests.main = null
+    if (!state.quests.side) state.quests.side = {}
+    if (!state.flags) state.flags = {}
+
+    // Ensure Blackbark flags exist for old saves
+    const f = state.flags
+    if (typeof f.blackbarkChapterStarted === 'undefined') f.blackbarkChapterStarted = false
+    if (typeof f.barkScribeMet === 'undefined') f.barkScribeMet = false
+    if (typeof f.oathShardSapRun === 'undefined') f.oathShardSapRun = false
+    if (typeof f.oathShardWitchReed === 'undefined') f.oathShardWitchReed = false
+    if (typeof f.oathShardBoneChar === 'undefined') f.oathShardBoneChar = false
+    if (typeof f.quietRootsTrialDone === 'undefined') f.quietRootsTrialDone = false
+    if (typeof f.ashWardenMet === 'undefined') f.ashWardenMet = false
+    if (typeof f.blackbarkGateFound === 'undefined') f.blackbarkGateFound = false
+    if (typeof f.blackbarkChoiceMade === 'undefined') f.blackbarkChoiceMade = false
+    if (typeof f.blackbarkChoice === 'undefined') f.blackbarkChoice = null
+
+    if (typeof f.blackbarkEpilogueShown === 'undefined') f.blackbarkEpilogueShown = false
+    if (typeof f.blackbarkQuestRewarded === 'undefined') f.blackbarkQuestRewarded = false
+
+    if (typeof f.wardenGestureMercy === 'undefined') f.wardenGestureMercy = false
+    if (typeof f.wardenGestureRestraint === 'undefined') f.wardenGestureRestraint = false
+    if (typeof f.wardenGestureProtection === 'undefined') f.wardenGestureProtection = false
+    if (typeof f.wardenGesturesCompleted === 'undefined') f.wardenGesturesCompleted = false
+}
+
+function startSideQuest(id) {
+    ensureQuestStructures()
+    const def = QUEST_DEFS.side[id]
+    if (!def) return
+    if (!state.quests.side[id]) {
+        state.quests.side[id] = { id, name: def.name, status: 'active', step: 0 }
+        addLog('Quest started: ' + def.name, 'system')
+        updateQuestBox()
+        saveGame()
+    }
+}
+
+function advanceSideQuest(id, nextStep) {
+    ensureQuestStructures()
+    const q = state.quests.side[id]
+    if (!q || q.status !== 'active') return
+    q.step = Math.max(q.step || 0, nextStep)
+    addLog('Quest updated: ' + q.name, 'system')
+    updateQuestBox()
+    saveGame()
+}
+
+function completeSideQuest(id, rewardsFn) {
+    ensureQuestStructures()
+    const q = state.quests.side[id]
+    if (!q || q.status !== 'active') return
+    q.status = 'completed'
+    addLog('Quest completed: ' + q.name, 'good')
+    if (typeof rewardsFn === 'function') rewardsFn()
+    updateQuestBox()
+    saveGame()
+}
+
+function getActiveSideQuests() {
+    ensureQuestStructures()
+    return Object.values(state.quests.side || {}).filter((q) => q && q.status === 'active')
+}
+
+function getSideQuestStepText(q) {
+    const def = QUEST_DEFS.side[q.id]
+    if (!def) return q && q.status === 'active' ? 'Quest objective unavailable.' : ''
+    const stepText = def.steps && def.steps[q.step]
+    if (stepText) return stepText
+    return q && q.status === 'active' ? 'Quest objective unavailable.' : ''
+}
+
+function hasAllOathSplinters() {
+    const f = state.flags || {}
+    return !!(f.oathShardSapRun && f.oathShardWitchReed && f.oathShardBoneChar)
+}
+
+
+function maybeTriggerSideQuestEvent(areaId) {
+    ensureQuestStructures()
+
+    const qs = state.quests.side || {}
+    const p = state.player || { gold: 0 }
+
+    // Helper: complete in village (or tavern) with simple rewards
+    const rewardGold = (amt) => {
+        if (!amt) return
+        p.gold += amt
+        addLog('You receive ' + amt + ' gold.', 'good')
+    }
+
+    // -----------------------------------------------------------------------
+    // Whispers in the Grain
+    // -----------------------------------------------------------------------
+    const grain = qs.grainWhispers
+    if (grain && grain.status === 'active') {
+        if (areaId === 'village' && grain.step === 0) {
+            setScene(
+                'Whispers in the Grain',
+                [
+                    'The storehouse keeper is pale and sweating.',
+                    '"We pulled a good harvest," she insists, "but the sacks keep… emptying."',
+                    '',
+                    'You find neat pin‑holes in the grain sacks, as if something small and clever has been feeding without leaving footprints.',
+                    '',
+                    'A tavernhand mentions seeing lantern‑glints beyond the palisade — not wolves, not men… something in between.'
+                ].join('\n')
+            )
+            advanceSideQuest('grainWhispers', 1)
+            return true
+        }
+        if (areaId === 'forest' && grain.step === 1) {
+            setScene(
+                'Outskirts – Spoiled Tracks',
+                [
+                    'Near the road, you find a trail of spilled kernels leading into brush.',
+                    '',
+                    'The ground is alive with tiny scrapes — not claws, not boots.',
+                    'Just the nervous scratch of many small mouths.'
+                ].join('\n')
+            )
+            advanceSideQuest('grainWhispers', 2)
+            return true
+        }
+        if (areaId === 'village' && grain.step === 2) {
+            setScene(
+                'Grain Settled',
+                'You return with proof enough to calm the panic. The storehouse keeper presses coins into your hand with shaking gratitude.'
+            )
+            completeSideQuest('grainWhispers', () => {
+                rewardGold(60)
+                addItemToInventory('potionMana', 1)
+            })
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // The Missing Runner
+    // -----------------------------------------------------------------------
+    const runner = qs.missingRunner
+    if (runner && runner.status === 'active') {
+        if (areaId === 'forest' && runner.step === 0) {
+            setScene(
+                'The Missing Runner',
+                [
+                    'You find a torn strip of cloth snagged on a bramble — village weave.',
+                    '',
+                    'A few steps later: a satchel half‑buried in mud, its clasp broken.',
+                    '',
+                    'No body. No blood.',
+                    'Just silence that feels arranged.'
+                ].join('\n')
+            )
+            advanceSideQuest('missingRunner', 1)
+            return true
+        }
+        if (areaId === 'village' && runner.step === 1) {
+            setScene(
+                'Runner’s Satchel',
+                'You return with the satchel. The family doesn’t get answers, but they get something to hold — and sometimes that’s what keeps grief from turning into rage.'
+            )
+            completeSideQuest('missingRunner', () => rewardGold(80))
+            // Gesture: mercy (you returned it)
+            state.flags.wardenGestureMercy = true
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Bark That Bleeds
+    // -----------------------------------------------------------------------
+    const bark = qs.barkThatBleeds
+    if (bark && bark.status === 'active') {
+        if (areaId === 'forest' && bark.step === 0) {
+            setScene(
+                'Bark That Bleeds',
+                [
+                    'You find the blackened tree the Bark‑Scribe described.',
+                    '',
+                    'Its bark flakes like old scabs. When you cut a shallow notch, sap wells up — dark, slow, and warm as if the tree is holding a secret close to its chest.',
+                    '',
+                    'You bottle the sample.'
+                ].join('\n')
+            )
+            advanceSideQuest('barkThatBleeds', 2)
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Debt of the Hearth
+    // -----------------------------------------------------------------------
+    const debt = qs.debtOfTheHearth
+    if (debt && debt.status === 'active') {
+        if (areaId === 'village' && debt.step === 0) {
+            openModal('Debt of the Hearth', (body) => {
+                const t = document.createElement('p')
+                t.className = 'modal-subtitle'
+                t.textContent =
+                    'A tired parent asks for help paying a collector. You can pay 150 gold… or refuse.'
+                body.appendChild(t)
+
+                const wrap = document.createElement('div')
+                wrap.className = 'modal-actions'
+                body.appendChild(wrap)
+
+                const payBtn = makeActionButton('Pay (150g)', () => {
+                    if (p.gold < 150) {
+                        addLog('You do not have enough gold.', 'danger')
+                        return
+                    }
+                    p.gold -= 150
+                    addLog('You pay the debt. A hearth stays lit another season.', 'good')
+                    state.flags.wardenGestureProtection = true
+                    completeSideQuest('debtOfTheHearth', () => addItemToInventory('potionMana', 1))
+                    closeModal()
+                })
+
+                const refuseBtn = makeActionButton('Refuse', () => {
+                    addLog('You refuse. The collector smiles like a knife.', 'system')
+                    state.flags.wardenGestureRestraint = true // you chose not to take violence
+                    completeSideQuest('debtOfTheHearth', () => rewardGold(20))
+                    closeModal()
+                })
+
+                wrap.appendChild(payBtn)
+                wrap.appendChild(refuseBtn)
+            })
+            advanceSideQuest('debtOfTheHearth', 1)
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Frostpeak’s Lost Hymn
+    // -----------------------------------------------------------------------
+    const hymn = qs.frostpeaksHymn
+    if (hymn && hymn.status === 'active') {
+        if (areaId === 'frostpeak' && hymn.step === 0) {
+            setScene(
+                'Frostpeak’s Lost Hymn',
+                [
+                    'Wind scrapes the stones like a bow across a string.',
+                    'In a split boulder you find a scrap of parchment, ink‑bleached but stubborn.',
+                    '',
+                    'A single verse survives — enough for a singer to rebuild the rest.'
+                ].join('\n')
+            )
+            advanceSideQuest('frostpeaksHymn', 2)
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // The Witch’s Apology (simple 3‑reagent counter)
+    // -----------------------------------------------------------------------
+    const apology = qs.witchsApology
+    if (apology && apology.status === 'active') {
+        if (areaId === 'marsh') {
+            if (typeof apology.progress !== 'number') apology.progress = 0
+            if (apology.step === 0) apology.step = 1
+
+            if (apology.step === 1 && apology.progress < 3) {
+                apology.progress += 1
+                setScene(
+                    'Marsh Reagents',
+                    'You gather a bitter reed, a pale fungus, and a handful of salt‑mud. (' +
+                        apology.progress +
+                        '/3)'
+                )
+                addLog('You gather marsh reagents. (' + apology.progress + '/3)', 'system')
+
+                if (apology.progress >= 3) {
+                    apology.step = 2
+                    addLog('You have enough to brew an unbinding draught. Return to the tavern.', 'system')
+                    updateQuestBox()
+                    saveGame()
+                    return true
+                }
+
+                updateQuestBox()
+                saveGame()
+                return true
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Bone‑Tithe
+    // -----------------------------------------------------------------------
+    const tithe = qs.boneTithe
+    if (tithe && tithe.status === 'active') {
+        if (areaId === 'catacombs' && tithe.step === 0) {
+            openModal('Bone‑Tithe', (body) => {
+                const t = document.createElement('p')
+                t.className = 'modal-subtitle'
+                t.textContent =
+                    'A stone mouth in the wall whispers: “Tithe.” You may offer 120 gold to pass.'
+                body.appendChild(t)
+
+                const wrap = document.createElement('div')
+                wrap.className = 'modal-actions'
+                body.appendChild(wrap)
+
+                const payBtn = makeActionButton('Offer 120g', () => {
+                    if (p.gold < 120) {
+                        addLog('You do not have enough gold.', 'danger')
+                        return
+                    }
+                    p.gold -= 120
+                    setScene(
+                        'The Catacombs Answer',
+                        'The mouth closes. Something moves deeper in the dark — not pleased, not angry. Merely… fed.'
+                    )
+                    addLog('You pay the tithe and leave with your bones intact.', 'system')
+                    completeSideQuest('boneTithe', () => rewardGold(140))
+                    closeModal()
+                })
+
+                const refuseBtn = makeActionButton('Refuse', () => {
+                    addLog('You refuse. The dark remembers.', 'danger')
+                    completeSideQuest('boneTithe', () => rewardGold(40))
+                    closeModal()
+                })
+
+                wrap.appendChild(payBtn)
+                wrap.appendChild(refuseBtn)
+            })
+            advanceSideQuest('boneTithe', 1)
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // The Hound of Old Roads (simple forest event)
+    // -----------------------------------------------------------------------
+    const hound = qs.houndOfOldRoads
+    if (hound && hound.status === 'active') {
+        if (areaId === 'forest' && hound.step === 0) {
+            setScene(
+                'The Hound of Old Roads',
+                [
+                    'A spectral hound pads along the road without making a sound.',
+                    '',
+                    'It stops, looks back at you once — and you feel an old promise tug like a leash.',
+                    '',
+                    'Then it vanishes between trees, leaving only the smell of rain on stone.'
+                ].join('\n')
+            )
+            advanceSideQuest('houndOfOldRoads', 1)
+            return true
+        }
+        if (areaId === 'village' && hound.step === 1) {
+            setScene('Old Roads', 'You report what you saw. The elders exchange glances that do not belong to ordinary stories.')
+            completeSideQuest('houndOfOldRoads', () => rewardGold(75))
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // A Crown Without a King (two shards + choice)
+    // -----------------------------------------------------------------------
+    const crown = qs.crownWithoutKing
+    if (crown && crown.status === 'active') {
+        if (areaId === 'catacombs' && crown.step === 0) {
+            setScene('Crown‑Shard', 'Half‑melted metal glints in the silt. It is shaped like authority — and it feels cold to hold.')
+            advanceSideQuest('crownWithoutKing', 1)
+            crown.found1 = true
+            return true
+        }
+        if (areaId === 'keep' && crown.step <= 1 && !crown.found2) {
+            setScene('Crown‑Shard', 'You pry a second shard from a cracked throne‑step. Power comes apart the way all brittle things do — suddenly.')
+            crown.found2 = true
+            crown.step = 2
+            updateQuestBox()
+            saveGame()
+            return true
+        }
+        if (areaId === 'village' && crown.step === 2 && crown.found1 && crown.found2 && !crown.choiceMade) {
+            openModal('A Crown Without a King', (body) => {
+                const t = document.createElement('p')
+                t.className = 'modal-subtitle'
+                t.textContent =
+                    'Two shards in your hand. One decision in your throat. Destroy them… or sell them.'
+                body.appendChild(t)
+
+                const wrap = document.createElement('div')
+                wrap.className = 'modal-actions'
+                body.appendChild(wrap)
+
+                wrap.appendChild(
+                    makeActionButton('Destroy', () => {
+                        crown.choiceMade = true
+                        addLog('You destroy the shards. Some temptations end quietly.', 'good')
+                        completeSideQuest('crownWithoutKing', () => rewardGold(60))
+                        closeModal()
+                    })
+                )
+
+                wrap.appendChild(
+                    makeActionButton('Sell', () => {
+                        crown.choiceMade = true
+                        addLog('You sell the shards. Coin is lighter than conscience.', 'system')
+                        completeSideQuest('crownWithoutKing', () => rewardGold(220))
+                        closeModal()
+                    })
+                )
+            })
+            return true
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Warden’s Gesture (completion computed from flags)
+    // -----------------------------------------------------------------------
+    const gesture = qs.wardensGesture
+    if (gesture && gesture.status === 'active') {
+        const f = state.flags || {}
+        const done = !!(f.wardenGestureMercy && f.wardenGestureRestraint && f.wardenGestureProtection)
+        if (done && !f.wardenGesturesCompleted) {
+            f.wardenGesturesCompleted = true
+            gesture.step = 2
+            updateQuestBox()
+            saveGame()
+        }
+    }
+
+    return false
+}
+
+
 function updateQuestBox() {
+    ensureQuestStructures()
+
+    // IMPORTANT: #questTitle contains a chevron span. Writing to .textContent
+    // on the header will wipe child nodes (including the chevron). We write
+    // into #questTitleText when present, and fall back safely if not.
     const qTitle = document.getElementById('questTitle')
+    const qTitleText = document.getElementById('questTitleText')
     const qDesc = document.getElementById('questDesc')
+    if (!qTitle || !qDesc) return
+
     const mainQuest = state.quests.main
-    if (!mainQuest) {
-        qTitle.textContent = 'Quests'
+    const activeSide = getActiveSideQuests()
+
+    if (!mainQuest && activeSide.length === 0) {
+        if (qTitleText) qTitleText.textContent = 'Quests'
+        else qTitle.textContent = 'Quests'
         qDesc.textContent = 'No active quests.'
         return
     }
 
-    qTitle.textContent = 'Main Quest – ' + mainQuest.name
-    let stepText = ''
+    let lines = []
 
-    switch (mainQuest.step) {
-        case 0:
-            stepText = 'Speak with Elder Rowan in Emberwood Village.'
-            break
-        case 1:
-            stepText = 'Hunt down the Goblin Warlord in Emberwood Forest.'
-            break
-        case 2:
-            stepText =
-                'Travel to the Ruined Spire and defeat the Void-Touched Dragon.'
-            break
-        case 3:
-            stepText = 'Enter the Ashen Marsh and end the Marsh Witch.'
-            break
-        case 4:
-            stepText = 'Cross Frostpeak Pass and topple the Frostpeak Giant.'
-            break
-        case 5:
-            stepText =
-                'Descend into the Sunken Catacombs and destroy the Sunken Lich.'
-            break
-        case 6:
-            stepText = 'Storm the Obsidian Keep and defeat the Obsidian King.'
-            break
-        case 7:
-            stepText =
-                'Return to Elder Rowan with proof the corruption is broken.'
-            break
-        default:
-            stepText = 'Quest complete!'
+    if (mainQuest) {
+        const stepLine =
+            (QUEST_DEFS.main.steps && QUEST_DEFS.main.steps[mainQuest.step]) ||
+            'Quest objective unavailable.'
+        const mainHeader =
+            'Main Quest – ' +
+            (mainQuest.name || QUEST_DEFS.main.name || 'Main Quest')
+
+        lines.push(mainHeader)
+        if (mainQuest.status === 'completed') {
+            lines.push('Completed.')
+        } else {
+            lines.push(stepLine)
+        }
     }
 
-    if (mainQuest.status === 'completed') {
-        qDesc.textContent = 'Completed: ' + mainQuest.name
-    } else {
-        qDesc.textContent = stepText
+    if (activeSide.length > 0) {
+        lines.push('')
+        lines.push('Side Quests – ' + activeSide.length + ' active')
+        activeSide.slice(0, 3).forEach((q) => {
+            const stepText = getSideQuestStepText(q)
+            lines.push('• ' + q.name + (stepText ? ' — ' + stepText : ''))
+        })
+        if (activeSide.length > 3) {
+            lines.push('• …and ' + (activeSide.length - 3) + ' more')
+        }
     }
+
+    if (qTitleText) qTitleText.textContent = 'Quests'
+    else qTitle.textContent = 'Quests'
+    qDesc.textContent = lines.join('\n')
 }
 
 function updateEnemyPanel() {
@@ -2902,6 +3747,8 @@ function updateEnemyPanel() {
 
 function updateHUD() {
     if (!state.player) return
+
+    sanitizeCoreState()
 
     const p = state.player
     const comp = state.companion
@@ -3379,6 +4226,7 @@ function startNewGameFromCreation() {
     }
 
     state.player = player
+    ensureQuestStructures()
     state.quests.main = {
         id: 'main',
         name: 'Shadows over Emberwood',
@@ -3530,135 +4378,375 @@ function sellItemFromInventory(index, context = 'village') {
 function openInventoryModal(inCombat) {
     const p = state.player
     openModal('Inventory', (body) => {
+        body.classList.add('inventory-modal')
+
         if (!p.inventory.length) {
             body.innerHTML =
                 '<p class="modal-subtitle">You are not carrying anything.</p>'
             return
         }
 
-        p.inventory.forEach((item, index) => {
-            const div = document.createElement('div')
-            div.className = 'item-row'
+        const toolbar = document.createElement('div')
+        toolbar.className = 'inv-toolbar'
 
-            const header = document.createElement('div')
-            header.className = 'item-row-header'
+        const searchWrap = document.createElement('div')
+        searchWrap.className = 'inv-search-wrap'
 
-            const left = document.createElement('div')
-            left.innerHTML =
-                '<span class="item-name">' +
-                item.name +
-                '</span>' +
-                (item.quantity > 1 ? ' ×' + item.quantity : '')
+        const search = document.createElement('input')
+        search.className = 'inv-search'
+        search.type = 'text'
+        search.placeholder = 'Search…'
+        search.autocomplete = 'off'
+        searchWrap.appendChild(search)
 
-            const right = document.createElement('div')
-            right.className = 'item-meta'
-
-            // Build compact metadata line: type, rarity, iLvl, and comparison arrow for gear.
-            const parts = []
-            let equipped = false
-
-            if (item.type === 'potion') {
-                parts.push('Consumable')
-            } else if (item.type === 'weapon' || item.type === 'armor') {
-                equipped =
-                    (item.type === 'weapon' &&
-                        p.equipment.weapon &&
-                        p.equipment.weapon.id === item.id) ||
-                    (item.type === 'armor' &&
-                        p.equipment.armor &&
-                        p.equipment.armor.id === item.id)
-
-                parts.push(equipped ? 'Equipped' : 'Equipment')
-
-                if (item.itemLevel) parts.push('iLv ' + item.itemLevel)
-                if (item.rarity) parts.push(formatRarityLabel(item.rarity))
-            } else {
-                parts.push('Item')
-            }
-
-            right.textContent = parts.join(' • ')
-
-            // ▲/▼ to indicate if this gear is better or worse than what you're wearing.
-            if (
-                !equipped &&
-                (item.type === 'weapon' || item.type === 'armor')
-            ) {
-                const equippedItem =
-                    item.type === 'weapon'
-                        ? p.equipment.weapon
-                        : p.equipment.armor
-                const itemScore = getItemPowerScore(item)
-                const equippedScore = equippedItem
-                    ? getItemPowerScore(equippedItem)
-                    : -Infinity
-
-                if (itemScore !== equippedScore) {
-                    const arrow = document.createElement('span')
-                    arrow.style.marginLeft = '6px'
-                    arrow.style.fontWeight = '900'
-
-                    if (itemScore > equippedScore) {
-                        arrow.textContent = '▲'
-                        arrow.style.color = '#2ea043' // green
-                        arrow.title = 'Better than equipped'
-                    } else {
-                        arrow.textContent = '▼'
-                        arrow.style.color = '#f85149' // red
-                        arrow.title = 'Worse than equipped'
-                    }
-                    right.appendChild(arrow)
-                }
-            }
-
-            header.appendChild(left)
-            header.appendChild(right)
-
-            const desc = document.createElement('div')
-            desc.style.fontSize = '0.75rem'
-            desc.style.color = 'var(--muted)'
-            desc.textContent = item.desc || ''
-
-            const actions = document.createElement('div')
-            actions.className = 'item-actions'
-
-            if (item.type === 'potion') {
-                const btn = document.createElement('button')
-                btn.className = 'btn small'
-                btn.textContent = 'Use'
-                btn.addEventListener('click', () => {
-                    usePotionFromInventory(index, inCombat)
-                })
-                actions.appendChild(btn)
-            } else if (item.type === 'weapon' || item.type === 'armor') {
-                const btn = document.createElement('button')
-                btn.className = 'btn small'
-                btn.textContent = 'Equip'
-                btn.addEventListener('click', () => {
-                    equipItemFromInventory(index)
-                })
-                actions.appendChild(btn)
-            }
-
-            div.appendChild(header)
-            div.appendChild(desc)
-            if (actions.children.length) div.appendChild(actions)
-
-            body.appendChild(div)
+        const sort = document.createElement('select')
+        sort.className = 'inv-sort'
+        ;[
+            ['power', 'Sort: Power'],
+            ['type', 'Sort: Type'],
+            ['rarity', 'Sort: Rarity'],
+            ['level', 'Sort: Item Lv'],
+            ['name', 'Sort: Name']
+        ].forEach(([v, label]) => {
+            const opt = document.createElement('option')
+            opt.value = v
+            opt.textContent = label
+            sort.appendChild(opt)
         })
 
-        if (inCombat) {
-            const hint = document.createElement('p')
-            hint.className = 'modal-subtitle'
-            hint.textContent = 'Using items consumes your action this turn.'
-            body.appendChild(hint)
+        toolbar.appendChild(searchWrap)
+        toolbar.appendChild(sort)
+
+        const tabs = document.createElement('div')
+        tabs.className = 'inv-tabs'
+
+        const tabDefs = [
+            ['all', 'All'],
+            ['potion', 'Potions'],
+            ['weapon', 'Weapons'],
+            ['armor', 'Armor']
+        ]
+
+        let activeTab = 'all'
+        let query = ''
+        let sortMode = 'power'
+
+        function makeTab(id, label) {
+            const btn = document.createElement('button')
+            btn.className = 'inv-tab'
+            btn.textContent = label
+            btn.addEventListener('click', () => {
+                activeTab = id
+                tabs.querySelectorAll('.inv-tab').forEach((b) =>
+                    b.classList.remove('active')
+                )
+                btn.classList.add('active')
+                renderList()
+            })
+            if (id === activeTab) btn.classList.add('active')
+            return btn
         }
+
+        tabDefs.forEach(([id, label]) => tabs.appendChild(makeTab(id, label)))
+
+        const list = document.createElement('div')
+        list.className = 'inv-list'
+
+        const hint = document.createElement('p')
+        hint.className = 'modal-subtitle'
+        hint.textContent = inCombat
+            ? 'Using items consumes your action this turn.'
+            : state.area === 'village'
+            ? 'Tip: You can sell items in the village from here.'
+            : 'Tap an item to expand details.'
+
+        body.appendChild(toolbar)
+        body.appendChild(tabs)
+        body.appendChild(list)
+        body.appendChild(hint)
+
+        const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary']
+        const rarityRank = (r) => {
+            const i = rarityOrder.indexOf((r || 'common').toLowerCase())
+            return i >= 0 ? i : 0
+        }
+
+        function equippedIdFor(type) {
+            const eq = p.equipment || { weapon: null, armor: null }
+            if (type === 'weapon') return eq.weapon ? eq.weapon.id : null
+            if (type === 'armor') return eq.armor ? eq.armor.id : null
+            return null
+        }
+
+        function compareLine(item) {
+            if (item.type !== 'weapon' && item.type !== 'armor') return null
+            const eqId = equippedIdFor(item.type)
+            const equipped = eqId
+                ? (p.equipment && item.type === 'weapon'
+                      ? p.equipment.weapon
+                      : p.equipment.armor)
+                : null
+
+            if (!equipped) return null
+
+            const cur = getItemPowerScore(equipped)
+            const cand = getItemPowerScore(item)
+            const delta = Math.round((cand - cur) * 10) / 10
+            if (!isFinite(delta) || Math.abs(delta) < 0.1) return '≈ same power'
+            return (delta > 0 ? '▲ ' : '▼ ') + Math.abs(delta) + ' power'
+        }
+
+        function renderList() {
+            list.innerHTML = ''
+
+            const rows = p.inventory.map((item, idx) => ({ item, idx }))
+
+            const filtered = rows
+                .filter(({ item }) => {
+                    if (activeTab === 'all') return true
+                    return item.type === activeTab
+                })
+                .filter(({ item }) => {
+                    if (!query) return true
+                    const q = query.toLowerCase()
+                    return (
+                        (item.name || '').toLowerCase().includes(q) ||
+                        (item.desc || '').toLowerCase().includes(q) ||
+                        (item.type || '').toLowerCase().includes(q)
+                    )
+                })
+
+            filtered.sort((a, b) => {
+                const ia = a.item
+                const ib = b.item
+                const aEq =
+                    (ia.type === 'weapon' && equippedIdFor('weapon') === ia.id) ||
+                    (ia.type === 'armor' && equippedIdFor('armor') === ia.id)
+                const bEq =
+                    (ib.type === 'weapon' && equippedIdFor('weapon') === ib.id) ||
+                    (ib.type === 'armor' && equippedIdFor('armor') === ib.id)
+
+                // Always float equipped gear to the top within its type.
+                if (aEq !== bEq) return aEq ? -1 : 1
+
+                if (sortMode === 'name') {
+                    return (ia.name || '').localeCompare(ib.name || '')
+                }
+                if (sortMode === 'type') {
+                    const t = (ia.type || '').localeCompare(ib.type || '')
+                    if (t !== 0) return t
+                    return (ia.name || '').localeCompare(ib.name || '')
+                }
+                if (sortMode === 'rarity') {
+                    const r = rarityRank(ib.rarity) - rarityRank(ia.rarity)
+                    if (r !== 0) return r
+                    return (ia.name || '').localeCompare(ib.name || '')
+                }
+                if (sortMode === 'level') {
+                    const l = (ib.itemLevel || 0) - (ia.itemLevel || 0)
+                    if (l !== 0) return l
+                    return (ia.name || '').localeCompare(ib.name || '')
+                }
+
+                // default: power
+                const pA = getItemPowerScore(ia) || 0
+                const pB = getItemPowerScore(ib) || 0
+                const d = pB - pA
+                if (Math.abs(d) > 0.001) return d > 0 ? 1 : -1
+                return (ia.name || '').localeCompare(ib.name || '')
+            })
+
+            if (!filtered.length) {
+                const empty = document.createElement('p')
+                empty.className = 'modal-subtitle'
+                empty.textContent = 'No items match your filters.'
+                list.appendChild(empty)
+                return
+            }
+
+            filtered.forEach(({ item, idx }) => {
+                const isEquipped =
+                    (item.type === 'weapon' && equippedIdFor('weapon') === item.id) ||
+                    (item.type === 'armor' && equippedIdFor('armor') === item.id)
+
+                const card = document.createElement('details')
+                card.className = 'inv-card'
+                if (isEquipped) card.open = true
+
+                const summary = document.createElement('summary')
+                summary.className = 'inv-card-header'
+
+                const left = document.createElement('div')
+                left.className = 'inv-left'
+
+                const name = document.createElement('div')
+                name.className = 'inv-name'
+                name.textContent =
+                    item.name +
+                    (item.type === 'potion' && (item.quantity || 1) > 1
+                        ? '  ×' + (item.quantity || 1)
+                        : '')
+                left.appendChild(name)
+
+                const sub = document.createElement('div')
+                sub.className = 'inv-sub'
+                const bits = []
+                if (item.itemLevel) bits.push('iLv ' + item.itemLevel)
+                if (item.rarity) bits.push(formatRarityLabel(item.rarity))
+                bits.push(item.type === 'potion' ? 'Potion' : item.type === 'weapon' ? 'Weapon' : 'Armor')
+                if (isEquipped) bits.push('Equipped')
+                sub.textContent = bits.filter(Boolean).join(' • ')
+                left.appendChild(sub)
+
+                const right = document.createElement('div')
+                right.className = 'inv-right'
+
+                const score = document.createElement('div')
+                score.className = 'inv-score'
+                score.textContent = Math.round((getItemPowerScore(item) || 0) * 10) / 10
+                right.appendChild(score)
+
+                summary.appendChild(left)
+                summary.appendChild(right)
+
+                const details = document.createElement('div')
+                details.className = 'inv-details'
+
+                const desc = document.createElement('div')
+                desc.className = 'inv-desc'
+                desc.textContent = item.desc || ''
+                details.appendChild(desc)
+
+                const cmp = compareLine(item)
+                if (cmp) {
+                    const cmpEl = document.createElement('div')
+                    cmpEl.className = 'inv-compare'
+                    cmpEl.textContent = cmp
+                    details.appendChild(cmpEl)
+                }
+
+                const actions = document.createElement('div')
+                actions.className = 'inv-actions'
+
+                if (item.type === 'potion') {
+                    const btn = document.createElement('button')
+                    btn.className = 'btn small'
+                    btn.textContent = 'Use'
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault()
+                        usePotionFromInventory(idx, inCombat, {
+                            stayOpen: !inCombat,
+                            onAfterUse: renderList
+                        })
+                    })
+                    actions.appendChild(btn)
+                } else {
+                    if (!isEquipped) {
+                        const btn = document.createElement('button')
+                        btn.className = 'btn small'
+                        btn.textContent = 'Equip'
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault()
+                            equipItemFromInventory(idx, {
+                                stayOpen: true,
+                                onAfterEquip: renderList
+                            })
+                        })
+                        actions.appendChild(btn)
+                    } else {
+                        const btn = document.createElement('button')
+                        btn.className = 'btn small'
+                        btn.textContent = 'Unequip'
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault()
+                            if (item.type === 'weapon') p.equipment.weapon = null
+                            if (item.type === 'armor') p.equipment.armor = null
+                            recalcPlayerStats()
+                            updateHUD()
+                            saveGame()
+                            renderList()
+                        })
+                        actions.appendChild(btn)
+                    }
+                }
+
+                // Selling (only when not in combat)
+                if (!inCombat) {
+                    const inVillage = (state.area || 'village') === 'village'
+                    if (inVillage) {
+                        const btnSell = document.createElement('button')
+                        btnSell.className = 'btn small'
+                        btnSell.textContent = 'Sell'
+                        btnSell.addEventListener('click', (e) => {
+                            e.preventDefault()
+                            sellItemFromInventory(idx, 'village')
+                            renderList()
+                        })
+                        actions.appendChild(btnSell)
+                    }
+                }
+
+                // Drop button (always available, but warns in combat)
+                const btnDrop = document.createElement('button')
+                btnDrop.className = 'btn small danger'
+                btnDrop.textContent = 'Drop'
+                btnDrop.addEventListener('click', (e) => {
+                    e.preventDefault()
+                    const ok = inCombat
+                        ? confirm('Drop this item during combat? You may regret it.')
+                        : confirm('Drop this item?')
+                    if (!ok) return
+
+                    // If dropping equipped gear, unequip first
+                    if (item.type === 'weapon' && p.equipment.weapon && p.equipment.weapon.id === item.id) {
+                        p.equipment.weapon = null
+                    }
+                    if (item.type === 'armor' && p.equipment.armor && p.equipment.armor.id === item.id) {
+                        p.equipment.armor = null
+                    }
+
+                    if (item.type === 'potion' && (item.quantity || 1) > 1) {
+                        item.quantity -= 1
+                    } else {
+                        p.inventory.splice(idx, 1)
+                    }
+
+                    recalcPlayerStats()
+                    updateHUD()
+                    saveGame()
+                    renderList()
+                })
+                actions.appendChild(btnDrop)
+
+                details.appendChild(actions)
+
+                card.appendChild(summary)
+                card.appendChild(details)
+                list.appendChild(card)
+            })
+        }
+
+        search.addEventListener('input', () => {
+            query = (search.value || '').trim()
+            renderList()
+        })
+
+        sort.addEventListener('change', () => {
+            sortMode = sort.value || 'power'
+            renderList()
+        })
+
+        renderList()
     })
 }
 
-function usePotionFromInventory(index, inCombat) {
+function usePotionFromInventory(index, inCombat, opts = {}) {
     const p = state.player
     const item = p.inventory[index]
     if (!item || item.type !== 'potion') return
+
+    const stayOpen = !!opts.stayOpen
+    const onAfterUse = typeof opts.onAfterUse === 'function' ? opts.onAfterUse : null
 
     let used = false
     if (item.hpRestore) {
@@ -3674,56 +4762,55 @@ function usePotionFromInventory(index, inCombat) {
                 'good'
             )
             used = true
-        } else {
-            addLog('You are already at full health.', 'system')
         }
-    } else if (item.resourceRestore && item.resourceKey) {
-        if (p.resourceKey !== item.resourceKey) {
-            addLog('This does not match your class resource.', 'system')
-        } else {
-            const before = p.resource
-            p.resource = Math.min(
-                p.maxResource,
-                p.resource + item.resourceRestore
+    }
+    if (item.resourceRestore) {
+        const before = p.resource
+        p.resource = Math.min(p.maxResource, p.resource + item.resourceRestore)
+        if (p.resource > before) {
+            addLog(
+                'You drink ' +
+                    item.name +
+                    ' and recover ' +
+                    (p.resource - before) +
+                    ' ' +
+                    p.resourceName +
+                    '.',
+                'good'
             )
-            if (p.resource > before) {
-                addLog(
-                    'You use ' +
-                        item.name +
-                        ' and restore ' +
-                        (p.resource - before) +
-                        ' ' +
-                        p.resourceName +
-                        '.',
-                    'good'
-                )
-                used = true
-            } else {
-                addLog('Your ' + p.resourceName + ' is already full.', 'system')
-            }
+            used = true
         }
     }
 
     if (used) {
-        item.quantity -= 1
+        item.quantity = (item.quantity || 1) - 1
         if (item.quantity <= 0) {
             p.inventory.splice(index, 1)
         }
         updateHUD()
         saveGame()
+
+        if (onAfterUse) onAfterUse()
+
         if (inCombat) {
             closeModal()
             enemyTurn()
-        } else {
+        } else if (!stayOpen) {
             closeModal()
         }
+    } else {
+        addLog('Nothing happens.', 'system')
     }
 }
 
-function equipItemFromInventory(index) {
+function equipItemFromInventory(index, opts = {}) {
     const p = state.player
     const item = p.inventory[index]
     if (!item || (item.type !== 'weapon' && item.type !== 'armor')) return
+
+    const stayOpen = !!opts.stayOpen
+    const onAfterEquip =
+        typeof opts.onAfterEquip === 'function' ? opts.onAfterEquip : null
 
     if (item.type === 'weapon') {
         p.equipment.weapon = item
@@ -3736,7 +4823,9 @@ function equipItemFromInventory(index) {
     recalcPlayerStats()
     updateHUD()
     saveGame()
-    closeModal()
+
+    if (onAfterEquip) onAfterEquip()
+    if (!stayOpen) closeModal()
 }
 
 function recalcPlayerStats() {
@@ -3755,6 +4844,16 @@ function recalcPlayerStats() {
         }
     }
 
+    // If loading an old save, ensure stats object exists
+    if (!p.stats) {
+        p.stats = { attack: 0, magic: 0, armor: 0, speed: 0 }
+    }
+
+    // If loading an old save, ensure equipment object exists
+    if (!p.equipment) {
+        p.equipment = { weapon: null, armor: null }
+    }
+
     const s = p.skills
 
     // Base stats from class
@@ -3763,6 +4862,18 @@ function recalcPlayerStats() {
     p.stats.magic = base.magic
     p.stats.armor = base.armor
     p.stats.speed = base.speed
+
+    // Reset derived affixes (percent values unless noted)
+    p.stats.critChance = 0
+    p.stats.dodgeChance = 0
+    p.stats.resistAll = 0
+    p.stats.lifeSteal = 0
+    p.stats.armorPen = 0
+    p.stats.haste = 0
+    p.stats.thorns = 0 // flat reflect
+    p.stats.hpRegen = 0 // per-tick value (small)
+    p.stats.elementalBonuses = {}
+    p.stats.weaponElementType = null
 
     // Skill contributions
     // Strength: boosts physical offense
@@ -3778,23 +4889,64 @@ function recalcPlayerStats() {
     let extraMaxRes = 0
     extraMaxRes += s.willpower * 4
 
+    const addElementBonus = (elem, pct) => {
+        if (!elem || !pct) return
+        p.stats.elementalBonuses[elem] =
+            (p.stats.elementalBonuses[elem] || 0) + pct
+    }
+
+    const applyItemBonuses = (it, slot) => {
+        if (!it) return
+
+        // Core, older fields
+        if (it.attackBonus) p.stats.attack += it.attackBonus
+        if (it.magicBonus) p.stats.magic += it.magicBonus
+        if (it.armorBonus) p.stats.armor += it.armorBonus
+        if (it.speedBonus) p.stats.speed += it.speedBonus
+
+        // Maxima
+        if (it.maxHPBonus) p.maxHp += it.maxHPBonus
+        if (it.maxHpBonus) p.maxHp += it.maxHpBonus // legacy
+        if (it.maxResourceBonus) extraMaxRes += it.maxResourceBonus
+
+        // NEW affixes (all rolled as % in loot generator; store as % here)
+        if (it.critChance) p.stats.critChance += it.critChance
+        if (it.dodgeChance) p.stats.dodgeChance += it.dodgeChance
+        if (it.resistAll) p.stats.resistAll += it.resistAll
+        if (it.lifeSteal) p.stats.lifeSteal += it.lifeSteal
+        if (it.armorPen) p.stats.armorPen += it.armorPen
+        if (it.haste) p.stats.haste += it.haste
+
+        // Defensive utilities
+        if (it.thorns) p.stats.thorns += it.thorns
+        if (it.hpRegen) p.stats.hpRegen += it.hpRegen
+
+        // Elemental bonus
+        if (it.elementalType && it.elementalBonus) {
+            addElementBonus(it.elementalType, it.elementalBonus)
+            if (slot === 'weapon' && !p.stats.weaponElementType) {
+                p.stats.weaponElementType = it.elementalType
+            }
+        }
+
+        // If item stored multiple elemental bonuses (future-proof)
+        if (it.elementalBonuses && typeof it.elementalBonuses === 'object') {
+            Object.keys(it.elementalBonuses).forEach((k) =>
+                addElementBonus(k, it.elementalBonuses[k])
+            )
+        }
+    }
+
     // Equipment contributions
-    if (p.equipment.weapon) {
-        if (p.equipment.weapon.attackBonus) {
-            p.stats.attack += p.equipment.weapon.attackBonus
-        }
-        if (p.equipment.weapon.magicBonus) {
-            p.stats.magic += p.equipment.weapon.magicBonus
-        }
-    }
-    if (p.equipment.armor) {
-        if (p.equipment.armor.armorBonus) {
-            p.stats.armor += p.equipment.armor.armorBonus
-        }
-        if (p.equipment.armor.maxResourceBonus) {
-            extraMaxRes += p.equipment.armor.maxResourceBonus
-        }
-    }
+    applyItemBonuses(p.equipment.weapon, 'weapon')
+    applyItemBonuses(p.equipment.armor, 'armor')
+
+    // Clamp some percent-ish stats to sane gameplay ranges
+    p.stats.critChance = Math.max(0, Math.min(75, p.stats.critChance || 0))
+    p.stats.dodgeChance = Math.max(0, Math.min(60, p.stats.dodgeChance || 0))
+    p.stats.resistAll = Math.max(0, Math.min(80, p.stats.resistAll || 0))
+    p.stats.lifeSteal = Math.max(0, Math.min(60, p.stats.lifeSteal || 0))
+    p.stats.armorPen = Math.max(0, Math.min(80, p.stats.armorPen || 0))
 
     let baseMaxRes = 60
     if (cls.resourceKey === 'mana') {
@@ -3820,12 +4972,28 @@ function recalcPlayerStats() {
         }
     }
 
+
+// --- Blackbark Oath (Chapter II) ---------------------------------------
+// These are intentionally modest and mostly flavor-forward. They give the
+// player a visible “world changed” feeling without invalidating gear.
+const choice = (state.flags && state.flags.blackbarkChoice) || null
+if (choice === 'swear') {
+    p.stats.armor += 5
+    p.stats.resistAll += 8
+} else if (choice === 'break') {
+    p.stats.attack += 4
+    p.stats.critChance += 4
+} else if (choice === 'rewrite') {
+    p.stats.attack += 2
+    p.stats.magic += 2
+    p.stats.armor += 2
+    p.stats.resistAll += 4
+}
+
     // Clamp current values to new maxima
     if (p.hp > p.maxHp) p.hp = p.maxHp
     if (p.resource > p.maxResource) p.resource = p.maxResource
 }
-
-// --- MERCHANT (delegated to module) -------------------------------------------
 
 function openMerchantModal(context = 'village') {
     openMerchantModalImpl({
@@ -3902,15 +5070,19 @@ function openTavernModal() {
         handleEconomyAfterPurchase,
         jumpToNextMorning,
         runDailyTicks,
-        handleEconomyDayTick,
-        handleGovernmentDayTick,
-        handleTownHallDayTick,
-        handlePopulationDayTick,
         updateHUD,
         updateTimeDisplay,
         saveGame,
         closeModal,
-        openGambleModal
+        openGambleModal,
+        // Quest hooks
+        questDefs: QUEST_DEFS,
+        ensureQuestStructures,
+        startSideQuest,
+        advanceSideQuest,
+        completeSideQuest,
+        updateQuestBox,
+        setScene
     })
 }
 
@@ -3930,8 +5102,6 @@ function openTownHallModal() {
         state,
         openModal,
         addLog,
-        handleGovernmentDayTick,
-        handleEconomyDayTick,
         updateHUD,
         saveGame
     })
@@ -4029,8 +5199,19 @@ function openCheatMenu() {
             grantExperience(100)
         })
 
+        
+
+const btnMax = document.createElement('button')
+btnMax.className = 'btn small'
+btnMax.textContent = 'Max Level'
+btnMax.addEventListener('click', () => {
+    cheatMaxLevel()
+    closeModal()
+})
+
         btnRow1.appendChild(btnGold)
         btnRow1.appendChild(btnXp)
+        btnRow1.appendChild(btnMax)
         coreContent.appendChild(btnRow1)
 
         // Row 2 – Heal / Slay Enemy
@@ -4106,6 +5287,239 @@ function openCheatMenu() {
         btnRow3.appendChild(btnGod)
         btnRow3.appendChild(btnCrit)
         coreContent.appendChild(btnRow3)
+
+        // --- Simulation / Time -------------------------------------------------
+        // Fast-forwarding is extremely useful for balancing economy, decrees, and
+        // weekly bank interest behavior.
+        const simContent = makeCheatSection('Simulation / Time', false)
+        const simInfo = document.createElement('p')
+        simInfo.className = 'modal-subtitle'
+        simInfo.textContent = 'Advance in-game days instantly (runs daily ticks) and prints a summary of town changes.'
+        simContent.appendChild(simInfo)
+
+        function getBankWeekInfo() {
+            const bank = state?.bank
+            const todayRaw = state?.time && typeof state.time.dayIndex === 'number' ? Number(state.time.dayIndex) : 0
+            const today = Number.isFinite(todayRaw) ? Math.floor(todayRaw) : 0
+            const last = bank && Number.isFinite(Number(bank.lastInterestDay)) ? Math.floor(Number(bank.lastInterestDay)) : null
+            if (last == null) {
+                return { initialized: false, today, daysIntoWeek: null, daysUntilNext: null }
+            }
+            const daysSince = Math.max(0, today - last)
+            const daysIntoWeek = daysSince % 7
+            const daysUntilNext = 7 - daysIntoWeek
+            return { initialized: true, today, daysIntoWeek, daysUntilNext, lastInterestDay: last }
+        }
+
+        function snapshotTown() {
+            const econ = getVillageEconomySummary(state)
+            const mood = state?.village?.population?.mood
+            const day = state?.time && typeof state.time.dayIndex === 'number' ? Math.floor(Number(state.time.dayIndex)) : 0
+            const decree = state?.government?.townHallEffects
+            const decreeRemaining =
+                decree && decree.petitionId && typeof decree.expiresOnDay === 'number'
+                    ? Math.max(0, decree.expiresOnDay - day + 1)
+                    : 0
+            return {
+                day,
+                econ,
+                mood,
+                decreeTitle: decree && decree.petitionId ? decree.title || decree.petitionId : null,
+                decreeRemaining,
+                bankWeek: getBankWeekInfo()
+            }
+        }
+
+        const simRow = document.createElement('div')
+        simRow.className = 'item-actions'
+
+        const simResult = document.createElement('p')
+        simResult.className = 'modal-subtitle'
+        simResult.style.marginTop = '6px'
+
+        function runFastForward(days) {
+            days = Math.max(1, Math.floor(Number(days) || 1))
+            const before = snapshotTown()
+
+            for (let i = 0; i < days; i++) {
+                const newTime = jumpToNextMorning(state)
+                runDailyTicks(state, newTime?.absoluteDay ?? before.day + i + 1, { addLog })
+            }
+
+            const after = snapshotTown()
+
+            const bTier = before.econ?.tier?.name || 'Unknown'
+            const aTier = after.econ?.tier?.name || 'Unknown'
+            const econLine = `Economy: ${bTier} → ${aTier} (P ${before.econ?.prosperity}→${after.econ?.prosperity}, T ${before.econ?.trade}→${after.econ?.trade}, S ${before.econ?.security}→${after.econ?.security}).`
+
+            const bm = typeof before.mood === 'number' ? before.mood : 0
+            const am = typeof after.mood === 'number' ? after.mood : 0
+            const moodLine = `Mood: ${bm} → ${am} (${am - bm >= 0 ? '+' : ''}${am - bm}).`
+
+            const decreeLine = after.decreeTitle
+                ? `Decree: ${after.decreeTitle} (${after.decreeRemaining} day${after.decreeRemaining === 1 ? '' : 's'} remaining).`
+                : 'Decree: none.'
+
+            const bw = after.bankWeek
+            const bankLine = bw.initialized
+                ? `Bank: week ${bw.daysIntoWeek}/7, next ledger update in ${bw.daysUntilNext} day${bw.daysUntilNext === 1 ? '' : 's'}.`
+                : 'Bank: unopened (weekly cycle starts on first visit).'
+
+            const summary = `Fast-forwarded ${days} day${days === 1 ? '' : 's'}: Day ${before.day} → ${after.day}. ${econLine} ${moodLine} ${decreeLine} ${bankLine}`
+
+            addLog(`Cheat: ${summary}`, 'system')
+            simResult.textContent = summary
+            updateHUD()
+            updateTimeDisplay()
+            saveGame()
+        }
+
+        const btnDay1 = document.createElement('button')
+        btnDay1.className = 'btn small'
+        btnDay1.textContent = '+1 Day'
+        btnDay1.addEventListener('click', () => runFastForward(1))
+
+        const btnDay3 = document.createElement('button')
+        btnDay3.className = 'btn small'
+        btnDay3.textContent = '+3 Days'
+        btnDay3.addEventListener('click', () => runFastForward(3))
+
+        const btnDay7 = document.createElement('button')
+        btnDay7.className = 'btn small'
+        btnDay7.textContent = '+7 Days'
+        btnDay7.addEventListener('click', () => runFastForward(7))
+
+        simRow.appendChild(btnDay1)
+        simRow.appendChild(btnDay3)
+        simRow.appendChild(btnDay7)
+        simContent.appendChild(simRow)
+        simContent.appendChild(simResult)
+
+        // --- Loot / gear cheats ------------------------------------------------
+        const lootContent = makeCheatSection('Loot & Gear', false)
+
+        const lootInfo = document.createElement('p')
+        lootInfo.className = 'modal-subtitle'
+        lootInfo.textContent =
+            'Spawns high-end loot (Lv 99 roll) into your inventory for testing.'
+        lootContent.appendChild(lootInfo)
+
+        const rarityRank = (r) => {
+            switch (r) {
+                case 'legendary':
+                    return 4
+                case 'epic':
+                    return 3
+                case 'rare':
+                    return 2
+                case 'uncommon':
+                    return 1
+                default:
+                    return 0
+            }
+        }
+
+        function cheatLootArea() {
+            const a = state.area || 'forest'
+            return a === 'village' ? 'forest' : a
+        }
+
+        function pickBestGeneratedItemOfType(type) {
+            let best = null
+            let bestKey = -Infinity
+            const maxLootLevel = 99
+            const fakeBoss = { isBoss: true }
+
+            for (let i = 0; i < 80; i++) {
+                const drops = generateLootDrop({
+                    area: cheatLootArea(),
+                    playerLevel: maxLootLevel,
+                    enemy: fakeBoss,
+                    playerResourceKey: p.resourceKey,
+                    playerClassId: p.classId
+                })
+                if (!drops || !drops.length) continue
+
+                for (const it of drops) {
+                    if (!it || it.type !== type) continue
+                    const key =
+                        rarityRank(it.rarity) * 100000 + getItemPowerScore(it)
+                    if (key > bestKey) {
+                        bestKey = key
+                        best = it
+                    }
+
+                    // quick early-out if we hit a strong legendary
+                    if (
+                        it.rarity === 'legendary' &&
+                        getItemPowerScore(it) > 140
+                    ) {
+                        return it
+                    }
+                }
+            }
+
+            return best
+        }
+
+        function spawnMaxLootSet(equipNow) {
+            const weapon = pickBestGeneratedItemOfType('weapon')
+            const armor = pickBestGeneratedItemOfType('armor')
+
+            const spawned = []
+            if (weapon) {
+                addGeneratedItemToInventory(weapon, 1)
+                spawned.push(weapon)
+            }
+            if (armor) {
+                addGeneratedItemToInventory(armor, 1)
+                spawned.push(armor)
+            }
+
+            if (!spawned.length) {
+                addLog('Cheat: failed to roll loot (unexpected).', 'system')
+                return
+            }
+
+            if (equipNow) {
+                if (weapon) p.equipment.weapon = weapon
+                if (armor) p.equipment.armor = armor
+                recalcPlayerStats()
+            }
+
+            const names = spawned.map((x) => x.name).join(' + ')
+            addLog(
+                'Cheat: spawned max-level loot: ' +
+                    names +
+                    (equipNow ? ' (equipped).' : '.'),
+                'system'
+            )
+
+            updateHUD()
+            saveGame()
+        }
+
+        const lootRow = document.createElement('div')
+        lootRow.className = 'item-actions'
+
+        const btnSpawnMax = document.createElement('button')
+        btnSpawnMax.className = 'btn small'
+        btnSpawnMax.textContent = 'Spawn Max Loot'
+        btnSpawnMax.addEventListener('click', () => {
+            spawnMaxLootSet(false)
+        })
+
+        const btnSpawnEquipMax = document.createElement('button')
+        btnSpawnEquipMax.className = 'btn small'
+        btnSpawnEquipMax.textContent = 'Spawn + Equip Max Loot'
+        btnSpawnEquipMax.addEventListener('click', () => {
+            spawnMaxLootSet(true)
+        })
+
+        lootRow.appendChild(btnSpawnMax)
+        lootRow.appendChild(btnSpawnEquipMax)
+        lootContent.appendChild(lootRow)
+
 
         // --- Gambling debug controls (developer-only) ---------------------------
         const gamblingContent = makeCheatSection('Gambling Debug', false)
@@ -4675,8 +6089,14 @@ function openCheatMenu() {
         btnClearTownHall.textContent = 'Clear Town Hall decree'
 
         btnClearTownHall.addEventListener('click', function () {
+            const today =
+                state && state.time && typeof state.time.dayIndex === 'number'
+                    ? state.time.dayIndex
+                    : 0
             if (state.government && state.government.townHallEffects) {
-                delete state.government.townHallEffects
+                // Clear in-place (don't delete) so the Town Hall UI keeps a stable shape.
+                state.government.townHallEffects.expiresOnDay = -1
+                cleanupTownHallEffects(state, today)
                 addLog(
                     'Cheat: cleared any active Town Hall economic decree.',
                     'system'
@@ -4821,12 +6241,16 @@ function useAbilityInCombat(id) {
     let description = ''
 
     if (id === 'fireball') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.5)
+        const dmg = calcMagicDamage(p.stats.magic * 1.5, 'fire')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description = 'You hurl a blazing Fireball for ' + dmg + ' damage.'
     } else if (id === 'iceShard') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.1)
+        const dmg = calcMagicDamage(p.stats.magic * 1.1, 'frost')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description =
             'You launch an Ice Shard for ' + dmg + ' damage, chilling your foe.'
         enemy.chilledTurns = 1
@@ -4836,6 +6260,8 @@ function useAbilityInCombat(id) {
     } else if (id === 'powerStrike') {
         const dmg = calcPhysicalDamage(p.stats.attack * 1.7)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description =
             'You slam your weapon down in a Power Strike for ' +
             dmg +
@@ -4852,13 +6278,17 @@ function useAbilityInCombat(id) {
     } else if (id === 'bloodSlash') {
         const dmg = calcPhysicalDamage(p.stats.attack * 2.0)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description =
             'You bleed willingly and unleash a Blood Slash for ' +
             dmg +
             ' damage!'
     } else if (id === 'leech') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.1)
+        const dmg = calcMagicDamage(p.stats.magic * 1.1, 'shadow')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         const heal = Math.round(dmg * 0.6)
         const beforeHp = p.hp
         p.hp = Math.min(p.maxHp, p.hp + heal)
@@ -4867,6 +6297,8 @@ function useAbilityInCombat(id) {
     } else if (id === 'hemorrhage') {
         const dmg = calcPhysicalDamage(p.stats.attack * 0.8)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         enemy.bleedDamage = Math.round(p.stats.attack * 0.6)
         enemy.bleedTurns = 3
         description =
@@ -4878,6 +6310,8 @@ function useAbilityInCombat(id) {
         const base = p.stats.attack * 1.5
         const dmg = calcPhysicalDamage(base)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description = 'You line up a Piercing Shot for ' + dmg + ' damage.'
     } else if (id === 'twinArrows') {
         const dmg1 = calcPhysicalDamage(p.stats.attack * 0.9)
@@ -4895,6 +6329,8 @@ function useAbilityInCombat(id) {
     } else if (id === 'markedPrey') {
         const dmg = calcPhysicalDamage(p.stats.attack * 1.1)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         enemy.bleedDamage = Math.max(
             enemy.bleedDamage || 0,
             Math.round(p.stats.attack * 0.4)
@@ -4913,6 +6349,8 @@ function useAbilityInCombat(id) {
         }
         const dmg = calcPhysicalDamage(base)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description =
             'You deliver a Holy Strike for ' + dmg + ' radiant damage.'
     } else if (id === 'blessingLight') {
@@ -4943,11 +6381,15 @@ function useAbilityInCombat(id) {
         const mult = hpRatio > 0.7 ? 1.9 : 1.3
         const dmg = calcPhysicalDamage(p.stats.attack * mult)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description =
             'You slip behind the enemy and Backstab for ' + dmg + ' damage.'
     } else if (id === 'poisonedBlade') {
         const dmg = calcPhysicalDamage(p.stats.attack * 1.1)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         enemy.bleedDamage = Math.max(
             enemy.bleedDamage || 0,
             Math.round(p.stats.attack * 0.5)
@@ -4977,8 +6419,10 @@ function useAbilityInCombat(id) {
         description =
             'Radiant warmth floods you as Holy Heal restores ' + actual + ' HP.'
     } else if (id === 'smite') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.3)
+        const dmg = calcMagicDamage(p.stats.magic * 1.3, 'arcane')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description = 'You Smite your enemy for ' + dmg + ' holy damage.'
     } else if (id === 'purify') {
         const oldBleed = p.status.bleedTurns || 0
@@ -4995,8 +6439,10 @@ function useAbilityInCombat(id) {
 
         // --- NECROMANCER --------------------------------------------------------
     } else if (id === 'soulBolt') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.4)
+        const dmg = calcMagicDamage(p.stats.magic * 1.4, 'shadow')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         const heal = Math.round(dmg * 0.4)
         const before = p.hp
         p.hp = Math.min(p.maxHp, p.hp + heal)
@@ -5012,8 +6458,10 @@ function useAbilityInCombat(id) {
         description =
             'Bones knit together at your call: a Skeletal companion joins the battle.'
     } else if (id === 'decay') {
-        const dmg = calcMagicDamage(p.stats.magic * 0.9)
+        const dmg = calcMagicDamage(p.stats.magic * 0.9, 'poison')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         enemy.bleedDamage = Math.max(
             enemy.bleedDamage || 0,
             Math.round(p.stats.magic * 0.7)
@@ -5026,8 +6474,10 @@ function useAbilityInCombat(id) {
 
         // --- SHAMAN --------------------------------------------------------------
     } else if (id === 'lightningLash') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.5)
+        const dmg = calcMagicDamage(p.stats.magic * 1.5, 'lightning')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description =
             'Storm power lashes out, dealing ' + dmg + ' lightning damage.'
     } else if (id === 'earthskin') {
@@ -5055,8 +6505,10 @@ function useAbilityInCombat(id) {
 
         // --- VAMPIRE -------------------------------------------------------------
     } else if (id === 'essenceDrain') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.2)
+        const dmg = calcMagicDamage(p.stats.magic * 1.2, 'arcane')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
 
         const heal = Math.round(dmg * 0.5)
         const beforeHp = p.hp
@@ -5075,8 +6527,10 @@ function useAbilityInCombat(id) {
             (p.resource - beforeRes) +
             ' Essence.'
     } else if (id === 'batSwarm') {
-        const dmg = calcMagicDamage(p.stats.magic * 1.3)
+        const dmg = calcMagicDamage(p.stats.magic * 1.3, 'shadow')
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
 
         enemy.bleedDamage = Math.max(
             enemy.bleedDamage || 0,
@@ -5105,6 +6559,8 @@ function useAbilityInCombat(id) {
         const bonusFactor = 1 + Math.min(0.8, missing / p.maxHp) // up to +80%
         const dmg = calcPhysicalDamage(p.stats.attack * bonusFactor)
         enemy.hp -= dmg
+
+        applyPlayerOnHitEffects(dmg)
         description =
             'In a frenzy, you unleash a devastating blow for ' +
             dmg +
@@ -5148,7 +6604,6 @@ function useAbilityInCombat(id) {
         }
     }
 }
-
 function openCharacterSheet() {
     const p = state.player
     if (!p) return
@@ -5223,6 +6678,28 @@ function openCharacterSheet() {
     const baseRes = p.resourceKey === 'mana' ? 100 : 60
 
     const comp = state.companion
+
+    // --- NEW: Gear-affix summary values for Character Sheet -------------------
+    // (These are totals from recalcPlayerStats(), primarily driven by gear affixes.)
+    const statCritChance = Math.round(((p.stats && p.stats.critChance) || 0) * 10) / 10
+    const statDodgeChance = Math.round(((p.stats && p.stats.dodgeChance) || 0) * 10) / 10
+    const statResistAll = Math.round(((p.stats && p.stats.resistAll) || 0) * 10) / 10
+    const statLifeSteal = Math.round(((p.stats && p.stats.lifeSteal) || 0) * 10) / 10
+    const statArmorPen = Math.round(((p.stats && p.stats.armorPen) || 0) * 10) / 10
+    const statHaste = Math.round(((p.stats && p.stats.haste) || 0) * 10) / 10
+    const statThorns = Math.round(((p.stats && p.stats.thorns) || 0) * 10) / 10
+    const statHpRegen = Math.round(((p.stats && p.stats.hpRegen) || 0) * 10) / 10
+
+    const capWord = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+    const elemBonuses =
+        p.stats && p.stats.elementalBonuses ? p.stats.elementalBonuses : {}
+    const elemKeys = Object.keys(elemBonuses).filter((k) => elemBonuses[k])
+    const elementalSummary = elemKeys.length
+        ? elemKeys
+              .map((k) => capWord(k) + ' +' + (Math.round(elemBonuses[k] * 10) / 10) + '%')
+              .join(', ')
+        : 'None'
+    const weaponElement = p.stats && p.stats.weaponElementType ? capWord(p.stats.weaponElementType) : 'None'
 
     openModal('Character Sheet', (body) => {
         body.innerHTML = ''
@@ -5348,6 +6825,62 @@ function openCharacterSheet() {
             <span class="char-stat-icon">💰</span>Gold
           </div>
           <div class="stat-value">${p.gold}</div>
+        </div>
+      </div>
+
+
+      <div class="char-section char-divider-top">
+        <div class="char-section-title">Gear Affixes</div>
+        <div class="stat-grid">
+          <div class="stat-label">
+            <span class="char-stat-icon">🎯</span>Crit Chance
+          </div>
+          <div class="stat-value">${statCritChance}%</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">💨</span>Dodge Chance
+          </div>
+          <div class="stat-value">${statDodgeChance}%</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">🧿</span>Resist All
+          </div>
+          <div class="stat-value">${statResistAll}%</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">🩸</span>Life Steal
+          </div>
+          <div class="stat-value">${statLifeSteal}%</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">🪓</span>Armor Pen
+          </div>
+          <div class="stat-value">${statArmorPen}%</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">⏱</span>Haste
+          </div>
+          <div class="stat-value">${statHaste}%</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">🌩</span>Elemental Bonus
+          </div>
+          <div class="stat-value">${elementalSummary}</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">🔮</span>Weapon Element
+          </div>
+          <div class="stat-value">${weaponElement}</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">🦔</span>Thorns
+          </div>
+          <div class="stat-value">${statThorns}</div>
+
+          <div class="stat-label">
+            <span class="char-stat-icon">➕</span>HP Regen
+          </div>
+          <div class="stat-value">${statHpRegen}</div>
         </div>
       </div>
 
@@ -5748,7 +7281,68 @@ function openSkillLevelUpModal() {
 
 // --- COMBAT CORE --------------------------------------------------------------
 
-function calcPhysicalDamage(baseStat) {
+// Helper utils for gear affixes (kept lightweight + safe for old saves)
+function clampNumber(v, min, max) {
+    const n = finiteNumber(v, 0)
+    return Math.max(min, Math.min(max, n))
+}
+
+function getPlayerElementalBonusPct(elementType) {
+    const p = state.player
+    if (!p || !p.stats || !p.stats.elementalBonuses || !elementType) return 0
+    const v = p.stats.elementalBonuses[elementType]
+    return Number(v || 0)
+}
+
+// Small "tick" model for HP regen affix (accumulates fractional values)
+function applyPlayerRegenTick() {
+    const p = state.player
+    if (!p || !p.stats) return
+
+    const regen = Number(p.stats.hpRegen || 0)
+    if (regen <= 0) return
+
+    p._regenCarry = (p._regenCarry || 0) + regen
+    const heal = Math.floor(p._regenCarry)
+    if (heal <= 0) return
+
+    p._regenCarry -= heal
+    const before = p.hp
+    p.hp = Math.min(p.maxHp, p.hp + heal)
+    // Keep regen quiet unless it meaningfully changes HP (prevents log spam)
+    if (p.hp > before && heal >= 2) {
+        addLog('You regenerate ' + (p.hp - before) + ' HP.', 'system')
+    }
+}
+
+function applyPlayerOnHitEffects(damageDealt, elementType) {
+    const p = state.player
+    if (!p || !p.stats) return
+    const dmg = Number(damageDealt || 0)
+    if (dmg <= 0) return
+
+    const et =
+        elementType || state.lastPlayerDamageElementType || p.stats.weaponElementType
+
+    // Life Steal (percent)
+    const lsPct = clampNumber(p.stats.lifeSteal || 0, 0, 60)
+    if (lsPct > 0 && p.hp > 0) {
+        const heal = Math.round((dmg * lsPct) / 100)
+        if (heal > 0) {
+            const before = p.hp
+            p.hp = Math.min(p.maxHp, p.hp + heal)
+            const gained = p.hp - before
+            if (gained > 0) {
+                addLog('You siphon ' + gained + ' HP.', 'good')
+            }
+        }
+    }
+
+    // (Future hook) Elemental on-hit effects can key off `et` if you add them later.
+}
+
+
+function calcPhysicalDamage(baseStat, elementType) {
     const enemy = state.currentEnemy
     const diff = getActiveDifficultyConfig()
     const p = state.player
@@ -5761,24 +7355,42 @@ function calcPhysicalDamage(baseStat) {
     let base = (baseStat || 0) + atkBuff - atkDown
     base = Math.max(1, base)
 
-    const defense =
-        100 /
-        (100 +
-            (((enemy && enemy.armor) || 0) +
-                ((enemy && enemy.armorBuff) || 0)) *
-                10)
-    let dmg = base * defense
+    // Armor penetration (percent) reduces effective armor before mitigation.
+    const penPct = clampNumber(p && p.stats ? p.stats.armorPen || 0 : 0, 0, 80)
+    let effArmor =
+        (((enemy && enemy.armor) || 0) + ((enemy && enemy.armorBuff) || 0)) *
+        (1 - penPct / 100)
+    effArmor = Math.max(0, effArmor)
 
+    const defense = 100 / (100 + effArmor * 10)
+
+    let dmg = base * defense
     const rand = 0.85 + Math.random() * 0.3
     dmg *= rand
     dmg *= diff.playerDmgMod
 
+    // Elemental bonus (if any) – default to weapon element if caller doesn't specify.
+    const et =
+        elementType || (p && p.stats ? p.stats.weaponElementType : null) || null
+    state.lastPlayerDamageElementType = et
+    const elemBonusPct = clampNumber(getPlayerElementalBonusPct(et), 0, 200)
+    if (elemBonusPct > 0) {
+        dmg *= 1 + elemBonusPct / 100
+    }
+
+    // Critical hits
     let crit = false
-    const critChance = state.flags.alwaysCrit ? 1 : 0.12
+    const baseCrit = 0.12
+    const gearCrit = clampNumber(p && p.stats ? p.stats.critChance || 0 : 0, 0, 75) / 100
+    const critChance = state.flags.alwaysCrit
+        ? 1
+        : clampNumber(baseCrit + gearCrit, 0, 0.75)
+
     if (Math.random() < critChance) {
         dmg *= 1.5
         crit = true
     }
+
     dmg = Math.max(1, Math.round(dmg))
     if (crit) {
         addLog('Critical hit!', 'good')
@@ -5786,7 +7398,7 @@ function calcPhysicalDamage(baseStat) {
     return dmg
 }
 
-function calcMagicDamage(baseStat) {
+function calcMagicDamage(baseStat, elementType) {
     const enemy = state.currentEnemy
     const diff = getActiveDifficultyConfig()
     const p = state.player
@@ -5800,24 +7412,41 @@ function calcMagicDamage(baseStat) {
     let base = (baseStat || 0) + magBuff - magDown
     base = Math.max(1, base)
 
-    const resist =
-        100 /
-        (100 +
-            (((enemy && enemy.magicRes) || 0) +
-                ((enemy && enemy.magicResBuff) || 0)) *
-                8)
-    let dmg = base * resist
+    // Treat armorPen as general "penetration" for now (applies to magicRes too).
+    const penPct = clampNumber(p && p.stats ? p.stats.armorPen || 0 : 0, 0, 80)
+    let effRes =
+        (((enemy && enemy.magicRes) || 0) +
+            ((enemy && enemy.magicResBuff) || 0)) *
+        (1 - penPct / 100)
+    effRes = Math.max(0, effRes)
 
+    const resist = 100 / (100 + effRes * 9)
+
+    let dmg = base * resist
     const rand = 0.85 + Math.random() * 0.3
     dmg *= rand
     dmg *= diff.playerDmgMod
 
+    // Elemental bonus – caller should pass the spell element.
+    const et = elementType || null
+    state.lastPlayerDamageElementType = et
+    const elemBonusPct = clampNumber(getPlayerElementalBonusPct(et), 0, 200)
+    if (elemBonusPct > 0) {
+        dmg *= 1 + elemBonusPct / 100
+    }
+
     let crit = false
-    const critChance = state.flags.alwaysCrit ? 1 : 0.1
+    const baseCrit = 0.1
+    const gearCrit = clampNumber(p && p.stats ? p.stats.critChance || 0 : 0, 0, 75) / 100
+    const critChance = state.flags.alwaysCrit
+        ? 1
+        : clampNumber(baseCrit + gearCrit, 0, 0.75)
+
     if (Math.random() < critChance) {
         dmg *= 1.6
         crit = true
     }
+
     dmg = Math.max(1, Math.round(dmg))
     if (crit) {
         addLog('Arcane surge! Spell critically strikes.', 'good')
@@ -5856,6 +7485,12 @@ function calcEnemyDamage(baseStat, isMagic) {
         dmg *= 0.5
     }
 
+    // Resist All (percent reduction after normal mitigation)
+    const resistAllPct = clampNumber(p && p.stats ? p.stats.resistAll || 0 : 0, 0, 80)
+    if (resistAllPct > 0) {
+        dmg *= 1 - resistAllPct / 100
+    }
+
     const rand = 0.85 + Math.random() * 0.3
     dmg *= rand
     dmg *= diff.enemyDmgMod
@@ -5868,7 +7503,6 @@ function calcEnemyDamage(baseStat, isMagic) {
     dmg = Math.max(1, Math.round(dmg))
     return dmg
 }
-
 function playerBasicAttack() {
     if (!state.inCombat || !state.currentEnemy) return
     const p = state.player
@@ -5876,6 +7510,9 @@ function playerBasicAttack() {
 
     const dmg = calcPhysicalDamage(p.stats.attack * 1.0)
     enemy.hp -= dmg
+
+    applyPlayerOnHitEffects(dmg)
+    applyPlayerRegenTick()
 
     addLog('You strike the ' + enemy.name + ' for ' + dmg + ' damage.', 'good')
 
@@ -5908,7 +7545,6 @@ function playerBasicAttack() {
 }
 
 // --- ENEMY TURN (ABILITY + LEARNING AI) --------------------------------------
-
 function ensureEnemyRuntime(enemy) {
     if (!enemy) return
     if (!enemy.abilityCooldowns) enemy.abilityCooldowns = {}
@@ -6172,6 +7808,13 @@ function applyEnemyAbilityToPlayer(enemy, p, aid) {
         : 1
     const dmg = calcEnemyDamage(baseStat * enrageMult, isMagic)
 
+    // Dodge chance (percent). Dodging avoids damage + on-hit debuffs.
+    const dodgeChance = clampNumber(p && p.stats ? p.stats.dodgeChance || 0 : 0, 0, 60) / 100
+    if (!ab.undodgeable && dodgeChance > 0 && Math.random() < dodgeChance) {
+        addLog('You dodge the attack!', 'good')
+        return { damageDealt: 0, healDone: 0, shieldShattered: 0 }
+    }
+
     // Extra shield shatter first (so the "shatter" feels distinct from normal absorption)
     let shieldShattered = 0
     if (ab.shatterShieldFlat && status.shield > 0) {
@@ -6201,6 +7844,19 @@ function applyEnemyAbilityToPlayer(enemy, p, aid) {
             addLog('God Mode: You ignore ' + remaining + ' damage.', 'system')
         } else {
             p.hp -= remaining
+        }
+    }
+
+
+    // Thorns reflect (flat) after a successful hit (even if shield absorbed it).
+    const thorns = clampNumber(p && p.stats ? p.stats.thorns || 0 : 0, 0, 9999)
+    if (thorns > 0 && enemy && dmg > 0) {
+        enemy.hp -= thorns
+        addLog('Your thorns deal ' + thorns + ' back to ' + enemy.name + '!', 'good')
+        if (enemy.hp <= 0) {
+            enemy.hp = 0
+            handleEnemyDefeat()
+            return { damageDealt: dmg, healDone: 0, shieldShattered }
         }
     }
 
@@ -6265,7 +7921,6 @@ function applyEnemyAbilityToPlayer(enemy, p, aid) {
 
     return { damageDealt: dmg, healDone, shieldShattered }
 }
-
 function updateEnemyLearning(enemy, aid, reward) {
     if (!enemy || !enemy.memory) return
     const stat = ensureEnemyAbilityStat(enemy, aid)
@@ -6365,6 +8020,18 @@ function applyEndOfTurnEffectsEnemy(enemy) {
             addLog(enemy.name + "'s bleeding slows.", 'system')
         }
     }
+
+
+// Elite regen (kept quiet unless it actually heals)
+if (enemy.eliteRegenPct && enemy.eliteRegenPct > 0 && enemy.hp > 0) {
+    const before = enemy.hp
+    const heal = Math.max(1, Math.round(enemy.maxHp * enemy.eliteRegenPct))
+    enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal)
+    const gained = enemy.hp - before
+    if (gained > 0) {
+        addLog(enemy.name + ' regenerates ' + gained + ' HP.', 'system')
+    }
+}
 }
 
 function decideEnemyAction(enemy, player) {
@@ -6646,7 +8313,7 @@ function recordBattleResult(outcome) {
 function handleEnemyDefeat() {
     const enemy = state.currentEnemy
     state.inCombat = false
-    addLog('You defeated the ' + enemy.name + '!', 'good')
+    addLog('You defeated the ' + enemy.name + (enemy.isElite ? ' [Elite]' : '') + '!', 'good')
 
     const xp = enemy.xp
     const gold =
@@ -6658,7 +8325,7 @@ function handleEnemyDefeat() {
     grantExperience(xp)
 
     // Loot drops: dynamically generated, leveled, with rarities (potions + gear).
-    const dropChance = enemy.isBoss ? 1.0 : 0.7
+    const dropChance = enemy.isBoss ? 1.0 : enemy.isElite ? 0.9 : 0.7
     if (Math.random() < dropChance) {
         const drops = generateLootDrop({
             area: state.area,
@@ -7527,6 +9194,82 @@ function tickCompanionCooldowns() {
     }
 }
 
+const ELITE_AFFIXES = [
+    {
+        id: 'enraged',
+        label: 'Enraged',
+        hpMult: 1.15,
+        atkMult: 1.25,
+        magMult: 1.25,
+        armorMult: 1.05,
+        resMult: 1.05,
+        xpMult: 1.45,
+        goldMult: 1.35
+    },
+    {
+        id: 'bulwark',
+        label: 'Bulwark',
+        hpMult: 1.35,
+        atkMult: 1.10,
+        magMult: 1.10,
+        armorMult: 1.30,
+        resMult: 1.30,
+        xpMult: 1.55,
+        goldMult: 1.45
+    },
+    {
+        id: 'regenerating',
+        label: 'Regenerating',
+        hpMult: 1.25,
+        atkMult: 1.10,
+        magMult: 1.10,
+        armorMult: 1.10,
+        resMult: 1.10,
+        xpMult: 1.55,
+        goldMult: 1.45,
+        regenPct: 0.04 // heals 4% max HP at end of its turn
+    }
+]
+
+function applyEliteModifiers(enemy, diff) {
+    if (!enemy || enemy.isBoss) return
+
+    // Avoid elites in the village/tutorial area
+    if ((state.area || 'village') === 'village') return
+
+    // Difficulty-based tuning
+    const diffId = state.difficulty || 'normal'
+    const chance =
+        diffId === 'easy'
+            ? ELITE_BASE_CHANCE * 0.7
+            : diffId === 'hard'
+            ? ELITE_BASE_CHANCE * 1.35
+            : ELITE_BASE_CHANCE
+
+    if (Math.random() >= chance) return
+
+    const affix = ELITE_AFFIXES[Math.floor(Math.random() * ELITE_AFFIXES.length)]
+    enemy.isElite = true
+    enemy.eliteAffix = affix.id
+    enemy.eliteLabel = affix.label
+    enemy.eliteRegenPct = affix.regenPct || 0
+
+    // Prefix name for readability
+    enemy.name = affix.label + ' ' + enemy.name
+
+    // Stat bumps (done after base scaling)
+    enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * (affix.hpMult || 1)))
+    enemy.hp = enemy.maxHp
+    enemy.attack = Math.max(0, Math.round((enemy.attack || 0) * (affix.atkMult || 1)))
+    enemy.magic = Math.max(0, Math.round((enemy.magic || 0) * (affix.magMult || 1)))
+    enemy.armor = Math.max(0, Math.round((enemy.armor || 0) * (affix.armorMult || 1)))
+    enemy.magicRes = Math.max(0, Math.round((enemy.magicRes || 0) * (affix.resMult || 1)))
+
+    enemy.xp = Math.max(1, Math.round((enemy.xp || 1) * (affix.xpMult || 1)))
+    enemy.goldMin = Math.max(0, Math.round((enemy.goldMin || 0) * (affix.goldMult || 1)))
+    enemy.goldMax = Math.max(enemy.goldMin, Math.round((enemy.goldMax || enemy.goldMin || 0) * (affix.goldMult || 1)))
+}
+
 function startBattleWith(templateId) {
     const template = ENEMY_TEMPLATES[templateId]
     if (!template) return
@@ -7582,7 +9325,11 @@ function startBattleWith(templateId) {
         Math.round((enemy.goldMax || enemy.goldMin || 0) * goldFactor)
     )
 
-    // Runtime combat state
+    
+
+    // Optional: roll a non-boss Elite variant (harder fight, better rewards)
+    applyEliteModifiers(enemy, diff)
+// Runtime combat state
     enemy.armorBuff = 0
     enemy.guardTurns = 0
     enemy.bleedTurns = 0
@@ -7852,6 +9599,9 @@ function exploreArea() {
             saveGame()
             return
         }
+        // --- Side quest events tied to the village ----------------------------
+        if (maybeTriggerSideQuestEvent('village')) return
+
         // Before Goblin Warlord is dead: reminder only, no auto-travel
         // Before Goblin Warlord is dead: show this ONLY once as a hint
         else if (!state.flags.goblinBossDefeated) {
@@ -7870,22 +9620,255 @@ function exploreArea() {
         // AFTER final boss is dead: show flavor but DO NOT block exploration
         else if (
             state.flags.obsidianKingDefeated &&
-            !state.flags.epilogueShown
+            !state.flags.blackbarkChapterStarted
         ) {
+            // Chapter II begins here (The Blackbark Oath).
             state.flags.epilogueShown = true
-            state.quests.main.step = 8
-            state.quests.main.status = 'completed'
+            state.flags.blackbarkChapterStarted = true
+
+            // Step 8 is the “return to Rowan” moment; we immediately point you to the next lead.
+            state.quests.main.step = Math.max(state.quests.main.step, 9)
+
+            // Keep the in-panel scene summary short so the UI doesn’t get pushed off-screen.
             setScene(
-                'The Ash Breaks',
-                'Elder Rowan listens in stunned silence as you describe the fall of the Obsidian King. The air feels lighter — as if the realm can finally breathe again.'
+                'The Blackbark Oath',
+                'Rowan reveals the Blackbark Oath — and sends you to the tavern to find the Bark‑Scribe.'
             )
-            addLog(
-                'Elder Rowan: "You have broken the corruption at its source. Emberwood — and far more than Emberwood — owes you its dawn."',
-                'system'
-            )
+
+            // Show the full Chapter II story beat in a modal (scrollable, centered).
+            openModal('Chapter II: The Blackbark Oath', (body) => {
+                const intro = document.createElement('p')
+                intro.className = 'modal-subtitle'
+                intro.textContent =
+                    'Rowan does not celebrate. He speaks like a man handling a live ember.'
+                body.appendChild(intro)
+
+                const story = document.createElement('div')
+                story.style.whiteSpace = 'pre-line'
+                story.style.fontSize = '0.86rem'
+                story.style.lineHeight = '1.35'
+                story.textContent = [
+                    'Elder Rowan does not celebrate. He studies you like a man reading smoke for weather.',
+                    '',
+                    '"You think you ended it," he says at last. "Heroes always do. Endings are easier than debts."',
+                    '',
+                    '"The Obsidian King was not a king. He was a cork — a black nail hammered into rotting wood."',
+                    '"When you pulled him free, the realm took a breath… and the wound beneath it took one too."',
+                    '',
+                    'Rowan opens a cedar box you swear was not in the room a moment ago. Inside: a strip of bark, dark as old blood, etched with a vow.',
+                    '',
+                    'He speaks the words with the careful fear of a man handling a live ember:',
+                    '“Let my life be the hinge. Let my name be the lock. Let the hungers starve behind me.”',
+                    '',
+                    '"That was the Blackbark Oath," Rowan whispers. "Wardens bound themselves to the heartwood beneath Emberwood — not to rule it, but to keep it sealed."',
+                    '',
+                    '"But oaths are living things. If no one feeds them, they don’t die."',
+                    'His gaze lifts to you.',
+                    '"They become hungry."',
+                    '',
+                    'He pushes the bark-strip toward you.',
+                    '"Go to the tavern. Find the Bark‑Scribe. He writes what the forest remembers… and what someone tried to erase."'
+                ].join('\n')
+                body.appendChild(story)
+
+                const actions = document.createElement('div')
+                actions.className = 'modal-actions'
+                actions.appendChild(makeActionButton('Continue', () => closeModal(), ''))
+                body.appendChild(actions)
+            })
+
+            addLog('Elder Rowan reveals the Blackbark Oath — and sends you to the Bark‑Scribe.', 'system')
             updateQuestBox()
             saveGame()
-            // Still no return – you remain free to explore.
+            return
+        }
+        else if (
+            state.quests.main &&
+            state.quests.main.step === 11 &&
+            hasAllOathSplinters() &&
+            !state.flags.quietRootsTrialDone
+        ) {
+            state.flags.quietRootsTrialDone = true
+            state.quests.main.step = 12
+
+            setScene(
+                'The Trial of Quiet Roots',
+                [
+                    'You kneel. The three splinters warm in your palm.',
+                    'The tavern’s laughter outside becomes distant — like it belongs to someone else.',
+                    '',
+                    'The floorboards become soil.',
+                    'The air becomes rain that never fell.',
+                    '',
+                    'Roots curl around your wrist — not binding, not harming — judging.',
+                    '',
+                    'A voice that is not Rowan whispers:',
+                    '“Say the part you didn’t know you were saying.”',
+                    '',
+                    'And your mouth answers anyway:',
+                    '“Let my victories be compost. Let my pride become mulch.”',
+                    '',
+                    'The forest approves.',
+                    'That is not comfort.',
+                    'That is permission.'
+                ].join('\n')
+            )
+
+            addLog('You endure the Quiet Roots Trial. The next lead waits in the depths.', 'system')
+            updateQuestBox()
+            saveGame()
+            return
+        }
+        else if (
+            state.quests.main &&
+            state.quests.main.step === 14 &&
+            !state.flags.blackbarkChoiceMade
+        ) {
+            // The final choice is a modal so the player can pick without losing the moment.
+            openModal('The Blackbark Gate', (body) => {
+                const p = document.createElement('p')
+                p.className = 'modal-subtitle'
+                p.textContent =
+                    'Three voices rise from the wood — Swear, Break, or Rewrite. The forest listens for what kind of person you become when something listens back.'
+                body.appendChild(p)
+
+                const wrap = document.createElement('div')
+                wrap.className = 'modal-actions'
+                body.appendChild(wrap)
+
+                const canRewrite = !!(state.flags.wardenGesturesCompleted)
+
+                const choose = (choiceId) => {
+                    state.flags.blackbarkChoiceMade = true
+                    state.flags.blackbarkChoice = choiceId
+                    addLog('You choose: ' + choiceId.toUpperCase() + ' the Blackbark Oath.', 'system')
+
+                    // Small, visible stat shift (applied in recalcPlayerStats)
+                    recalcPlayerStats()
+                    updateHUD()
+
+                    setScene(
+                        'The Oath Answers',
+                        choiceId === 'swear'
+                            ? 'You speak the oath aloud. The air stills. The forest does not forgive — but it allows.'
+                            : choiceId === 'break'
+                            ? 'You refuse the old vow. The gate exhales like a wound. Somewhere, something laughs — and something else takes note.'
+                            : 'You rewrite the vow with your own words. The gate shudders… then settles, like a jaw unclenching.'
+                    )
+
+                    // --- COMPLETE MAIN QUEST + EPILOGUE --------------------
+                    // The choice is the actual ending of Chapter II, so we mark the main quest as completed
+                    // and show a short epilogue modal (once) so the player gets a clear "something happened" moment.
+                    if (state.quests && state.quests.main) {
+                        state.quests.main.status = 'completed'
+                    }
+
+                    state.flags = state.flags || {}
+                    const showEpilogue = !state.flags.blackbarkEpilogueShown
+                    state.flags.blackbarkEpilogueShown = true
+
+                    // A small, immediate reward so the ending feels tangible.
+                    if (!state.flags.blackbarkQuestRewarded) {
+                        state.flags.blackbarkQuestRewarded = true
+                        const reward = choiceId === 'rewrite' ? 250 : choiceId === 'swear' ? 200 : 180
+                        state.player.gold = (state.player.gold || 0) + reward
+                        addLog('Main quest completed: The Blackbark Oath. You receive ' + reward + ' gold.', 'good')
+                    } else {
+                        addLog('Main quest completed: The Blackbark Oath.', 'good')
+                    }
+
+                    updateQuestBox()
+                    saveGame()
+                    closeModal()
+
+                    if (showEpilogue) {
+                        openModal('Epilogue: The Blackbark Oath', (body) => {
+                            const lead = document.createElement('p')
+                            lead.className = 'modal-subtitle'
+                            lead.textContent =
+                                choiceId === 'swear'
+                                    ? 'You bind yourself to an old promise — and the forest marks the bargain.'
+                                    : choiceId === 'break'
+                                    ? 'You deny the old vow — and the forest learns your name the hard way.'
+                                    : 'You rewrite the vow — and the forest adjusts, as if relieved to be understood.'
+                            body.appendChild(lead)
+
+                            const story = document.createElement('div')
+                            story.style.whiteSpace = 'pre-line'
+                            story.style.fontSize = '0.86rem'
+                            story.style.lineHeight = '1.35'
+                            story.textContent =
+                                choiceId === 'swear'
+                                    ? [
+                                          'The gate drinks your words.',
+                                          '',
+                                          'Sap beads along the seams of the wood like sweat.',
+                                          'Not blood. Not quite.',
+                                          '',
+                                          'Somewhere below, something that has been starving for a long time stops scraping at the inside of its cage.',
+                                          '',
+                                          'Rowan does not smile when you return.',
+                                          'He only nods, like a man who has watched a storm pass without taking the roof.',
+                                          '',
+                                          '“Then we live on borrowed peace,” he says.',
+                                          '“And we learn what it costs.”'
+                                      ].join('\n')
+                                    : choiceId === 'break'
+                                    ? [
+                                          'Your refusal lands like a stone in a deep well.',
+                                          '',
+                                          'The gate’s seam widens. Cold air spills out — not winter-cold, but the absence of seasons.',
+                                          '',
+                                          'In the distance, you hear a laugh that is not made for throats.',
+                                          '',
+                                          'When you return, Rowan’s hands tremble for the first time.',
+                                          '“Then it will come to bargain on its own,” he whispers.',
+                                          '',
+                                          'He looks at you as if measuring whether you are enough weapon for what’s waking up.'
+                                      ].join('\n')
+                                    : [
+                                          'You speak new words into old wood.',
+                                          '',
+                                          'The splinters in your pocket pulse — sap, reed, bone — and the gate shivers like a jaw unclenching.',
+                                          '',
+                                          'For a heartbeat the forest feels quiet. Not safe. Quiet.',
+                                          '',
+                                          'When you return, Rowan exhales a breath he didn’t know he was holding.',
+                                          '“Wardens bound themselves to keep it asleep,” he says.',
+                                          '“You just taught it how to listen.”',
+                                          '',
+                                          'Somewhere beneath Emberwood, a hunger turns its head.',
+                                          'Not toward the village…',
+                                          'Toward you.'
+                                      ].join('\n')
+
+                            body.appendChild(story)
+
+                            const actions = document.createElement('div')
+                            actions.className = 'modal-actions'
+                            actions.appendChild(makeActionButton('Continue', () => closeModal(), ''))
+                            body.appendChild(actions)
+                        })
+                    }
+                }
+
+                wrap.appendChild(
+                    makeActionButton('Swear', () => choose('swear'), '')
+                )
+                wrap.appendChild(
+                    makeActionButton('Break', () => choose('break'), '')
+                )
+
+                const rewriteBtn = makeActionButton('Rewrite', () => choose('rewrite'), '')
+                if (!canRewrite) {
+                    rewriteBtn.disabled = true
+                    rewriteBtn.title =
+                        'To rewrite the oath, complete “The Warden’s Gesture” side quest.'
+                }
+                wrap.appendChild(rewriteBtn)
+            })
+
+            return
         } else if (state.flags.dragonDefeated) {
             setScene(
                 'Village Feast',
@@ -7902,6 +9885,68 @@ function exploreArea() {
 
     // --- FOREST LOGIC ----------------------------------------------------------
     if (area === 'forest') {
+
+// --- Chapter II: The Blackbark Oath (Forest beats) --------------------
+if (state.quests.main && state.quests.main.status !== 'completed') {
+    // Step 10: Oath‑Splinter — Sap‑Run
+    if (
+        state.quests.main.step >= 10 &&
+        state.quests.main.step <= 11 &&
+        !state.flags.oathShardSapRun
+    ) {
+        state.flags.oathShardSapRun = true
+        setScene(
+            'Oath‑Splinter: Sap‑Run',
+            [
+                'A blackened tree stands where it shouldn’t — too old for this grove, too angry for this soil.',
+                '',
+                'When you touch the bark, it flakes away like ash… and a splinter of living heartwood slips into your palm, warm as a held breath.',
+                '',
+                'For a moment you are not yourself:',
+                'Wardens in moss‑green cloaks kneel in a ring. A vow is spoken. A name is swallowed by the roots.',
+                '',
+                'Then the vision snaps.',
+                'The splinter remains.'
+            ].join('\n')
+        )
+        addLog('You recover an Oath‑Splinter (Sap‑Run).', 'good')
+
+        if (hasAllOathSplinters()) {
+            state.quests.main.step = Math.max(state.quests.main.step, 11)
+            addLog('All three splinters resonate. Return to Emberwood for the Quiet Roots Trial.', 'system')
+        }
+        updateQuestBox()
+        saveGame()
+        return
+    }
+
+    // Step 13: The Blackbark Gate
+    if (state.quests.main.step === 13 && !state.flags.blackbarkGateFound) {
+        state.flags.blackbarkGateFound = true
+        state.quests.main.step = 14
+        setScene(
+            'The Blackbark Gate',
+            [
+                'At the edge of the familiar path, the forest folds in on itself like a slow blink.',
+                '',
+                'A seam appears between two living trunks — not a door made of wood, but a wound wearing the shape of a gate.',
+                '',
+                'The air smells like rain that never fell.',
+                'The bark beneath your fingers feels… listening.',
+                '',
+                'You are not invited.',
+                'You are expected.'
+            ].join('\n')
+        )
+        addLog('You find the Blackbark Gate. The choice must be made in Emberwood.', 'system')
+        updateQuestBox()
+        saveGame()
+        return
+    }
+}
+
+// --- Side quest events tied to the forest -----------------------------
+if (maybeTriggerSideQuestEvent('forest')) return
         if (!state.flags.goblinBossDefeated) {
             // Chance to find Goblin Warlord camp
             if (Math.random() < 0.3) {
@@ -7941,6 +9986,40 @@ function exploreArea() {
 
     // --- ASHEN MARSH LOGIC -----------------------------------------------------
     if (area === 'marsh') {
+
+// --- Chapter II: Oath‑Splinter — Witch‑Reed ---------------------------
+if (state.quests.main && state.quests.main.status !== 'completed') {
+    if (
+        state.quests.main.step >= 10 &&
+        state.quests.main.step <= 11 &&
+        !state.flags.oathShardWitchReed
+    ) {
+        state.flags.oathShardWitchReed = true
+        setScene(
+            'Oath‑Splinter: Witch‑Reed',
+            [
+                'You part the reeds and find them braided into a deliberate knot — a warding sign, half‑rotted, half‑remembered.',
+                '',
+                'A splinter of heartwood is caught inside the braid like a thorn in a sleeve.',
+                '',
+                'When you pull it free, you taste copper and winter.',
+                'A promise spoken in a language that hates to be spoken.'
+            ].join('\n')
+        )
+        addLog('You recover an Oath‑Splinter (Witch‑Reed).', 'good')
+
+        if (hasAllOathSplinters()) {
+            state.quests.main.step = Math.max(state.quests.main.step, 11)
+            addLog('All three splinters resonate. Return to Emberwood for the Quiet Roots Trial.', 'system')
+        }
+        updateQuestBox()
+        saveGame()
+        return
+    }
+}
+
+// --- Side quest events tied to the marsh ------------------------------
+if (maybeTriggerSideQuestEvent('marsh')) return
         if (!state.flags.marshWitchDefeated) {
             if (Math.random() < 0.35) {
                 setScene(
@@ -7959,6 +10038,9 @@ function exploreArea() {
 
     // --- FROSTPEAK PASS LOGIC ---------------------------------------------------
     if (area === 'frostpeak') {
+        // --- Side quest events tied to Frostpeak ----------------------------
+        if (maybeTriggerSideQuestEvent('frostpeak')) return
+
         if (!state.flags.frostGiantDefeated) {
             if (Math.random() < 0.35) {
                 setScene(
@@ -7974,6 +10056,69 @@ function exploreArea() {
 
     // --- SUNKEN CATACOMBS LOGIC -------------------------------------------------
     if (area === 'catacombs') {
+
+// --- Chapter II: Oath‑Splinter — Bone‑Char / Ash‑Warden ----------------
+if (state.quests.main && state.quests.main.status !== 'completed') {
+    // Step 10: Bone‑Char splinter
+    if (
+        state.quests.main.step >= 10 &&
+        state.quests.main.step <= 11 &&
+        !state.flags.oathShardBoneChar
+    ) {
+        state.flags.oathShardBoneChar = true
+        setScene(
+            'Oath‑Splinter: Bone‑Char',
+            [
+                'A rib‑cage half buried in silt forms a crude altar.',
+                'Someone arranged the bones with care — not devotion, but apology.',
+                '',
+                'In the hollow of a skull, you find a charred splinter of heartwood.',
+                'It is light as ash and heavy as guilt.'
+            ].join('\n')
+        )
+        addLog('You recover an Oath‑Splinter (Bone‑Char).', 'good')
+
+        if (hasAllOathSplinters()) {
+            state.quests.main.step = Math.max(state.quests.main.step, 11)
+            addLog('All three splinters resonate. Return to Emberwood for the Quiet Roots Trial.', 'system')
+        }
+        updateQuestBox()
+        saveGame()
+        return
+    }
+
+    // Step 12: Ash‑Warden encounter (story beat)
+    if (state.quests.main.step === 12 && !state.flags.ashWardenMet) {
+        state.flags.ashWardenMet = true
+        state.quests.main.step = 13
+
+        setScene(
+            'The Warden in Ash',
+            [
+                'A figure stands where the tunnel narrows — armor powdered into gray dust, eyes like coals in a hearth that hates to go out.',
+                '',
+                '"You carry the stink of endings," it says.',
+                '"But you don’t carry the weight."',
+                '',
+                '"They told you monsters were invaders. No. They were refugees from the places the oath could no longer seal."',
+                '',
+                '"The oath didn’t fail."',
+                '"It was harvested."',
+                '',
+                'The ash‑warden leans closer, and the air tastes of burnt names:',
+                '"You are either the last honest knife in a dishonest world… or the next hand to hold the theft."'
+            ].join('\n')
+        )
+
+        addLog('You meet the Ash‑Warden. The Blackbark Gate waits in Emberwood Forest.', 'system')
+        updateQuestBox()
+        saveGame()
+        return
+    }
+}
+
+// --- Side quest events tied to the catacombs --------------------------
+if (maybeTriggerSideQuestEvent('catacombs')) return
         if (!state.flags.lichDefeated) {
             if (Math.random() < 0.35) {
                 setScene(
@@ -7989,6 +10134,9 @@ function exploreArea() {
 
     // --- OBSIDIAN KEEP LOGIC ----------------------------------------------------
     if (area === 'keep') {
+        // --- Side quest events tied to the Obsidian Keep ---------------------
+        if (maybeTriggerSideQuestEvent('keep')) return
+
         if (!state.flags.obsidianKingDefeated) {
             if (Math.random() < 0.4) {
                 setScene(
@@ -8081,6 +10229,43 @@ function grantExperience(amount) {
             remaining = 0
         }
     }
+    updateHUD()
+    saveGame()
+}function cheatMaxLevel() {
+    const p = state.player
+    if (!p) return
+    const target = MAX_PLAYER_LEVEL
+    if (p.level >= target) {
+        addLog('Cheat: you are already at the level cap (' + target + ').', 'system')
+        return
+    }
+
+    const gainedLevels = target - p.level
+
+    // Next-level XP curve (matches levelUp(): nextLevelXp *= 1.4 per level)
+    let next = 100
+    for (let lv = 1; lv < target; lv++) {
+        next = Math.round(next * 1.4)
+    }
+
+    p.level = target
+    p.xp = 0
+    p.nextLevelXp = next
+
+    // Award the missing skill points so you can distribute them manually.
+    if (p.skillPoints == null) p.skillPoints = 0
+    p.skillPoints += gainedLevels
+
+    // Sync + heal
+    rescaleActiveCompanion()
+    recalcPlayerStats()
+    p.hp = p.maxHp
+    p.resource = p.maxResource
+
+    addLog(
+        'Cheat: set you to level ' + target + ' (+' + gainedLevels + ' skill points).',
+        'system'
+    )
     updateHUD()
     saveGame()
 }
@@ -8653,7 +10838,7 @@ function openPauseMenu() {
         btnChangelog.className = 'btn outline'
         btnChangelog.textContent = 'View Changelog'
         btnChangelog.addEventListener('click', () => {
-            openChangelogModal()
+            openChangelogModal({ fromPause: true })
         })
 
         const btnMenu = document.createElement('button')
@@ -8672,10 +10857,172 @@ function openPauseMenu() {
 
 // --- SAVE / LOAD --------------------------------------------------------------
 
-const SAVE_KEY = 'pocketQuestSave_v1' // existing single autosave
-const SAVE_KEY_PREFIX = 'pocketQuestSaveSlot_v1_' // per-slot manual saves
+const SAVE_KEY = 'pocketQuestSave_v1' // legacy key (kept for save compatibility)
+const SAVE_KEY_PREFIX = 'pocketQuestSaveSlot_v1_' // legacy prefix (kept for save compatibility)
 const SAVE_INDEX_KEY = 'pocketQuestSaveIndex_v1' // metadata for manual saves
-function saveGame() {
+
+/* --------------------------- Save migrations --------------------------- */
+/**
+ * Save data is persisted in localStorage and must remain forward-compatible.
+ * We use a simple integer schema (meta.schema) and stepwise migrations.
+ */
+function migrateSaveData(data) {
+    // If something is seriously wrong, return a minimal compatible blob.
+    if (!data || typeof data !== 'object') {
+        return {
+            meta: { schema: SAVE_SCHEMA, patch: GAME_PATCH, savedAt: Date.now() }
+        }
+    }
+
+    data.meta = data.meta || {}
+    const currentSchema = finiteNumber(data.meta.schema, 1)
+    data.meta.schema = currentSchema > 0 ? Math.floor(currentSchema) : 1
+
+    // Stepwise migrations
+    while (data.meta.schema < SAVE_SCHEMA) {
+        if (data.meta.schema === 1) {
+            // v2: formalize fields that previously might be missing
+            data.dynamicDifficulty = data.dynamicDifficulty || {
+                band: 0,
+                tooEasyStreak: 0,
+                struggleStreak: 0
+            }
+            data.log = Array.isArray(data.log) ? data.log : []
+            data.logFilter = data.logFilter || 'all'
+
+            // Systems that can be missing on older saves
+            if (!data.time || typeof data.time !== 'object') data.time = null
+            if (!data.villageEconomy || typeof data.villageEconomy !== 'object')
+                data.villageEconomy = null
+            if (!data.government || typeof data.government !== 'object')
+                data.government = null
+            if (!data.bank || typeof data.bank !== 'object') data.bank = null
+            if (!data.village || typeof data.village !== 'object') data.village = null
+
+            if (!data.villageMerchantNames || typeof data.villageMerchantNames !== 'object')
+                data.villageMerchantNames = null
+            if (!data.merchantStock || typeof data.merchantStock !== 'object')
+                data.merchantStock = null
+
+            data.inCombat = !!data.inCombat
+            if (data.inCombat && !data.currentEnemy) data.inCombat = false
+
+            data.flags = data.flags && typeof data.flags === 'object' ? data.flags : {}
+            data.quests = data.quests && typeof data.quests === 'object' ? data.quests : {}
+
+            data.meta.schema = 2
+            continue
+        }
+
+        if (data.meta.schema === 2) {
+            // v3: persist merchant restock meta + daily tick catch-up meta
+            if (!data.merchantStockMeta || typeof data.merchantStockMeta !== 'object') {
+                data.merchantStockMeta = { lastDayRestocked: null }
+            } else if (typeof data.merchantStockMeta.lastDayRestocked !== 'number') {
+                data.merchantStockMeta.lastDayRestocked = null
+            }
+
+            if (!data.sim || typeof data.sim !== 'object') {
+                data.sim = { lastDailyTickDay: null }
+            }
+
+            // Seed catch-up pointer to the current day so older saves don't suddenly replay 30+ days.
+            try {
+                if (data.time && typeof data.time.dayIndex === 'number' && Number.isFinite(data.time.dayIndex)) {
+                    data.sim.lastDailyTickDay = Math.max(0, Math.floor(data.time.dayIndex))
+                } else if (typeof data.sim.lastDailyTickDay !== 'number') {
+                    data.sim.lastDailyTickDay = null
+                }
+            } catch (_) {
+                // ignore
+            }
+
+            data.meta.schema = 3
+            continue
+        }
+
+        // If we ever get an unknown schema, stop safely.
+        break
+    }
+
+    // Sanitize a few high-risk numeric fields to prevent NaN/Infinity cascades.
+    try {
+        const p = data.player
+        if (p && typeof p === 'object') {
+            p.hp = finiteNumber(p.hp, 1)
+            p.maxHp = finiteNumber(p.maxHp, p.hp)
+            p.hp = clampFinite(p.hp, 0, p.maxHp, p.maxHp)
+
+            p.gold = Math.max(0, Math.floor(finiteNumber(p.gold, 0)))
+
+            p.resource = finiteNumber(p.resource, 0)
+            p.maxResource = finiteNumber(p.maxResource, 0)
+            p.resource = clampFinite(p.resource, 0, p.maxResource, p.maxResource)
+
+            // Keep level sane
+            p.level = Math.max(1, Math.floor(finiteNumber(p.level, 1)))
+            p.xp = Math.max(0, Math.floor(finiteNumber(p.xp, 0)))
+            p.nextLevelXp = Math.max(1, Math.floor(finiteNumber(p.nextLevelXp, 100)))
+        }
+
+        if (data.time && typeof data.time === 'object') {
+            data.time.dayIndex = Math.max(0, Math.floor(finiteNumber(data.time.dayIndex, 0)))
+            data.time.partIndex = clampFinite(data.time.partIndex, 0, 2, 0)
+        }
+    } catch (_) {
+        // ignore sanitation failures; load flow will handle remaining defaults
+    }
+
+    return data
+}
+// Save coalescing: many actions call saveGame() back-to-back (especially on mobile).
+// We still ensure a save happens quickly, but we avoid spamming localStorage.
+let _saveTimer = null
+let _saveQueued = false
+
+function _buildSaveBlob() {
+    return {
+        player: state.player,
+        area: state.area,
+        difficulty: state.difficulty,
+        dynamicDifficulty: state.dynamicDifficulty || {
+            band: 0,
+            tooEasyStreak: 0,
+            struggleStreak: 0
+        },
+
+        quests: state.quests,
+        flags: state.flags,
+        companion: state.companion,
+
+        // Time & economy
+        time: state.time,
+        villageEconomy: state.villageEconomy,
+        government: state.government || null,
+        village: state.village || null,
+
+        // Bank state
+        bank: state.bank || null,
+
+        // 🛒 Merchant state
+        villageMerchantNames: state.villageMerchantNames || null,
+        merchantStock: state.merchantStock || null,
+        merchantStockMeta: state.merchantStockMeta || null,
+
+        // Simulation meta (catch-up pointer, etc.)
+        sim: state.sim || { lastDailyTickDay: null },
+
+        // Log & filter
+        log: state.log || [],
+        logFilter: state.logFilter || 'all',
+
+        // Combat snapshot
+        inCombat: state.inCombat,
+        currentEnemy: state.inCombat && state.currentEnemy ? state.currentEnemy : null
+    }
+}
+
+function _performSave() {
     try {
         // 🚫 Don't save if there's no player or the hero is dead
         if (!state.player || state.player.hp <= 0) {
@@ -8683,52 +11030,52 @@ function saveGame() {
             return
         }
 
-        const toSave = {
-            player: state.player,
-            area: state.area,
-            difficulty: state.difficulty,
-            dynamicDifficulty: state.dynamicDifficulty || {
-                band: 0,
-                tooEasyStreak: 0,
-                struggleStreak: 0
-            },
+        const toSave = _buildSaveBlob()
 
-            quests: state.quests,
-            flags: state.flags,
-            companion: state.companion,
+        // Stamp patch + schema + time into the save data
+        toSave.meta = Object.assign({}, toSave.meta || {}, {
+            patch: GAME_PATCH,
+            schema: SAVE_SCHEMA,
+            savedAt: Date.now()
+        })
 
-            // Time & economy
-            time: state.time,
-            villageEconomy: state.villageEconomy,
-            government: state.government || null,
-            village: state.village || null,
-
-            // Bank state
-            bank: state.bank || null,
-
-            // 🛒 Merchant state (NEW)
-            villageMerchantNames: state.villageMerchantNames || null,
-            merchantStock: state.merchantStock || null,
-
-            // Log & filter
-            log: state.log || [],
-            logFilter: state.logFilter || 'all',
-
-            // Combat snapshot
-            inCombat: state.inCombat,
-            currentEnemy:
-                state.inCombat && state.currentEnemy ? state.currentEnemy : null
-        }
-
-        // Stamp patch + time into the save data
-        toSave.meta = toSave.meta || {}
-        toSave.meta.patch = GAME_PATCH
-        toSave.meta.savedAt = Date.now()
         const json = JSON.stringify(toSave)
+
+        // De-dupe identical saves to reduce churn (mobile browsers can stutter on repeated writes)
+        if (state.lastSaveJson && json === state.lastSaveJson) return
+
         localStorage.setItem(SAVE_KEY, json)
         state.lastSaveJson = json
     } catch (e) {
         console.error('Failed to save game:', e)
+    }
+}
+
+function saveGame(opts = {}) {
+    const force = !!(opts && opts.force)
+
+    if (force) {
+        if (_saveTimer) {
+            clearTimeout(_saveTimer)
+            _saveTimer = null
+        }
+        _saveQueued = false
+        _performSave()
+        return
+    }
+
+    // First call saves immediately; subsequent calls within the window are coalesced.
+    if (!_saveTimer) {
+        _performSave()
+        _saveTimer = setTimeout(() => {
+            _saveTimer = null
+            if (_saveQueued) {
+                _saveQueued = false
+                _performSave()
+            }
+        }, 350)
+    } else {
+        _saveQueued = true
     }
 }
 
@@ -8740,7 +11087,7 @@ function loadGame(fromDefeat) {
             return false
         }
 
-        const data = JSON.parse(json)
+        let data = migrateSaveData(JSON.parse(json))
         state = createEmptyState()
 
         state.player = data.player
@@ -8753,6 +11100,7 @@ function loadGame(fromDefeat) {
         }
         state.quests = data.quests || {}
         state.flags = data.flags || state.flags
+        ensureQuestStructures()
         state.companion = data.companion || null
         // NEW: restore village container (population, etc.)
         state.village = data.village || null
@@ -8767,6 +11115,13 @@ function loadGame(fromDefeat) {
         state.government = data.government || null
         const timeInfo = getTimeInfo(state) // from timeSystem
         initGovernmentState(state, timeInfo.absoluteDay)
+
+        // One-time cleanup so expired decrees don't linger after loading
+        try {
+            cleanupTownHallEffects(state, timeInfo.absoluteDay)
+        } catch (_) {
+            // ignore
+        }
         // NEW: restore combat state
         state.inCombat = !!(data.inCombat && data.currentEnemy)
         state.currentEnemy = data.currentEnemy || null
@@ -8774,11 +11129,27 @@ function loadGame(fromDefeat) {
         // 🛒 NEW: restore merchant state (safe if missing on old saves)
         state.villageMerchantNames = data.villageMerchantNames || null
         state.merchantStock = data.merchantStock || null
+        state.merchantStockMeta = data.merchantStockMeta || null
+
+        // Simulation meta (daily tick catch-up pointer)
+        state.sim = data.sim && typeof data.sim === 'object' ? data.sim : { lastDailyTickDay: null }
+        if (typeof state.sim.lastDailyTickDay !== 'number') {
+            // Seed to current day so we don't retroactively tick a ton on load.
+            const d = state.time && typeof state.time.dayIndex === 'number' && Number.isFinite(state.time.dayIndex)
+                ? Math.max(0, Math.floor(state.time.dayIndex))
+                : 0
+            state.sim.lastDailyTickDay = d
+        }
 
         // NEW: restore log + filter (instead of wiping it)
         state.log = Array.isArray(data.log) ? data.log : []
         state.logFilter = data.logFilter || 'all'
 
+
+        // Force the log UI to rebuild cleanly after loading a save
+        _logUi.lastFirstId = null
+        _logUi.renderedUpToId = 0
+        _logUi.filter = 'all'
         state.currentEnemy && (state.currentEnemy.guardTurns ||= 0) // defensive safety, optional
         state.lastSaveJson = json
 
@@ -8888,9 +11259,8 @@ function saveGameToSlot(slotId, label) {
         alert('Cannot save: your hero is not alive.')
         return
     }
-
-    // Use the existing save logic to produce the JSON blob
-    saveGame()
+    // Use the existing save logic to produce the JSON blob (force so the slot always captures the latest state)
+    saveGame({ force: true })
     const json = state.lastSaveJson
     if (!json) {
         alert('Could not save: no game data found.')
@@ -9145,28 +11515,6 @@ function openSaveManager(options = {}) {
 function initSettingsFromState() {
     const volumeSlider = document.getElementById('settingsVolume')
     const textSpeedSlider = document.getElementById('settingsTextSpeed')
-
-    const settingsVolume = document.getElementById('settingsVolume')
-    if (settingsVolume) {
-        settingsVolume.addEventListener('input', () => {
-            applySettingsChanges()
-        })
-    }
-
-    const settingsMusicToggle = document.getElementById('settingsMusicToggle')
-    if (settingsMusicToggle) {
-        settingsMusicToggle.addEventListener('change', () =>
-            applySettingsChanges()
-        )
-    }
-
-    const settingsSfxToggle = document.getElementById('settingsSfxToggle')
-    if (settingsSfxToggle) {
-        settingsSfxToggle.addEventListener('change', () =>
-            applySettingsChanges()
-        )
-    }
-
     const settingsDifficulty = document.getElementById('settingsDifficulty')
 
     // If controls aren't present, nothing to do
@@ -9174,6 +11522,30 @@ function initSettingsFromState() {
 
     // If state doesn't exist, bail
     if (typeof state === 'undefined' || !state) return
+
+    // Wire listeners ONCE (opening Settings multiple times must not stack handlers)
+    if (volumeSlider && !volumeSlider.dataset.pqWired) {
+        volumeSlider.dataset.pqWired = '1'
+        volumeSlider.addEventListener('input', () => applySettingsChanges())
+    }
+
+    const musicToggleEl = document.getElementById('settingsMusicToggle')
+    if (musicToggleEl && !musicToggleEl.dataset.pqWired) {
+        musicToggleEl.dataset.pqWired = '1'
+        musicToggleEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    const sfxToggleEl = document.getElementById('settingsSfxToggle')
+    if (sfxToggleEl && !sfxToggleEl.dataset.pqWired) {
+        sfxToggleEl.dataset.pqWired = '1'
+        sfxToggleEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    // Text speed should apply live (and avoid stacked listeners)
+    if (textSpeedSlider && !textSpeedSlider.dataset.pqWired) {
+        textSpeedSlider.dataset.pqWired = '1'
+        textSpeedSlider.addEventListener('input', () => applySettingsChanges())
+    }
 
     // Hydrate from state if present; otherwise leave HTML defaults
     if (volumeSlider && typeof state.settingsVolume === 'number') {
@@ -9183,11 +11555,9 @@ function initSettingsFromState() {
         textSpeedSlider.value = state.settingsTextSpeed
     }
 
-    const musicToggle = document.getElementById('settingsMusicToggle')
-    if (musicToggle) musicToggle.checked = state.musicEnabled !== false
+    if (musicToggleEl) musicToggleEl.checked = state.musicEnabled !== false
+    if (sfxToggleEl) sfxToggleEl.checked = state.sfxEnabled !== false
 
-    const sfxToggle = document.getElementById('settingsSfxToggle')
-    if (sfxToggle) sfxToggle.checked = state.sfxEnabled !== false
     if (settingsDifficulty && state.difficulty) {
         settingsDifficulty.value = state.difficulty
     }
@@ -9195,7 +11565,6 @@ function initSettingsFromState() {
     // Ensure audio volume is applied from saved settings
     setMasterVolumePercent(state.settingsVolume)
     updateAreaMusic()
-    applyChannelMuteGains()
     applyChannelMuteGains()
 }
 
@@ -9250,6 +11619,7 @@ function applySettingsChanges() {
     // Apply audio settings immediately
     setMasterVolumePercent(state.settingsVolume)
     updateAreaMusic()
+    applyChannelMuteGains()
     saveGame()
 
     // Allow changing difficulty mid-run
@@ -9288,7 +11658,7 @@ function setTheme(themeName) {
 function openFeedbackModal() {
     const bodyHtml = `
     <div class="modal-subtitle">
-      Help improve Pocket Quest by sending structured feedback. 
+      Help improve Emberwood: The Blackbark Oath by sending structured feedback. 
       Copy this text and paste it wherever you’re tracking issues.
     </div>
 
@@ -9327,26 +11697,31 @@ function openFeedbackModal() {
 }
 
 function handleFeedbackCopy() {
-    const type = document.getElementById('feedbackType').value
-    const text = document.getElementById('feedbackText').value.trim()
+    const typeEl = document.getElementById('feedbackType')
+    const textEl = document.getElementById('feedbackText')
     const status = document.getElementById('feedbackStatus')
+    if (!typeEl || !textEl || !status) return
+
+    const type = typeEl.value
+    const text = (textEl.value || '').trim()
 
     const payload = buildFeedbackPayload(type, text)
 
     copyFeedbackToClipboard(payload)
-        .then(
-            () =>
-                (status.textContent =
-                    '✅ Copied! Paste this into your tracker.')
-        )
+        .then(() => (status.textContent = '✅ Copied! Paste this into your tracker.'))
         .catch(() => (status.textContent = '❌ Could not access clipboard.'))
 }
 
 function buildFeedbackPayload(type, text) {
     const lines = []
-    lines.push('Pocket Quest RPG Feedback')
+    lines.push('Emberwood: The Blackbark Oath RPG Feedback')
     lines.push('-------------------------')
     lines.push(`Type: ${type}`)
+    lines.push('')
+
+    lines.push('Build:')
+    lines.push(`- Patch: ${GAME_PATCH}`)
+    lines.push(`- Save Schema: ${SAVE_SCHEMA}`)
     lines.push('')
 
     if (text) {
@@ -9362,6 +11737,34 @@ function buildFeedbackPayload(type, text) {
         lines.push(`- Level: ${p.level} (XP: ${p.xp}/${p.nextLevelXp})`)
         lines.push(`- Gold: ${p.gold}`)
         lines.push(`- Area: ${state.area}`)
+        if (state.inCombat && state.currentEnemy) {
+            lines.push(`- In Combat: YES (Enemy: ${state.currentEnemy.name})`)
+        } else {
+            lines.push(`- In Combat: NO`)
+        }
+        lines.push('')
+    }
+
+    if (lastCrashReport) {
+        lines.push('Last Crash:')
+        lines.push(`- Kind: ${lastCrashReport.kind}`)
+        lines.push(`- Time: ${new Date(lastCrashReport.time).toISOString()}`)
+        lines.push(`- Message: ${lastCrashReport.message}`)
+        if (lastCrashReport.stack) {
+            lines.push('- Stack:')
+            lines.push(String(lastCrashReport.stack))
+        }
+        lines.push('')
+    }
+
+    if (state && Array.isArray(state.log) && state.log.length) {
+        const tail = state.log.slice(-30)
+        lines.push('Recent Log (last 30):')
+        tail.forEach((e) => {
+            const tag = e && e.type ? e.type : 'normal'
+            const msg = e && e.text ? e.text : ''
+            lines.push(`- [${tag}] ${msg}`)
+        })
         lines.push('')
     }
 
@@ -9397,7 +11800,10 @@ function copyFeedbackToClipboard(text) {
 
 // --- CHANGELOG MODAL --------------------------------------------------------
 
-function openChangelogModal() {
+function openChangelogModal(opts = {}) {
+    const fromPause = !!(opts && opts.fromPause)
+    const onBack = typeof opts?.onBack === 'function' ? opts.onBack : null
+
     openModal('Changelog', (body) => {
         const wrapper = document.createElement('div')
         wrapper.className = 'changelog-modal'
@@ -9405,79 +11811,159 @@ function openChangelogModal() {
         const intro = document.createElement('p')
         intro.className = 'modal-subtitle'
         intro.innerHTML =
-            'All notable changes to <strong>Pocket Quest (Prototype)</strong> are listed here.'
+            'All notable changes to <strong>Emberwood: The Blackbark Oath</strong> are listed here.'
         wrapper.appendChild(intro)
 
-        CHANGELOG.forEach((entry, index) => {
-            const details = document.createElement('details')
-            if (index === 0) details.open = true // latest open by default
+        const isV1 = (v) => /^1\.\d+\.\d+$/.test(String(v || '').trim())
 
-            const summary = document.createElement('summary')
-            summary.innerHTML = `<strong>${entry.version} – ${entry.title}</strong>`
-            details.appendChild(summary)
+        const release = CHANGELOG.filter((e) => isV1(e.version))
+        const alpha = CHANGELOG.filter((e) => !isV1(e.version))
 
-            entry.sections.forEach((section) => {
-                const h4 = document.createElement('h4')
-                h4.textContent = section.heading
-                details.appendChild(h4)
+        function renderEntries(entries, host, { openFirst = false } = {}) {
+            entries.forEach((entry, index) => {
+                const details = document.createElement('details')
+                if (openFirst && index === 0) details.open = true
 
-                const ul = document.createElement('ul')
+                const summary = document.createElement('summary')
+                summary.innerHTML = `<strong>${entry.version} – ${entry.title}</strong>`
+                details.appendChild(summary)
 
-                section.items.forEach((item) => {
-                    const li = document.createElement('li')
+                entry.sections.forEach((section) => {
+                    const h4 = document.createElement('h4')
+                    h4.textContent = section.heading
+                    details.appendChild(h4)
 
-                    // Support either simple strings OR {title, bullets}
-                    if (typeof item === 'string') {
-                        li.textContent = item
-                    } else {
-                        const titleSpan = document.createElement('strong')
-                        titleSpan.textContent = item.title
-                        li.appendChild(titleSpan)
+                    const ul = document.createElement('ul')
 
-                        if (item.bullets && item.bullets.length) {
-                            const innerUl = document.createElement('ul')
-                            item.bullets.forEach((text) => {
-                                const innerLi = document.createElement('li')
-                                innerLi.textContent = text
-                                innerUl.appendChild(innerLi)
-                            })
-                            li.appendChild(innerUl)
+                    section.items.forEach((item) => {
+                        const li = document.createElement('li')
+
+                        // Support either simple strings OR {title, bullets}
+                        if (typeof item === 'string') {
+                            li.textContent = item
+                        } else {
+                            const titleSpan = document.createElement('strong')
+                            titleSpan.textContent = item.title
+                            li.appendChild(titleSpan)
+
+                            if (item.bullets && item.bullets.length) {
+                                const innerUl = document.createElement('ul')
+                                item.bullets.forEach((text) => {
+                                    const innerLi = document.createElement('li')
+                                    innerLi.textContent = text
+                                    innerUl.appendChild(innerLi)
+                                })
+                                li.appendChild(innerUl)
+                            }
                         }
-                    }
 
-                    ul.appendChild(li)
+                        ul.appendChild(li)
+                    })
+
+                    details.appendChild(ul)
                 })
 
-                details.appendChild(ul)
+                host.appendChild(details)
             })
+        }
 
-            wrapper.appendChild(details)
-        })
+        function renderEraPanel(title, entries, { open = false, openFirstEntry = false } = {}) {
+            const panel = document.createElement('details')
+            panel.open = !!open
+
+            const summary = document.createElement('summary')
+            summary.innerHTML = `<strong>${title}</strong>`
+            panel.appendChild(summary)
+
+            renderEntries(entries, panel, { openFirst: openFirstEntry })
+            wrapper.appendChild(panel)
+        }
+
+        // V1.x.x gets its own collapsible panel (newest open by default)
+        renderEraPanel('Release (V1.x.x)', release, { open: true, openFirstEntry: true })
+
+        // Everything else lives in a collapsible Alpha / Early Access panel
+        renderEraPanel('Alpha / Early Access (pre-1.0.0)', alpha, { open: false, openFirstEntry: false })
 
         body.appendChild(wrapper)
+
+        // If opened from the pause menu (or provided with a back callback), show an explicit Back button
+        if (fromPause || onBack) {
+            const actions = document.createElement('div')
+            actions.className = 'modal-actions'
+
+            const btnBack = document.createElement('button')
+            btnBack.className = 'btn outline'
+            btnBack.textContent = fromPause ? 'Back to Game Menu' : 'Back'
+            btnBack.addEventListener('click', () => {
+                closeModal()
+                if (onBack) {
+                    try {
+                        onBack()
+                        return
+                    } catch (_) {
+                        // fall through
+                    }
+                }
+                if (fromPause) {
+                    try { openPauseMenu() } catch (_) {}
+                }
+            })
+
+            actions.appendChild(btnBack)
+            body.appendChild(actions)
+        }
     })
 }
 function initLogFilterChips() {
     const container = document.getElementById('logFilters')
     if (!container) return
 
-    container.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-log-filter]')
-        if (!btn) return
+    // Ensure we have a default filter so the UI can hydrate predictably.
+    if (typeof state !== 'undefined' && state) {
+        if (!state.logFilter) state.logFilter = 'all'
+    }
 
-        const value = btn.dataset.logFilter || 'all'
-        state.logFilter = value
-
-        // 🔹 Use the log-chip-active class so the highlight persists
+    function syncActiveChip() {
+        const current = (typeof state !== 'undefined' && state && state.logFilter) ? state.logFilter : 'all'
         container.querySelectorAll('.log-chip').forEach((chip) => {
-            chip.classList.toggle('log-chip-active', chip === btn)
+            const v = chip.dataset.logFilter || 'all'
+            chip.classList.toggle('log-chip-active', v === current)
         })
+    }
 
-        renderLog()
-    })
+    // Hydrate highlight immediately
+    syncActiveChip()
+
+    // Avoid stacking duplicate listeners
+    if (!container.dataset.pqWired) {
+        container.dataset.pqWired = '1'
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-log-filter]')
+            if (!btn) return
+
+            const value = btn.dataset.logFilter || 'all'
+            state.logFilter = value
+
+            syncActiveChip()
+            renderLog()
+        })
+    }
 }
 
 // --- INITIAL SETUP & EVENT LISTENERS ------------------------------------------
+
+
+function applyVersionLabels() {
+    // Main menu hint
+    const vEl = document.getElementById('versionLabel')
+    if (vEl) vEl.textContent = 'V' + GAME_PATCH
+
+    // Any other optional places you tag with data-game-version
+    document.querySelectorAll('[data-game-version]').forEach((el) => {
+        el.textContent = GAME_PATCH
+    })
+}
 
 function onDocReady(fn) {
     if (document.readyState === 'loading') {
@@ -9488,6 +11974,9 @@ function onDocReady(fn) {
 }
 
 onDocReady(() => {
+    initCrashCatcher()
+    applyVersionLabels()
+
     // HUD: tap on name to open character sheet
     const hudName = document.getElementById('hud-name')
     if (hudName) {
@@ -9500,20 +11989,44 @@ onDocReady(() => {
     function setupCollapsingPanels() {
         const questBox = document.getElementById('questBox')
         const questTitle = document.getElementById('questTitle')
-        const log = document.getElementById('log')
+        const logBox = document.getElementById('logBox')
         const logHeader = document.getElementById('logHeader')
 
-        if (questTitle && questBox) {
-            questTitle.addEventListener('click', () => {
-                questBox.classList.toggle('collapsed')
+        function wire(headerEl, boxEl, flagKey) {
+            if (!headerEl || !boxEl) return
+            const key = flagKey || 'collapseWired'
+            if (headerEl.dataset[key]) return
+            headerEl.dataset[key] = '1'
+
+            // Accessibility + keyboard support
+            headerEl.setAttribute('role', 'button')
+            headerEl.setAttribute('tabindex', '0')
+
+            const syncAria = () => {
+                headerEl.setAttribute(
+                    'aria-expanded',
+                    String(!boxEl.classList.contains('collapsed'))
+                )
+            }
+
+            const toggle = () => {
+                boxEl.classList.toggle('collapsed')
+                syncAria()
+            }
+
+            headerEl.addEventListener('click', toggle)
+            headerEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toggle()
+                }
             })
+
+            syncAria()
         }
 
-        if (logHeader && log) {
-            logHeader.addEventListener('click', () => {
-                log.classList.toggle('collapsed')
-            })
-        }
+        wire(questTitle, questBox, 'collapseWiredQuest')
+        wire(logHeader, logBox, 'collapseWiredLog')
     }
     const btnRandomName = document.getElementById('btnRandomName')
 
@@ -9540,13 +12053,14 @@ onDocReady(() => {
         const idx = Math.floor(Math.random() * RANDOM_NAMES.length)
         return RANDOM_NAMES[idx]
     }
+    const nameInputEl = document.getElementById('inputName')
 
-    if (btnRandomName && inputName) {
+    if (btnRandomName && nameInputEl) {
         btnRandomName.addEventListener('click', () => {
             // If there’s already a name, you can overwrite or only fill when empty.
             // Overwrite every time:
             const newName = getRandomName()
-            inputName.value = newName
+            nameInputEl.value = newName
         })
     }
 
@@ -9682,7 +12196,7 @@ onDocReady(() => {
     try {
         const json = localStorage.getItem(SAVE_KEY)
         if (json) {
-            const data = JSON.parse(json)
+            let data = migrateSaveData(JSON.parse(json))
             if (data.difficulty) {
                 state.difficulty = data.difficulty
             }
