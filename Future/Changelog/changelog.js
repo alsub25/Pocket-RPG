@@ -1,7 +1,534 @@
 // changelog.js
-// ES6 module: structured changelog data for Pocket Quest
+// ES6 module: structured changelog data for Emberwood: The Blackbark Oath
 
 export const CHANGELOG = [
+  {
+    version: "1.0.9",
+    title: "Bugfix Patch: Settings Defaults, Economy Tick Init, and Log ID Consistency",
+    sections: [
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Volume and text speed now respect defaults on a fresh install",
+            bullets: [
+              "Fixed a localStorage parsing edge case where missing keys were interpreted as 0, muting audio and forcing minimum text speed on first launch."
+            ]
+          },
+          {
+            title: "Village economy day tick initialization is consistent",
+            bullets: [
+              "Economy state now starts with lastDayUpdated = null (like population), preventing accidental day-0 tick skips in catch-up or debug flows."
+            ]
+          },
+          {
+            title: "Log entries start at ID 1 in new runs",
+            bullets: [
+              "Adjusted the initial log sequence counter so the first entry is ID 1 (no gameplay impact, but keeps IDs intuitive and consistent)."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    version: "1.0.8",
+    title: "Bugfix Patch: Quest Board Availability, Feedback Modal Hardening, and Bank Interest Logging Safety",
+    sections: [
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Completed side quests no longer reappear on the tavern board",
+            bullets: [
+              "Side quests are now offered only if they have never been started, preventing completed quests from being re-listed."
+            ]
+          },
+          {
+            title: "Bank weekly-interest logging is now optional-safe",
+            bullets: [
+              "Interest application no longer assumes an addLog callback exists, preventing errors if reused from non-UI code paths."
+            ]
+          },
+          {
+            title: "Feedback copy handler is more defensive",
+            bullets: [
+              "Clipboard copy now safely aborts if modal DOM nodes are missing, preventing rare crashes during UI refactors."
+            ]
+          },
+          {
+            title: "Version labels are consistent across launcher + docs",
+            bullets: [
+              "Bootstrap and README patch labels now match the in-game build version."
+            ]
+          },
+          {
+            title: "Developer docs reference the correct entry file",
+            bullets: [
+              "Updated the User Acceptance install snippet to reference bootstrap.js instead of a non-existent Core/game.updated.js."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.7",
+    title: "Systems Polish: Town Summary, Decree Economy Drift, Bank Rate Breakdown, and Gambling UX",
+    sections: [
+      {
+        heading: "New / Improved",
+        items: [
+          {
+            title: "Town Summary after resting",
+            bullets: [
+              "Resting at the tavern now opens a Town Summary card showing economy tier, villager mood changes, active decree time remaining, and bank week progress."
+            ]
+          },
+          {
+            title: "Town Hall decrees nudge the economy",
+            bullets: [
+              "Active decrees can add small daily deltas to Prosperity/Trade/Security, making decree choices visible in day-to-day drift.",
+              "The economy stores a daily breadcrumb describing decree nudges for summary UI."
+            ]
+          },
+          {
+            title: "Bank rate breakdown",
+            bullets: [
+              "Bank now includes a collapsible breakdown showing base rates, tier adjustments, and active decree multipliers."
+            ]
+          },
+          {
+            title: "Tavern games UX",
+            bullets: [
+              "Added Luck/Heat meters, guidance text, and stronger max-bet enforcement to prevent out-of-range wagers."
+            ]
+          },
+          {
+            title: "Dev cheat: fast-forward days",
+            bullets: [
+              "Cheat Menu now includes +1/+3/+7 day fast-forward buttons with a printed summary of economy, mood, decree, and bank progress changes."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.6",
+    title: "Bugfix Patch: Quest Panel Chevron, Scroll-Safe Log, Mobile Viewport Height, and Panel A11y",
+    sections: [
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Quest panel header chevron is preserved",
+            bullets: [
+              "Fixed updateQuestBox() so it no longer overwrites the Quest header DOM (which previously deleted the chevron).",
+              "Quest header now uses an internal title span so future updates won’t break collapse UX."
+            ]
+          },
+          {
+            title: "Quest chevron color matches the quest border",
+            bullets: [
+              "Quest panel now defines a --quest-border variable used by the border, header text, and chevron for consistent styling."
+            ]
+          },
+          {
+            title: "Log panel no longer yanks the scroll position",
+            bullets: [
+              "renderLog() now only auto-scrolls when the player is already near the bottom, preserving reading position when scrolled up."
+            ]
+          },
+          {
+            title: "Mobile-safe viewport sizing",
+            bullets: [
+              "Replaced critical 100vh sizing with 100dvh where supported to avoid UI cutoffs from mobile browser address bars.",
+              "Modal max-height now also uses dvh for better fit on mobile."
+            ]
+          },
+          {
+            title: "Collapsible panels are now keyboard friendly",
+            bullets: [
+              "Quest and Log headers now support Enter/Space to collapse/expand and expose aria-expanded state.",
+              "Collapse listeners are wired idempotently to prevent duplicate handlers."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.5",
+    title: "Bugfix Patch: Settings UI, Log Panel, Safety Helpers, and Packaged Audio",
+    sections: [
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Audio assets now ship with the build",
+            bullets: [
+              "Added Future/Audio with default WAV files so ambient/music/sfx paths no longer 404 in the browser.",
+              "Music/SFX toggles now apply mute gains immediately when changed."
+            ]
+          },
+          {
+            title: "Settings screen hardening",
+            bullets: [
+              "Added a Difficulty selector to the Settings screen (easy/normal/hard/dynamic).",
+              "Settings event listeners are now wired idempotently, preventing duplicated handlers when opening Settings multiple times.",
+              "Text Speed now applies live via slider input changes."
+            ]
+          },
+          {
+            title: "Log panel collapse + filter UX",
+            bullets: [
+              "Added a Log header with chevron and proper collapse behavior.",
+              "Log filter chips now hydrate their active highlight on load."
+            ]
+          },
+          {
+            title: "Bootstrap version picker highlight",
+            bullets: [
+              "The currently selected version is now visibly highlighted in the version picker."
+            ]
+          },
+          {
+            title: "Numeric safety helpers unified",
+            bullets: [
+              "Removed duplicate finite/clamp helper implementations and now import them from Systems/safety.js to reduce drift."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.4",
+    title: "Bugfix Patch: Save Slots, Time Normalization, Bank Interest Guards, and Pause→Changelog Back Button",
+    sections: [
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Random Name button reliability",
+            bullets: [
+              "Fixed Random Name to target the input field via DOM lookup instead of relying on a global ID variable."
+            ]
+          },
+          {
+            title: "Manual save slots always capture the latest state",
+            bullets: [
+              "Slot saves now force-flush the autosave coalescing queue so manual saves never lag behind recent actions."
+            ]
+          },
+          {
+            title: "Time system now normalizes stored time values",
+            bullets: [
+              "state.time.dayIndex and state.time.partIndex are now clamped and written back to state to prevent persistent corruption from NaN/Infinity/out-of-range values."
+            ]
+          },
+          {
+            title: "Bank weekly interest hardening",
+            bullets: [
+              "Bank interest now treats non-finite dayIndex / lastInterestDay as day 0 and safely re-initializes or recalibrates.",
+              "Prevents weekly interest from silently breaking when day counters become NaN."
+            ]
+          },
+          {
+            title: "Settings initialization cleanup",
+            bullets: [
+              "Removed a duplicate applyChannelMuteGains() call during settings hydration."
+            ]
+          },
+          {
+            title: "Pause menu → Changelog UX",
+            bullets: [
+              "Changelog opened from the pause menu now shows a Back button that returns to the Game Menu instead of effectively unpausing on close."
+            ]
+          },
+          {
+            title: "Town Hall decree cleanup on load",
+            bullets: [
+              "Expired decrees are cleared once on save-load so stale decree fields don't linger when a player loads and doesn't advance days."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.3",
+    title: "Final Pre-1.1.0 Cleanup: Save/Modal A11y, Daily Tick Catch-up, and Branding Consistency",
+    sections: [
+      {
+        heading: "Changed",
+        items: [
+          {
+            title: "Daily ticks now catch up safely",
+            bullets: [
+              "If multiple in-game days are skipped (rest chains, tab suspension, or fast-forward), the daily tick pipeline now replays missed days up to a safe cap.",
+              "Daily tick progress is tracked in state.sim.lastDailyTickDay to prevent double-running and to support stable catch-up behavior."
+            ]
+          },
+          {
+            title: "Save system is quieter and more stable",
+            bullets: [
+              "Autosaves are now de-duplicated and coalesced to reduce localStorage churn and mobile stutter.",
+              "Merchant restock meta (merchantStockMeta) and simulation meta (sim) are now persisted and migrated in the save schema."
+            ]
+          },
+          {
+            title: "Town Hall decree cleanup is pure-read for UIs",
+            bullets: [
+              "Bank and rest-cost calculations no longer mutate decree state while rendering; decree cleanup happens in the daily tick pipeline."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Modal reliability and accessibility",
+            bullets: [
+              "Modals now close with Escape and trap focus while open, restoring focus back to the opener on close.",
+              "Extra leaked tavern footer actions are removed on both open and close to prevent hidden interactive elements."
+            ]
+          },
+          {
+            title: "Merchant stock safety",
+            bullets: [
+              "Merchant stock generation no longer assumes state.player exists (prevents crashes during early init or corrupted saves)."
+            ]
+          },
+          {
+            title: "Time display and branding cleanup",
+            bullets: [
+              "Added a HUD time label for the existing updateTimeDisplay() hook.",
+              "Removed lingering 'Pocket Quest' / 'Project: Mystic' naming in UI strings and stylesheet headers."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.2",
+    title: "Economy & UI Polish: Decree Cleanup, Merchant Restock, and Tick Guards",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          {
+            title: "Merchant daily restock",
+            bullets: [
+              "Village and wandering merchant stock now replenishes slowly each in-game day so shops don't become permanently empty."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Changed",
+        items: [
+          {
+            title: "Town Hall decree cleanup is centralized",
+            bullets: [
+              "Other systems no longer delete state.government.townHallEffects; expired decrees are cleared in-place to keep the object shape stable for the Town Hall UI.",
+              "Expired decrees are cleared in-place via a shared helper so the object shape remains stable for the Town Hall UI."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Price and tick guardrails",
+            bullets: [
+              "Wandering-merchant price multiplier is now clamped after its road-risk bump so it can't exceed intended ceilings.",
+              "Village population day tick now guards against double-running the same day (prevents mood drift from applying twice).",
+              "Town Hall daily tick now guards against double-running the same day (keeps petition timelines consistent)."
+            ]
+          },
+          {
+            title: "Banking edge cases",
+            bullets: [
+              "Weekly interest now clamps negative calendar deltas (save rollback/dev tools) so interest can't get stuck.",
+              "A one-time ledger note explains weekly-interest initialization the first time you open the bank after updating."
+            ]
+          },
+          {
+            title: "Merchant coverage",
+            bullets: [
+              "Essence-based heroes now see their correct resource potion in merchant stock.",
+              "Alchemists now carry Essence potions."
+            ]
+          },
+          {
+            title: "Tavern games footer cleanup",
+            bullets: [
+              "Pinned tavern-games footer actions are now removed on modal close to prevent UI leakage across modals."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.1",
+    title: "Stability Pass: Save Schema, Crash Reports & Log Performance",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          {
+            title: "Save schema + migrations",
+            bullets: [
+              "Saves now include a meta.schema field so future updates can migrate older saves safely.",
+              "Automatic backfills for missing blocks (time, village economy, government, bank, merchant stock/names) when loading older saves."
+            ]
+          },
+          {
+            title: "Crash catcher (for better bug reports)",
+            bullets: [
+              "Unhandled errors and promise rejections are captured and attached to the Feedback / Bug Report payload.",
+              "Feedback now includes patch, schema, and the last 30 log lines to make reproduction easier."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Changed",
+        items: [
+          {
+            title: "Log rendering performance",
+            bullets: [
+              "Game log rendering is now incremental to reduce DOM churn during long sessions.",
+              "Loading a save forces a clean rebuild of the log UI to avoid filter/render mismatches."
+            ]
+          },
+          {
+            title: "Version label is now driven by GAME_PATCH",
+            bullets: [
+              "Main menu version label is set at runtime so it stays consistent across builds."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Numeric guardrails",
+            bullets: [
+              "Added NaN/Infinity clamps for core values (HP, resource, gold, enemy HP) to prevent state corruption.",
+              "Village economy + merchant purchase flows now sanitize gold and multipliers defensively."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.0",
+    title: "Full Release: Core Systems Locked-In",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          {
+            title: "Full village simulation loop",
+            bullets: [
+              "Village economy now influences merchant prices, tavern rest costs, and bank rates.",
+              "Kingdom Government and Town Hall systems introduce decrees that temporarily nudge the economy."
+            ]
+          },
+          {
+            title: "Banking and finance",
+            bullets: [
+              "Village Bank supports savings, investments, and loans with weekly interest tied to the in-game calendar."
+            ]
+          },
+          {
+            title: "Merchants and persistent stock",
+            bullets: [
+              "Village merchants now have per-run shop names and limited stock that can sell out.",
+              "Traveling merchant events support a separate wandering context for pricing flavor."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Changed",
+        items: [
+          {
+            title: "Save / load reliability",
+            bullets: [
+              "Expanded save data coverage for time, economy, government, banking, and merchant persistence.",
+              "Improved mid-combat resume behavior and log restoration."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "UI and modal consistency",
+            bullets: [
+              "Improved modal cleanup across different features to prevent layout bleed.",
+              "Changelog and Feedback tools are available directly from the main menu."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "0.9.0",
+    title: "UI Polish, Combat Tuning & Quality-of-Life",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          {
+            title: "More combat clarity",
+            bullets: [
+              "Improved combat log messaging for critical hits, shields, and lifesteal effects.",
+              "New log filter chips let you quickly focus on system, danger, or positive events."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Changed",
+        items: [
+          {
+            title: "Balance and pacing",
+            bullets: [
+              "Ability damage and resource costs have been tuned to keep spell/ability use feeling rewarding.",
+              "Tavern rest and economy tick integration standardized so day progression is consistent."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Mobile and layout fixes",
+            bullets: [
+              "Improved responsive layout handling for smaller screens and modal-heavy flows.",
+              "Assorted UI alignment fixes and minor bug cleanups."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
   {
   version: "0.8.0",
   title: "Bootstrap Version Picker & Audio Settings Controls",
