@@ -1,237 +1,318 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>EMBERWOOD: THE BLACKBARK OATH</title>
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-<div id="app">
+    <head>
+        <meta charset="UTF-8" />
+        <title>EMBERWOOD: THE BLACKBARK OATH</title>
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div id="app">
+            <!-- MAIN MENU -->
+            <div id="mainMenu" class="screen">
+                <div class="card center">
+                    <h1>EMBERWOOD: THE BLACKBARK OATH</h1>
+                    <div class="hint">Fantasy RPG • <span id="versionLabel">V?</span></div>
 
-  <!-- MAIN MENU -->
-  <div id="mainMenu" class="screen">
-    <div class="card center">
-      <h1>EMBERWOOD: THE BLACKBARK OATH</h1>
-      <div class="hint">Fantasy RPG • V0.8.0</div>
+                    <button class="btn outline" id="btnNewGame">
+                        New Game
+                    </button>
+                    <button class="btn outline" id="btnLoadGame">
+                        Load Game
+                    </button>
+                    <button class="btn outline" id="btnSettingsMain">
+                        Settings
+                    </button>
 
-      <button class="btn outline" id="btnNewGame">New Game</button>
-      <button class="btn outline" id="btnLoadGame">Load Game</button>
-      <button class="btn outline" id="btnSettingsMain">Settings</button>
-	  
-	  <!-- NEW: Changelog button -->
-    <button class="btn outline" id="btnChangelog">Changelog</button>
-	
-      <button class="btn outline" id="btnFeedback">Feedback / Bug Report</button>
+                    <!-- NEW: Changelog button -->
+                    <button class="btn outline" id="btnChangelog">
+                        Changelog
+                    </button>
 
-      <p class="hint">Progress is stored locally on this device using browser storage.</p>
-    </div>
-  </div>
+                    <button class="btn outline" id="btnFeedback">
+                        Feedback / Bug Report
+                    </button>
 
-  <!-- CHARACTER CREATION -->
-  <div id="characterScreen" class="screen hidden">
-    <div class="card">
-      <h2>Create Hero</h2>
+                    <p class="hint">
+                        Progress is stored locally on this device using browser
+                        storage.
+                    </p>
+                </div>
+            </div>
 
-      <div class="field">
-        <label for="inputName">Name</label>
-        <div class="name-input-row">
-          <input id="inputName" type="text" maxlength="16" placeholder="Aria, Thorne, etc.">
-          <button type="button" id="btnRandomName" class="icon-btn" title="Random Name">
-            🎲
-          </button>
+            <!-- CHARACTER CREATION -->
+            <div id="characterScreen" class="screen hidden">
+                <div class="card">
+                    <h2>Create Hero</h2>
+
+                    <div class="field">
+                        <label for="inputName">Name</label>
+                        <div class="name-input-row">
+                            <input
+                                id="inputName"
+                                type="text"
+                                maxlength="16"
+                                placeholder="Aria, Thorne, etc." />
+                            <button
+                                type="button"
+                                id="btnRandomName"
+                                class="icon-btn"
+                                title="Random Name">
+                                🎲
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>Class</label>
+                        <!-- Scrollable container -->
+                        <div id="classScrollContainer">
+                            <div id="classOptions"></div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>Difficulty</label>
+                        <div class="option-row" id="difficultyOptions"></div>
+                    </div>
+
+                    <div class="field">
+                        <label>Developer Cheats</label>
+
+                        <div class="option-row">
+                            <div class="pill-option dev-cheats-pill">
+                                <label class="dev-cheats-label">
+                                    <input
+                                        type="checkbox"
+                                        id="devCheatsToggle" />
+                                    <span class="dev-cheats-title"
+                                        >Enable developer cheats</span
+                                    >
+                                </label>
+                                <div class="dev-cheats-subtitle">
+                                    Shows the Cheat menu in-game for this
+                                    character (testing only).
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn outline" id="btnStartGame">
+                        Begin Adventure
+                    </button>
+                    <button class="btn outline" id="btnBackToMenu">Back</button>
+                </div>
+            </div>
+
+            <!-- GAME SCREEN -->
+            <div id="gameScreen" class="screen hidden">
+                <div id="hud" class="card">
+                    <div id="hud-top">
+                        <div>
+                            <div id="hud-name">Hero</div>
+                            <div id="hud-class-diff">Class • Difficulty</div>
+                        </div>
+                        <button id="btnGameMenu" class="icon-btn" title="Menu">
+                            ≡
+                        </button>
+                    </div>
+                    <div id="hud-bars">
+                        <div class="bar">
+                            <div class="bar-fill hp-fill" id="hpFill"></div>
+                            <div class="bar-label" id="hpLabel">HP</div>
+                        </div>
+                        <div class="bar">
+                            <div
+                                class="bar-fill resource-fill mana"
+                                id="resFill"></div>
+                            <div class="bar-label" id="resLabel">Resource</div>
+                        </div>
+                    </div>
+                    <div id="hud-bottom">
+                        <span id="hud-level">Lv 1 • 0/100 XP</span>
+                        <span id="timeLabel" class="hud-time"></span>
+                        <span id="hud-gold"
+                            ><span class="gold">0</span> Gold</span
+                        >
+                    </div>
+                </div>
+
+                <!-- Enemy Panel -->
+                <div id="enemyPanel" class="enemy-panel hidden">
+                    <div class="enemy-header-row">
+                        <span id="enemyName" class="enemy-name">Enemy</span>
+                        <span id="enemyTags" class="enemy-tags"></span>
+                    </div>
+
+                    <div class="bar enemy-hp-bar">
+                        <div
+                            id="enemyHpFill"
+                            class="bar-fill hp-fill enemy-hp-fill">
+                            <span
+                                id="enemyHpLabel"
+                                class="enemy-hp-label"></span>
+                        </div>
+                    </div>
+
+                    <div id="enemyStatusLine" class="enemy-status-line"></div>
+                </div>
+
+                <div id="gameMain">
+                    <div id="scene">
+                        <div id="sceneTitle">Prologue</div>
+                        <div id="sceneText">Welcome to Emberwood: The Blackbark Oath.</div>
+                    </div>
+
+                    <div id="questBox">
+                        <div id="questTitle" class="panel-header">
+                            <span id="questTitleText">Quests</span>
+                            <span class="panel-chevron" aria-hidden="true">▾</span>
+                        </div>
+                        <div id="questDesc">None yet.</div>
+                    </div>
+
+                    <!-- NEW: Log Filter as its own panel -->
+                    <div id="logFilterPanel">
+                        <div id="logFilters" class="log-filter-row">
+                            <button class="log-chip" data-log-filter="all">
+                                All
+                            </button>
+                            <button class="log-chip" data-log-filter="system">
+                                System
+                            </button>
+                            <button class="log-chip" data-log-filter="good">
+                                Player
+                            </button>
+                            <button class="log-chip" data-log-filter="danger">
+                                Enemy
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="logBox">
+                        <div id="logHeader" class="panel-header">
+                            Log
+                            <span class="panel-chevron" aria-hidden="true">▾</span>
+                        </div>
+                        <div id="log"></div>
+                    </div>
+
+                </div>
+
+                <div id="actions"></div>
+            </div>
+
+            <!-- SETTINGS SCREEN (from main menu) -->
+            <div id="settingsScreen" class="screen hidden">
+                <div class="card">
+                    <h2>Settings</h2>
+                    <p class="hint">Customize your Emberwood experience.</p>
+
+                    <!-- Theme Selector -->
+                    <div class="settings-row">
+                        <div class="settings-label">Theme</div>
+                        <div class="settings-control">
+                            <select id="themeSelect">
+                                <option value="default">Default</option>
+                                <option value="arcane">Arcane</option>
+                                <option value="inferno">Inferno</option>
+                                <option value="forest">Forest</option>
+                                <option value="holy">Holy</option>
+                                <option value="shadow">Shadow</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Master Volume -->
+                    <div class="settings-row">
+                        <div class="settings-label">Master Volume</div>
+                        <div class="settings-control">
+                            <input
+                                type="range"
+                                id="settingsVolume"
+                                min="0"
+                                max="100"
+                                value="80" />
+                        </div>
+                    </div>
+                    <!-- Music Toggle -->
+                    <div class="settings-row">
+                        <div class="settings-label">Music</div>
+                        <div class="settings-control">
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    id="settingsMusicToggle"
+                                    checked />
+                                Enabled
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- SFX Toggle -->
+                    <div class="settings-row">
+                        <div class="settings-label">SFX</div>
+                        <div class="settings-control">
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    id="settingsSfxToggle"
+                                    checked />
+                                Enabled
+                            </label>
+                        </div>
+                    </div>
+
+
+
+                    <!-- Difficulty -->
+                    <div class="settings-row">
+                        <div class="settings-label">Difficulty</div>
+                        <div class="settings-control">
+                            <select id="settingsDifficulty">
+                                <option value="easy">Easy</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="hard">Hard</option>
+                                <option value="dynamic">Dynamic</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Text Speed -->
+                    <div class="settings-row">
+                        <div class="settings-label">Text Speed</div>
+                        <div class="settings-control">
+                            <input
+                                type="range"
+                                id="settingsTextSpeed"
+                                min="0"
+                                max="100"
+                                value="100" />
+                        </div>
+                    </div>
+
+                    <!-- Back Button -->
+                    <button class="btn outline" id="btnSettingsBack">
+                        Back
+                    </button>
+                </div>
+            </div>
+
+            <!-- MODAL (inventory / merchant / cheats / pause / spells / game over) -->
+            <div id="modal" class="hidden">
+                <div id="modalPanel" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+                    <div id="modalHeader">
+                        <h3 id="modalTitle">Title</h3>
+                        <button id="modalClose" class="icon-btn">✕</button>
+                    </div>
+                    <div id="modalBody"></div>
+                </div>
+            </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label>Class</label>
-        <!-- Scrollable container -->
-        <div id="classScrollContainer">
-          <div id="classOptions"></div>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Difficulty</label>
-        <div class="option-row" id="difficultyOptions"></div>
-      </div>
-	  
-	  <div class="field">
-  <label>Developer Cheats</label>
-
-  <div class="option-row">
-    <div class="pill-option dev-cheats-pill">
-      <label class="dev-cheats-label">
-        <input type="checkbox" id="devCheatsToggle">
-        <span class="dev-cheats-title">Enable developer cheats</span>
-      </label>
-      <div class="dev-cheats-subtitle">
-        Shows the Cheat menu in-game for this character (testing only).
-      </div>
-    </div>
-  </div>
-</div>
-	  
-
-      <button class="btn outline" id="btnStartGame">Begin Adventure</button>
-      <button class="btn outline" id="btnBackToMenu">Back</button>
-    </div>
-  </div>
-
-  <!-- GAME SCREEN -->
-  <div id="gameScreen" class="screen hidden">
-    <div id="hud" class="card">
-      <div id="hud-top">
-        <div>
-          <div id="hud-name">Hero</div>
-          <div id="hud-class-diff">Class • Difficulty</div>
-        </div>
-        <button id="btnGameMenu" class="icon-btn" title="Menu">≡</button>
-      </div>
-      <div id="hud-bars">
-        <div class="bar">
-          <div class="bar-fill hp-fill" id="hpFill"></div>
-          <div class="bar-label" id="hpLabel">HP</div>
-        </div>
-        <div class="bar">
-          <div class="bar-fill resource-fill mana" id="resFill"></div>
-          <div class="bar-label" id="resLabel">Resource</div>
-        </div>
-      </div>
-      <div id="hud-bottom">
-        <span id="hud-level">Lv 1 • 0/100 XP</span>
-        <span id="hud-gold"><span class="gold">0</span> Gold</span>
-      </div>
-    </div>
-
-    <!-- Enemy Panel -->
-    <div id="enemyPanel" class="enemy-panel hidden">
-      <div class="enemy-header-row">
-        <span id="enemyName" class="enemy-name">Enemy</span>
-        <span id="enemyTags" class="enemy-tags"></span>
-      </div>
-
-      <div class="bar enemy-hp-bar">
-        <div id="enemyHpFill" class="bar-fill hp-fill enemy-hp-fill">
-          <span id="enemyHpLabel" class="enemy-hp-label"></span>
-        </div>
-      </div>
-
-      <div id="enemyStatusLine" class="enemy-status-line"></div>
-    </div>
-
-    <div id="gameMain">
-      <div id="scene">
-        <div id="sceneTitle">Prologue</div>
-        <div id="sceneText">Welcome to Pocket Quest.</div>
-      </div>
-
-      <div id="questBox">
-        <div id="questTitle" class="panel-header">
-          Quest
-          <span class="panel-chevron" aria-hidden="true">▾</span>
-        </div>
-        <div id="questDesc">None yet.</div>
-      </div>
-
-      <!-- NEW: Log Filter as its own panel -->
-      <div id="logFilterPanel">
-        <div id="logFilters" class="log-filter-row">
-          <button class="log-chip" data-log-filter="all">All</button>
-          <button class="log-chip" data-log-filter="system">System</button>
-          <button class="log-chip" data-log-filter="good">Player</button>
-          <button class="log-chip" data-log-filter="danger">Enemy</button>
-        </div>
-      </div>
-
-      <div id="log"></div>
-    </div>
-
-    <div id="actions"></div>
-  </div>
-
-<!-- SETTINGS SCREEN (from main menu) -->
-<div id="settingsScreen" class="screen hidden">
-  <div class="card">
-    <h2>Settings</h2>
-    <p class="hint">Customize your Pocket Quest experience.</p>
-
-    <!-- Theme Selector -->
-    <div class="settings-row">
-      <div class="settings-label">Theme</div>
-      <div class="settings-control">
-        <select id="themeSelect">
-          <option value="default">Default</option>
-          <option value="arcane">Arcane</option>
-          <option value="inferno">Inferno</option>
-          <option value="forest">Forest</option>
-          <option value="holy">Holy</option>
-          <option value="shadow">Shadow</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Master Volume -->
-    <div class="settings-row">
-      <div class="settings-label">Master Volume</div>
-      <div class="settings-control">
-        <input type="range" id="settingsVolume" min="0" max="100" value="80">
-      </div>
-    </div>
-    <!-- Music Toggle -->
-    <div class="settings-row">
-      <div class="settings-label">Music</div>
-      <div class="settings-control">
-        <label>
-          <input type="checkbox" id="settingsMusicToggle" checked>
-          Enabled
-        </label>
-      </div>
-    </div>
-
-    <!-- SFX Toggle -->
-    <div class="settings-row">
-      <div class="settings-label">SFX</div>
-      <div class="settings-control">
-        <label>
-          <input type="checkbox" id="settingsSfxToggle" checked>
-          Enabled
-        </label>
-      </div>
-    </div>
-
-
-    <!-- Text Speed -->
-    <div class="settings-row">
-      <div class="settings-label">Text Speed</div>
-      <div class="settings-control">
-        <input type="range" id="settingsTextSpeed" min="0" max="100" value="100">
-      </div>
-    </div>
-
-    <!-- Back Button -->
-    <button class="btn outline" id="btnSettingsBack">
-      Back
-    </button>
-  </div>
-</div>
-
-  <!-- MODAL (inventory / merchant / cheats / pause / spells / game over) -->
-  <div id="modal" class="hidden">
-    <div id="modalPanel">
-      <div id="modalHeader">
-        <h3 id="modalTitle">Title</h3>
-        <button id="modalClose" class="icon-btn">✕</button>
-      </div>
-      <div id="modalBody"></div>
-    </div>
-  </div>
-
-</div>
-
-<!-- after -->
-<script type="module" src="userAcceptance.js"></script>
-<script type="module" src="bootstrap.js"></script>
-</body>
+        <!-- after -->
+        <script type="module" src="userAcceptance.js"></script>
+        <script type="module" src="bootstrap.js"></script>
+    </body>
 </html>

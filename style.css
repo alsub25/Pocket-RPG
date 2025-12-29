@@ -1,5 +1,5 @@
 /* =============================================================================
-   PROJECT: MYSTIC — Unified, Token-Driven Stylesheet
+   EMBERWOOD: THE BLACKBARK OATH — Unified, Token-Driven Stylesheet
    -----------------------------------------------------------------------------
    Goal: make edits easy by centralizing look-and-feel into variables + shared
    component patterns while keeping your existing selectors working.
@@ -147,6 +147,8 @@ body{
   justify-content:center;
   align-items:stretch;
   min-height:100vh;
+  /* Mobile-safe viewport height (prevents address bar cutoffs on iOS/Android) */
+  min-height:100dvh;
   touch-action:manipulation;
   overflow:hidden;
 }
@@ -155,6 +157,8 @@ body{
   width:100%;
   max-width:480px;
   height:100vh;
+  /* Mobile-safe viewport height */
+  height:100dvh;
   background:var(--app-bg);
   display:flex;
   flex-direction:column;
@@ -213,7 +217,7 @@ h3{ font-size:0.95rem; }
    ============================================================================= */
 
 /* ---- Surfaces (panels/cards/modals) ------------------------------------- */
-:where(.card,#hud,#scene,#log,#actions,.enemy-panel,#modalPanel){
+:where(.card,#hud,#scene,#logBox,#actions,.enemy-panel,#modalPanel){
   border:1px solid var(--border);
   animation:panelDropIn 0.22s var(--ease);
 }
@@ -511,6 +515,33 @@ h3{ font-size:0.95rem; }
 }
 .tavern-footer-actions .btn{ flex:1 1 0; }
 
+/* Tiny meters used in Tavern Games (Luck / Heat) */
+.mini-meter-row{
+  display:flex;
+  gap:10px;
+  align-items:flex-end;
+  margin-top:4px;
+}
+.mini-meter-block{ flex:1 1 0; }
+.mini-meter-label{
+  font-size:0.75rem;
+  opacity:0.75;
+  margin-bottom:2px;
+}
+.mini-meter{
+  height:8px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  overflow:hidden;
+  background:var(--bg-alt);
+}
+.mini-meter-fill{
+  height:100%;
+  width:0%;
+  background:var(--accent);
+  opacity:0.7;
+}
+
 /* =============================================================================
    9) CHEAT / CHANGELOG MODALS
    ============================================================================= */
@@ -697,11 +728,12 @@ h3{ font-size:0.95rem; }
   display:flex;
   justify-content:space-between;
   align-items:center;
-  font-size:0.78rem;
+  font-size:0.60rem;
   color:var(--muted);
   gap:8px;
 }
 #hud-bottom span{ display:inline-flex; align-items:center; gap:4px; }
+#timeLabel.hud-time{ flex:1; justify-content:center; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #hud-bottom .gold{ color:var(--gold); font-weight:600; }
 
 /* Enemy panel */
@@ -772,7 +804,7 @@ h3{ font-size:0.95rem; }
   transition:transform var(--t-med) ease;
 }
 #questBox.collapsed .panel-chevron,
-#log.collapsed .panel-chevron{ transform:rotate(-90deg); }
+#logBox.collapsed .panel-chevron{ transform:rotate(-90deg); }
 
 /* Scene */
 #scene{
@@ -781,39 +813,67 @@ h3{ font-size:0.95rem; }
   padding:8px 10px;
   border-radius:var(--radius);
   background:var(--surface-4);
+  display:flex;
+  flex-direction:column;
+  min-height:0;
 }
 #sceneTitle{
-  font-size:0.9rem;
+  font-size:0.72rem;
   letter-spacing:0.12em;
+  font-weight:600;
   text-transform:uppercase;
   color:var(--muted);
   margin-bottom:2px;
 }
-#sceneText{ font-size:0.88rem; color:#e5e7ff; }
+#sceneText{ font-size:0.72rem; color:#e5e7ff; white-space:pre-line; max-height:clamp(90px, 18vh, 200px); overflow-y:auto; padding-right:6px; }
 
 /* Quest box */
 #questBox{
+  --quest-border: rgba(252, 211, 77, 0.45);
   flex-shrink:0;
   padding:4px;
   border-radius:var(--radius);
-  border:1px dashed rgba(252, 211, 77, 0.45);
+  border:1px dashed var(--quest-border);
   background:radial-gradient(circle at top, rgba(252, 211, 77, 0.12), transparent 60%);
   font-size:0.78rem;
   color:#ffe082;
   margin:0;
   transition:max-height 0.2s ease, padding 0.2s ease;
   overflow:hidden;
+
+  /* Keep it "stationed" and scrollable so long quest text doesn't push the HUD off-screen */
+  max-height:28vh;
+  display:flex;
+  flex-direction:column;
 }
 #questBox.collapsed{ max-height:26px; padding-bottom:2px; }
 #questBox.collapsed #questDesc{ display:none; }
+#questBox .panel-header{
+  color:var(--quest-border);
+  border-bottom-color:rgba(252, 211, 77, 0.22);
+}
+#questBox .panel-chevron{
+  color:var(--quest-border);
+  opacity:1;
+}
 #questTitle{
   text-transform:uppercase;
   font-weight:600;
   letter-spacing:0.12em;
   font-size:0.72rem;
-  opacity:0.85;
 }
-#questDesc{ margin-top:2px; }
+#questDesc{
+  margin-top:2px;
+  white-space:pre-line;
+  overflow-y:auto;
+  max-height:22vh;
+  padding-right:6px;
+}
+
+@media (max-width: 720px){
+  #questBox{ max-height:24vh; }
+  #questDesc{ max-height:18vh; }
+}
 
 /* Log filter */
 #logFilterPanel{ flex-shrink:0; }
@@ -867,7 +927,7 @@ h3{ font-size:0.95rem; }
 }
 
 /* Log */
-#log{
+#logBox{
   flex:1 1 auto;
   min-height:60px;
   max-height:none;
@@ -876,8 +936,32 @@ h3{ font-size:0.95rem; }
   background:var(--surface-3);
   font-size:0.78rem;
   color:var(--muted);
-  overflow-y:auto;
+  overflow:hidden;
   margin:0;
+  display:flex;
+  flex-direction:column;
+  
+min-height: 0; /* instead of 60px */
+  transition: max-height 0.2s ease, padding 0.2s ease;
+}
+
+/* only enforce the 60px minimum when expanded */
+#logBox:not(.collapsed){
+  min-height: 60px;
+}
+
+#logBox.collapsed{
+  max-height: 26px;
+  min-height: 26px;      /* key: prevents extra bottom space */
+  flex: 0 0 auto;        /* optional but helps in flex layouts */
+  padding-bottom: 2px;
+}
+#log{
+  flex:1 1 auto;
+  min-height:0;
+  background:transparent;
+  padding:0;
+  overflow-y:auto;
 }
 .log-line{ margin:0; padding:2px 0; }
 .log-line.system{ color:var(--accent); }
@@ -919,6 +1003,7 @@ h3{ font-size:0.95rem; }
   width:calc(100% - 24px);
   max-width:460px;
   max-height:80vh;
+  max-height:80dvh;
   border-radius:var(--radius);
   background:radial-gradient(circle at top, #151b32 0, #05070f 70%);
   padding:8px 10px;
@@ -1435,3 +1520,188 @@ h3{ font-size:0.95rem; }
     border:1px solid #14172b;
   }
 }
+
+
+/* (Quest panel scrolling rules live in the main "Quest box" section above.) */
+
+/* =====================================================================
+   NOTICE BOARD (Tavern): collapsible header + 2-panel layout (list + details)
+   - Click the Notice Board header to collapse/expand (no separate button)
+   - Accept button sits at the bottom of the details panel
+   ===================================================================== */
+
+.notice-board-card .item-row-header{
+  cursor:pointer;
+}
+
+.notice-board-card .item-meta{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.notice-count{
+  color:var(--muted);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.10em;
+}
+
+.notice-chevron{
+  color:var(--muted);
+  font-size:0.9rem;
+  opacity:0.9;
+  transform:translateY(-0.5px);
+}
+
+.notice-board-card.collapsed .notice-chevron{
+  transform:translateY(-0.5px);
+}
+
+/* Hide the body when collapsed */
+.notice-board-card.collapsed .notice-board-content{
+  display:none;
+}
+
+/* Layout: list + detail */
+.notice-board-content{
+  margin-top:6px;
+  display:flex;
+  gap:8px;
+  align-items:stretch;
+}
+
+/* Left: list */
+.notice-board-list{
+  flex:0 0 44%;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+  max-height:34vh;
+  overflow-y:auto;
+  padding-right:2px;
+}
+
+/* Right: details */
+.notice-board-detail{
+  flex:1 1 auto;
+  min-width:0;
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:var(--radius);
+  background:var(--surface-1);
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  max-height:34vh;
+  overflow:hidden;
+}
+
+/* Individual notice row */
+.notice-row{
+  border-radius:var(--radius);
+  border:1px solid rgba(255,255,255,0.08);
+  background:rgba(0,0,0,0.14);
+  padding:8px;
+  cursor:pointer;
+  transition:
+    transform var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    border-color var(--t-med) var(--ease),
+    background var(--t-med) var(--ease);
+}
+
+.notice-row:hover{
+  transform:translateY(-1px);
+  box-shadow:var(--shadow-hover);
+  border-color:rgba(255,255,255,0.16);
+  background:radial-gradient(circle at top, rgba(79,195,247,0.10), rgba(0,0,0,0.08));
+}
+
+.notice-row.selected{
+  border-color:var(--accent);
+  box-shadow:0 0 0 1px rgba(79,195,247,0.30);
+  background:radial-gradient(circle at top, var(--accent-soft), rgba(0,0,0,0.10));
+}
+
+.notice-row-title{
+  font-weight:650;
+  font-size:0.85rem;
+  color:var(--text);
+  line-height:1.15;
+  margin-bottom:2px;
+}
+
+.notice-row-sub{
+  font-size:0.74rem;
+  color:var(--muted);
+  line-height:1.25;
+}
+
+/* Details panel content */
+.notice-detail-title{
+  font-size:0.86rem;
+  font-weight:700;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--text);
+}
+
+.notice-detail-desc{
+  font-size:0.82rem;
+  color:var(--text);
+  opacity:0.95;
+  line-height:1.35;
+  white-space:pre-line;
+  overflow-y:auto;
+  padding-right:2px;
+}
+
+.notice-detail-hint{
+  font-size:0.74rem;
+  color:var(--muted);
+  line-height:1.25;
+  border-top:1px solid rgba(255,255,255,0.06);
+  padding-top:6px;
+}
+
+.notice-detail-spacer{
+  flex:1 1 auto;
+}
+
+.notice-accept{
+  width:100%;
+  margin-top:6px;
+}
+
+/* Empty states */
+.notice-detail-empty{
+  color:var(--muted);
+  font-size:0.78rem;
+  line-height:1.35;
+}
+
+.mini-empty{
+  padding:8px;
+  border-radius:var(--radius);
+  background:rgba(0,0,0,0.15);
+  color:var(--muted);
+  font-size:0.75rem;
+  border:1px dashed rgba(255,255,255,0.12);
+}
+
+/* Mobile: stack vertically */
+@media (max-width: 480px){
+  .notice-board-content{
+    flex-direction:column;
+  }
+  .notice-board-list{
+    flex:0 0 auto;
+    max-height:22vh;
+  }
+  .notice-board-detail{
+    max-height:26vh;
+  }
+}
+

@@ -2,13 +2,13 @@
 
 A single‑page, browser-based RPG + village sim where your **daily choices** (resting, shopping, banking, town politics, and even tavern gambling) ripple through a living settlement.
 
-> Current patch: **v0.8.0** (see in-game Changelog modal / `changelog.js`)
+> Current patch: **v1.0.9** (see in-game Changelog modal / `changelog.js`)
 
 ---
 
 ## Table of Contents
 
-- [What is Pocket Quest?](#what-is-pocket-quest)
+- [What is Emberwood: The Blackbark Oath?](#what-is-emberwood-the-blackbark-oath)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [How to Play](#how-to-play)
@@ -31,9 +31,9 @@ A single‑page, browser-based RPG + village sim where your **daily choices** (r
 
 ---
 
-## What is Pocket Quest?
+## What is Emberwood: The Blackbark Oath?
 
-**Pocket Quest** is a lightweight RPG built in plain JavaScript (ES modules) designed to feel like a “mini campaign” you can pick up and play in short sessions.
+**Emberwood: The Blackbark Oath** is a lightweight RPG built in plain JavaScript (ES modules) designed to feel like a “mini campaign” you can pick up and play in short sessions.
 
 It blends:
 - **Turn-based battles** (with a classic “boss ladder” feel)
@@ -85,7 +85,7 @@ npx serve .
 Then open:
 - `http://localhost:8000`
 
-> If your repo has an `index.html`, it should load `game.js` as a module.
+> `index.html` loads `bootstrap.js` as a module, which then loads the game entry module (currently `./Future/Future.js`).
 
 ---
 
@@ -191,11 +191,11 @@ The Tavern is the primary **day-advance** hub:
 
 ### Dynamic Difficulty
 
-Pocket Quest includes a “rubber band” difficulty system:
+Emberwood: The Blackbark Oath includes a “rubber band” difficulty system:
 - tracks recent battle outcomes
 - gradually adjusts encounter tuning to keep progression moving
 
-Difficulty presets are defined in `game.js` (`DIFFICULTY_PRESETS`) and can be expanded with new styles.
+Difficulty presets are defined in `Future/Future.js` (`DIFFICULTY_CONFIG`) and can be expanded with new styles.
 
 ---
 
@@ -206,24 +206,30 @@ Typical repo layout (based on module imports):
 ```
 /
 ├─ index.html
-├─ game.js
-├─ Changelog/
-│  └─ changelog.js
-├─ Systems/
-│  └─ timeSystem.js
-└─ Locations/
-   └─ Village/
-      ├─ villageEconomy.js
-      ├─ villagePopulation.js
-      ├─ townHall.js
-      ├─ bank.js
-      ├─ merchant.js
-      ├─ tavern.js
-      └─ tavernGames.js
+├─ bootstrap.js
+├─ userAcceptance.js
+├─ style.css
+└─ Future/
+   ├─ Future.js
+   ├─ Changelog/
+   │  └─ changelog.js
+   ├─ Systems/
+   │  ├─ timeSystem.js
+   │  └─ safety.js
+   └─ Locations/
+      └─ Village/
+         ├─ villageEconomy.js
+         ├─ villagePopulation.js
+         ├─ townHall.js
+         ├─ bank.js
+         ├─ merchant.js
+         ├─ tavern.js
+         └─ tavernGames.js
 ```
 
 ### Key entrypoints
-- **`game.js`**: app bootstrap, UI wiring, state model, battle loop, quest progression, save manager
+- **`bootstrap.js`**: loads the selected build entry module and provides the version picker UI
+- **`Future/Future.js`**: main game module (UI wiring, state model, battle loop, quest progression, save manager)
 - **Village modules**: encapsulate simulation sub-systems + modal UIs
 - **`timeSystem.js`**: canonical time math + “next morning” jump
 

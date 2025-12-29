@@ -1,9 +1,7 @@
 // bootstrap.js
 
 const VERSIONS = [
-  { id: "future", label: "Future (Patch V1.0.0)", entry: "./Future/Future_UPDATED_loot.v4.updated.js" },
-  { id: "core", label: "Main", entry: "./Core/Main.js" },
-  { id: "dev",  label: "Prior Patch V0.7.0",  entry: "./Core/Old.js" },
+  { id: "future",  label: "Emberwood Patch V1.0.9",  entry: "./Future/Future.js" },
 ];
 
 const STORAGE_KEY = "selected_game_version";
@@ -35,6 +33,10 @@ function pickVersionId() {
   const fromQuery = url.searchParams.get("v");
   if (fromQuery) return fromQuery;
   return localStorage.getItem(STORAGE_KEY);
+}
+
+function getOnlyVersionIfSingle() {
+  return (Array.isArray(VERSIONS) && VERSIONS.length === 1) ? VERSIONS[0] : null;
 }
 
 /* --------------------------- game loading --------------------------- */
@@ -117,6 +119,10 @@ function hideBootstrapModal() {
 /* --------------------------- version picker UI --------------------------- */
 
 function openVersionModal({ requirePick = false } = {}) {
+  // If only one build exists, there is nothing to pick.
+  const only = getOnlyVersionIfSingle();
+  if (only) return;
+
   const pickedId = pickVersionId();
   const picked = VERSIONS.find(v => v.id === pickedId);
 
@@ -143,7 +149,7 @@ function openVersionModal({ requirePick = false } = {}) {
     btn.type = "button";
 
     // Highlight current selection
-    btn.className = (picked && v.id === picked.id) ? "btn outline" : "btn outline";
+    btn.className = (picked && v.id === picked.id) ? "btn primary" : "btn outline";
     btn.textContent = v.label;
 
     btn.addEventListener("click", () => {
@@ -174,7 +180,18 @@ function insertAfter(newNode, referenceNode) {
   referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
 }
 
+function removeChangeVersionButtonIfPresent() {
+  const existing = document.getElementById(BTN_ID);
+  if (existing) existing.remove();
+}
+
 function ensureChangeVersionButton() {
+  // Only show if there are multiple versions.
+  if (!Array.isArray(VERSIONS) || VERSIONS.length <= 1) {
+    removeChangeVersionButtonIfPresent();
+    return;
+  }
+
   // If it already exists, do nothing
   if (document.getElementById(BTN_ID)) return;
 
@@ -206,7 +223,17 @@ function ensureChangeVersionButton() {
 
 function initBootstrap() {
   onDocReady(() => {
-    // Put the button into the main menu; it will auto-hide when the menu screen is hidden.
+    // If only one build exists: auto-load it and don't show the Change Version button.
+    const only = getOnlyVersionIfSingle();
+    if (only) {
+      removeChangeVersionButtonIfPresent();
+      // Keep localStorage consistent (optional but helpful for debugging)
+      localStorage.setItem(STORAGE_KEY, only.id);
+      loadGameVersion(only);
+      return;
+    }
+
+    // Multiple builds: show the Change Version button.
     ensureChangeVersionButton();
 
     const pickedId = pickVersionId();

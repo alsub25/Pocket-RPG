@@ -17,7 +17,7 @@
 
    Install:
      <script type="module" src="userAcceptance.js"></script>
-     <script type="module" src="Core/game.updated.js"></script>
+     <script type="module" src="bootstrap.js"></script>
 
    To force re-accept after changing terms:
      - bump ACCEPTANCE_VERSION
