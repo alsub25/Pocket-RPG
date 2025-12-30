@@ -1,7 +1,9 @@
 // villagePopulation.js
 
+import { rngInt } from "../../Systems/rng.js";
+
 function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return rngInt(null, min, max, 'population.randInt');
 }
 
 export function ensureVillagePopulation(state) {

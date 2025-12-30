@@ -16,6 +16,8 @@ import {
   adjustPopulationMood
 } from "./villagePopulation.js"; // adjust path if needed
 
+import { rngInt, rngFloat } from "../../Systems/rng.js";
+
 // -----------------------------------------------------------------------------
 // PETITION DEFINITIONS
 // -----------------------------------------------------------------------------
@@ -451,7 +453,7 @@ const MAX_VOTE_DELAY = 3;
 // -----------------------------------------------------------------------------
 
 function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return rngInt(null, min, max, 'townHall.randInt');
 }
 
 function getCurrentDay(state) {
@@ -622,7 +624,7 @@ function ensureTownHallState(state, absoluteDay) {
       currentPetition: null,
       lastResolvedPetition: null,
       priorDecrees: [],
-      lastDayUpdated: typeof absoluteDay === "number" ? absoluteDay : null,
+      lastDayUpdated: typeof absoluteDay === "number" ? Math.floor(absoluteDay) : null,
       councilRecess: false,
       recessReason: null,
       recessStartedOnDay: null,
@@ -635,7 +637,7 @@ function ensureTownHallState(state, absoluteDay) {
     if (!("lastResolvedPetition" in th)) th.lastResolvedPetition = null;
     if (!Array.isArray(th.priorDecrees)) th.priorDecrees = [];
     if (typeof th.lastDayUpdated !== "number") {
-      th.lastDayUpdated = typeof absoluteDay === "number" ? absoluteDay : null;
+      th.lastDayUpdated = typeof absoluteDay === "number" ? Math.floor(absoluteDay) : null;
     }
     // Patch older saves with recess fields
     if (!("councilRecess" in th)) th.councilRecess = false;
@@ -821,7 +823,7 @@ function maybeUpdateVillageCouncilMembership(state, absoluteDay, addLog) {
     const leaveChance = member.loyalty < 35 ? 0.003 : 0.001;
     const removedChance = member.loyalty < 25 ? 0.004 : 0.0015;
 
-    const roll = Math.random();
+    const roll = rngFloat(null, 'townHall.memberFate');
     let reason = null;
 
     if (roll < baseDeath) {
@@ -1266,18 +1268,20 @@ function getYesChanceForCouncillor(
 export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
   if (!state) return;
   const addLog = typeof hooks.addLog === "function" ? hooks.addLog : null;
+  
+  const day = Number.isFinite(absoluteDay) ? Math.floor(absoluteDay) : 0;
 
-  const hall = ensureTownHallState(state, absoluteDay);
+  const hall = ensureTownHallState(state, day);
   // Guard against double-running the same day (keeps petition timelines sane).
-  if (hall.lastDayUpdated === absoluteDay) return;
-  hall.lastDayUpdated = absoluteDay;
+  if (hall.lastDayUpdated === day) return;
+  hall.lastDayUpdated = day;
 
   // Centralized cleanup so expired decrees don't linger.
-  cleanupTownHallEffects(state, absoluteDay);
+  cleanupTownHallEffects(state, day);
   const council = ensureVillageCouncil(state);
 
   // NEW: Let councillors die / leave / be recalled, and handle recess / replacement.
-  maybeUpdateVillageCouncilMembership(state, absoluteDay, addLog);
+  maybeUpdateVillageCouncilMembership(state, day, addLog);
 
   const inRecess = !!hall.councilRecess;
 
@@ -1289,7 +1293,7 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
     // 1a) Population vote happens first, on or after voteDueDay, if not yet taken.
     if (
       typeof petition.popularSupportPercent !== "number" &&
-      absoluteDay >= petition.voteDueDay
+      day >= petition.voteDueDay
     ) {
       resolvePopulationVote(state, hall, petition, addLog);
 
@@ -1304,7 +1308,7 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
           approved: false,
           yesVotes: 0,
           noVotes: 0,
-          resolvedOnDay: absoluteDay,
+          resolvedOnDay: day,
           popularApproved: false,
           popularSupportPercent: popSupport
         };
@@ -1321,7 +1325,7 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
         }
       } else {
         // Village approves; schedule council for the *next* day.
-        petition.councilVoteDay = absoluteDay + 1;
+        petition.councilVoteDay = day + 1;
         // No extra log here — the population-vote log already hints that
         // the matter will be put before the council after a pause.
       }
@@ -1335,7 +1339,7 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
       typeof petition.popularSupportPercent === "number" &&
       petition.popularApproved &&
       typeof petition.councilVoteDay === "number" &&
-      absoluteDay >= petition.councilVoteDay
+      day >= petition.councilVoteDay
     ) {
       const popSupport = petition.popularSupportPercent;
       const popApproved = petition.popularApproved;
@@ -1350,7 +1354,7 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
           popSupport,
           popApproved
         );
-        const yes = Math.random() < chance;
+        const yes = rngFloat(null, 'townHall.voteCitizen') < chance;
         votes.push({ member, yes });
       });
 
@@ -1364,7 +1368,7 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
         approved,
         yesVotes,
         noVotes,
-        resolvedOnDay: absoluteDay,
+        resolvedOnDay: day,
         popularApproved: popApproved,
         popularSupportPercent: popSupport
       };
@@ -1404,10 +1408,10 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
       effects &&
       effects.petitionId &&
       typeof effects.expiresOnDay === "number" &&
-      absoluteDay <= effects.expiresOnDay;
+      day <= effects.expiresOnDay;
 
     if (!hasActiveDecree) {
-      const roll = Math.random();
+      const roll = rngFloat(null, 'townHall.autoPetitionRoll');
       const councilPetitionChance = 0.06; // ~6% per in-game day
 
       if (roll < councilPetitionChance && council.length) {
@@ -1418,7 +1422,7 @@ export function handleTownHallDayTick(state, absoluteDay, hooks = {}) {
 
         const voteDelay = randInt(MIN_VOTE_DELAY, MAX_VOTE_DELAY);
 
-        const today = absoluteDay;
+        const today = day;
         hall.currentPetition = {
           petitionId,
           submittedBy: "council:" + sponsor.id,

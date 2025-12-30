@@ -347,6 +347,7 @@ export function openBankModalImpl({
   state,
   openModal,
   addLog,
+  recordInput,
   updateHUD,
   saveGame
 }) {
@@ -639,6 +640,8 @@ export function openBankModalImpl({
         return;
       }
 
+      try { recordInput?.('bank.deposit', { amt }) } catch (_) {}
+
       p.gold -= amt;
       bank.balance += amt;
       addLog(
@@ -671,6 +674,8 @@ export function openBankModalImpl({
         addLog("You do not have that much in savings.", "system");
         return;
       }
+
+      try { recordInput?.('bank.withdraw', { amt }) } catch (_) {}
 
       bank.balance -= amt;
       p.gold += amt;
@@ -740,6 +745,8 @@ export function openBankModalImpl({
         addLog("You do not have that much gold.", "system");
         return;
       }
+
+      try { recordInput?.('bank.invest', { amt }) } catch (_) {}
 
       p.gold -= amt;
       bank.investments += amt;

@@ -7,6 +7,7 @@
 // - Live "Your gold" display and clear cannot-afford / sold-out states.
 
 import { finiteInt, clampInt } from "../../Systems/safety.js"
+import { rngInt } from "../../Systems/rng.js"
 
 const VILLAGE_MERCHANTS = [
     {
@@ -91,7 +92,7 @@ function getOrCreateMerchantShopName(state, merchantId, fallbackName) {
     let chosen = fallbackName || merchantId
 
     if (pool.length) {
-        chosen = pool[Math.floor(Math.random() * pool.length)]
+        chosen = pool[rngInt(state, 0, pool.length - 1, 'merchant.shopName')]
     }
 
     names[merchantId] = chosen
@@ -237,7 +238,7 @@ function ensureMerchantStock(
 //  - Restocks are small (usually +1) to preserve the "limited stock" feeling.
 
 export function handleMerchantDayTick(state, absoluteDay, cloneItemDef) {
-    if (!state || typeof absoluteDay !== 'number') return
+    if (!state || typeof day !== 'number') return
 
     if (!state.merchantStock) return
 
@@ -246,8 +247,8 @@ export function handleMerchantDayTick(state, absoluteDay, cloneItemDef) {
     }
 
     const meta = state.merchantStockMeta
-    if (meta.lastDayRestocked === absoluteDay) return
-    meta.lastDayRestocked = absoluteDay
+    if (meta.lastDayRestocked === day) return
+    meta.lastDayRestocked = day
 
     const safeClone =
         typeof cloneItemDef === 'function'
@@ -307,6 +308,7 @@ function buildItemRow({
     updateHUD,
     saveGame,
     addLog,
+    recordInput,
     goldLineEl, // <p> "Your gold: Xg" from the shop
     stockMap // object: itemKey -> remaining stock
 }) {
@@ -410,6 +412,8 @@ function buildItemRow({
         p.gold = Math.max(0, finiteInt(p.gold, 0) - price)
         addItemToInventory(itemKey, 1)
 
+        try { recordInput?.('merchant.buy', { context, itemKey, price: finalPrice }) } catch (_) {}
+
         // Decrement stock.
         if (stockMap) {
             stockMap[itemKey] = Math.max(0, remaining - 1)
@@ -452,7 +456,8 @@ function openVillageMerchantHub({
     cloneItemDef,
     addItemToInventory,
     updateHUD,
-    saveGame
+    saveGame,
+    recordInput
 }) {
     const econSummary = getVillageEconomySummary(state)
     const tier = econSummary.tier
@@ -515,7 +520,8 @@ function openVillageMerchantHub({
                     cloneItemDef,
                     addItemToInventory,
                     updateHUD,
-                    saveGame
+                    saveGame,
+                    recordInput
                 })
             })
 
@@ -547,7 +553,8 @@ function openSpecificMerchantShop({
     cloneItemDef,
     addItemToInventory,
     updateHUD,
-    saveGame
+    saveGame,
+    recordInput
 }) {
     const p = state.player
     if (!p) return
@@ -607,6 +614,7 @@ function openSpecificMerchantShop({
                     updateHUD,
                     saveGame,
                     addLog,
+                    recordInput,
                     goldLineEl: goldLine,
                     stockMap
                 })
@@ -657,7 +665,8 @@ function openTravelingMerchantShop({
     cloneItemDef,
     addItemToInventory,
     updateHUD,
-    saveGame
+    saveGame,
+    recordInput
 }) {
     const p = state.player
     if (!p) return
@@ -684,7 +693,7 @@ function openTravelingMerchantShop({
         'The Hooded Trader'
     ]
     const travelerName =
-        travelerNames[Math.floor(Math.random() * travelerNames.length)]
+        travelerNames[rngInt(state, 0, travelerNames.length - 1, 'merchant.travelerName')]
 
     openModal(`${travelerName}, Traveling Merchant`, (body) => {
         const intro = document.createElement('p')
@@ -722,6 +731,7 @@ function openTravelingMerchantShop({
                     updateHUD,
                     saveGame,
                     addLog,
+                    recordInput,
                     goldLineEl: goldLine,
                     stockMap
                 })
@@ -753,7 +763,8 @@ export function openMerchantModalImpl({
     cloneItemDef,
     addItemToInventory,
     updateHUD,
-    saveGame
+    saveGame,
+    recordInput
 }) {
     if (!state || !state.player) return
     const ctx = context || 'village'
@@ -769,7 +780,8 @@ export function openMerchantModalImpl({
             cloneItemDef,
             addItemToInventory,
             updateHUD,
-            saveGame
+            saveGame,
+            recordInput
         })
     } else {
         openTravelingMerchantShop({
@@ -782,7 +794,8 @@ export function openMerchantModalImpl({
             cloneItemDef,
             addItemToInventory,
             updateHUD,
-            saveGame
+            saveGame,
+            recordInput
         })
     }
 }

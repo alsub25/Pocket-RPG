@@ -3,6 +3,7 @@
 // Economy tiers describe the *baseline* village situation.
 // Government can nudge effective prosperity/security/trade up or down on top.
 import { getVillageGovernmentEffect } from "../../Systems/kingdomGovernment.js";
+import { rngFloat } from "../../Systems/rng.js";
 
 export const ECONOMY_TIERS = {
   struggling: {
@@ -195,7 +196,7 @@ export function handleEconomyDayTick(state, absoluteDay) {
   econ.lastDayUpdated = absoluteDay;
 
   // Slight random drift in prosperity (biased a bit upward)
-  const drift = (Math.random() - 0.45) * 6; // -3.0 .. +3.3ish
+  const drift = (rngFloat(null, 'economy.drift') - 0.45) * 6; // -3.0 .. +3.3ish
   econ.prosperity = clamp(econ.prosperity + drift, 0, 100);
 
   // Town Hall decrees can nudge the underlying economy while they remain active.

@@ -7,6 +7,8 @@
 // - Play button disables when stake is unaffordable.
 // - Game logic is data-driven and easy to expand.
 
+import { rngInt, rngFloat } from "../../Systems/rng.js";
+
 /** @typedef {{
  *  state: any,
  *  openModal: (title: string, builder: (body: HTMLElement) => void) => void,
@@ -36,11 +38,12 @@ function clamp(n, min, max) {
 }
 
 function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return rngInt(null, min, max, 'tavernGames.randInt');
 }
 
 function pick(list) {
-  return list[Math.floor(Math.random() * list.length)];
+  if (!Array.isArray(list) || !list.length) return null;
+  return list[rngInt(null, 0, list.length - 1, 'tavernGames.pick')];
 }
 
 // ----------------------------------------------------------------------------
@@ -259,7 +262,7 @@ function tickGamblingDynamics(state) {
   }
 
   // Chance to start a new event when none is active.
-  if (!g.event && Math.random() < 0.12) {
+  if (!g.event && rngFloat(null, 'tavernGames.eventRoll') < 0.12) {
     const e = pick(EVENT_POOL);
     const rounds = Array.isArray(e.rounds) ? randInt(e.rounds[0], e.rounds[1]) : randInt(3, 6);
     g.event = {
@@ -404,7 +407,7 @@ function pickPatron(state, biasKey) {
     if (last) {
       const favorMatch = last.favoriteGame === biasKey;
       const reuseChance = favorMatch ? 0.7 : 0.5;
-      if (Math.random() < reuseChance) {
+      if (rngFloat(null, 'tavernGames.reusePatron') < reuseChance) {
         g.roundsWithPatron = (g.roundsWithPatron || 0) + 1;
         return last;
       }
@@ -413,7 +416,7 @@ function pickPatron(state, biasKey) {
 
   // Otherwise, bias toward patrons who love this game type.
   const favored = PATRONS.filter(p => p.favoriteGame === biasKey);
-  const pool = favored.length && Math.random() < 0.6 ? favored : PATRONS;
+  const pool = favored.length && rngFloat(null, 'tavernGames.favoredPool') < 0.6 ? favored : PATRONS;
   const patron = pick(pool);
   g.lastPatronId = patron.id;
   g.roundsWithPatron = 1;
@@ -468,11 +471,11 @@ function applyDynamicBiasToPair(bias, playerValue, houseValue, maxValue) {
   if (typeof bias !== "number" || bias === 0) return { playerValue, houseValue };
 
   // Positive bias: if you're losing/tied, chance to nudge you ahead.
-  if (bias > 0 && playerValue <= houseValue && Math.random() < bias) {
+  if (bias > 0 && playerValue <= houseValue && rngFloat(null, 'tavernGames.biasBoost') < bias) {
     return { playerValue: clamp(houseValue + randInt(1, 2), 1, maxValue), houseValue };
   }
   // Negative bias: if you're winning/tied, chance to nudge the house ahead.
-  if (bias < 0 && playerValue >= houseValue && Math.random() < -bias) {
+  if (bias < 0 && playerValue >= houseValue && rngFloat(null, 'tavernGames.biasNerf') < -bias) {
     return { playerValue, houseValue: clamp(playerValue + randInt(1, 2), 1, maxValue) };
   }
   return { playerValue, houseValue };
@@ -553,7 +556,7 @@ function playCoin({ stake, patron, dbgMode, payoutMult, call, bias = 0 }) {
   const other = call === "Heads" ? "Tails" : "Heads";
   const pCorrect = clampProb(0.5 + bias);
 
-  let toss = Math.random() < pCorrect ? call : other;
+  let toss = rngFloat(null, 'tavernGames.coinToss') < pCorrect ? call : other;
 
   if (dbgMode === "playerFavored") toss = call;
   if (dbgMode === "houseFavored") toss = call === "Heads" ? "Tails" : "Heads";
@@ -650,7 +653,7 @@ function playRunes({ stake, patron, payoutMult, bias = 0 }) {
 function playWheel({ stake, patron, payoutMult, bias = 0 }) {
   const elements = ["Flame", "Tide", "Gale", "Stone"];
   const landed = pick(elements);
-  const r = clamp(Math.random() + bias * 0.6, 0, 0.999);
+  const r = clamp(rngFloat(null, 'tavernGames.diceRoll') + bias * 0.6, 0, 0.999);
 
   let multiplier = 0;
   let flavor = "the wheel sputters out, leaving the element dim and cold";
@@ -700,8 +703,8 @@ function playSeven({ stake, patron, dbgMode, payoutMult, call, bias = 0 }) {
 
   // Small chance to flip a losing roll into a winning one (or vice versa), while keeping it plausible.
   const isWin = winningTotals(call || "Under").includes(total);
-  if (!isWin && bias > 0 && Math.random() < bias) total = pick(winningTotals(call || "Under"));
-  if (isWin && bias < 0 && Math.random() < -bias) total = pick(losingTotals(call || "Under"));
+  if (!isWin && bias > 0 && rngFloat(null, 'tavernGames.totalAdjust') < bias) total = pick(winningTotals(call || "Under"));
+  if (isWin && bias < 0 && rngFloat(null, 'tavernGames.totalAdjust') < -bias) total = pick(losingTotals(call || "Under"));
 
   if (dbgMode === "playerFavored") total = pick(winningTotals(call));
   if (dbgMode === "houseFavored") total = pick(losingTotals(call));
@@ -739,7 +742,7 @@ function playCups({ stake, patron, dbgMode, payoutMult, call, bias = 0 }) {
 
   // Base is 1/3; bias nudges it.
   const pGuess = clampProb(1 / 3 + bias);
-  let pebble = Math.random() < pGuess ? guess : pick(cups.filter(c => c !== guess));
+  let pebble = rngFloat(null, 'tavernGames.shellGame') < pGuess ? guess : pick(cups.filter(c => c !== guess));
 
   if (dbgMode === "playerFavored") pebble = guess;
   if (dbgMode === "houseFavored") pebble = pick(cups.filter(c => c !== guess));
@@ -764,7 +767,7 @@ function playOddEven({ stake, patron, dbgMode, payoutMult, call, bias = 0 }) {
   const want = call || "Odd";
 
   const pWant = clampProb(0.5 + bias);
-  const chooseWant = Math.random() < pWant;
+  const chooseWant = rngFloat(null, 'tavernGames.wantRoll') < pWant;
   const parity = chooseWant ? want : want === "Odd" ? "Even" : "Odd";
 
   let die = parity === "Odd" ? pick([1, 3, 5]) : pick([2, 4, 6]);
@@ -795,7 +798,7 @@ function playColors({ stake, patron, dbgMode, payoutMult, call, bias = 0 }) {
   const want = call || "Red";
 
   const pWant = clampProb(0.5 + bias);
-  const chooseWant = Math.random() < pWant;
+  const chooseWant = rngFloat(null, 'tavernGames.wantRoll') < pWant;
   const color = chooseWant ? want : want === "Red" ? "Black" : "Red";
 
   let suit = color === "Red" ? pick(["♥", "♦"]) : pick(["♠", "♣"]);

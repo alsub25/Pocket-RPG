@@ -10,6 +10,8 @@
 // - Rest advances to next morning, then runs the daily tick pipeline (preferred) or
 //   falls back to individual ticks for compatibility.
 
+import { rngInt } from "../../Systems/rng.js";
+
 /** @typedef {{
  *  state: any,
  *  openModal: (title: string, builder: (body: HTMLElement) => void) => void,
@@ -65,7 +67,7 @@ function uniqueStrings(arr) {
 
 function randChoice(arr) {
   if (!Array.isArray(arr) || arr.length === 0) return "";
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[rngInt(null, 0, arr.length - 1, 'tavern.rumorPick')];
 }
 
 function formatGoldTag(amount) {
@@ -385,6 +387,7 @@ export function openTavernModalImpl(deps) {
     state,
     openModal,
     addLog,
+    recordInput,
     getVillageEconomySummary,
     getRestCost,
     handleEconomyAfterPurchase,
@@ -469,6 +472,8 @@ export function openTavernModalImpl(deps) {
           const beforeDay = safeGet(state, ["time", "dayIndex"], 0);
 
           const cost = getRestCost?.(state) ?? 0;
+
+          try { recordInput?.('tavern.rest', { cost, beforeDay }); } catch (_) {}
 
           if (Number(player.gold) < Number(cost)) {
             addLog?.("You cannot afford a room right now.", "system");
@@ -1002,6 +1007,7 @@ export function openTavernModalImpl(deps) {
         className: "btn small outline",
         text: "Listen",
         onClick: () => {
+          try { recordInput?.('tavern.rumor'); } catch (_) {}
           const pool = buildRumorPool(state, getVillageEconomySummary?.(state));
           const rumor = randChoice(pool) || "You overhear nothing useful—just laughter and half-finished stories.";
           rumorText.textContent = rumor;
@@ -1028,6 +1034,7 @@ export function openTavernModalImpl(deps) {
             className: "btn small outline",
             text: "Play Tavern Games",
             onClick: () => {
+              try { recordInput?.('tavern.games'); } catch (_) {}
               closeModal?.();
               if (typeof openGambleModal === "function") openGambleModal();
             }
