@@ -3,6 +3,430 @@
 
 export const CHANGELOG = [
   {
+    version: "1.1.5",
+    title: "Patch 1.1.5: Expanded Gear Slots + Loot Drops + Bug Fixes",
+    sections: [
+      {
+        heading: "Loot & Equipment",
+        items: [
+          {
+            title: "New gear slots",
+            bullets: [
+              "Added new equippable slots: Head, Hands, Feet, Belt, Neck, and Ring (in addition to Weapon + Body Armor).",
+              "All armor pieces now carry a slot tag so the game can equip/compare them correctly."
+            ]
+          },
+          {
+            title: "Loot generator updates",
+            bullets: [
+              "Armor drops now roll across the full slot set (Body/Head/Hands/Feet/Belt/Neck/Ring).",
+              "Neck and Ring items use an accessory-leaning affix pool that can roll small offensive bonuses without overshadowing weapons."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "UI / UX",
+        items: [
+          {
+            title: "Inventory + character sheet improvements",
+            bullets: [
+              "Character Sheet → Equipment tab now displays all gear slots.",
+              "Inventory cards label armor by slot (e.g., Head, Ring) and power comparisons only compare within the same slot."
+            ]
+          },
+          {
+            title: "Cheat menu (dev)",
+            bullets: [
+              "Spawn Max Loot now generates a full max-level gear set across all slots, and can optionally equip the whole set."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Bug Fixes",
+        items: [
+          {
+            title: "Stat calculation fixes",
+            bullets: [
+              "Fixed player Magic Resistance being applied twice from skills in some cases.",
+              "Fixed a boot-time crash caused by a malformed potion function definition in lootGenerator.js."
+            ]
+          },
+          {
+            title: "Equipment edge cases",
+            bullets: [
+              "Selling/dropping equipped gear now correctly unequips it from whichever slot it occupies (not just body armor)."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Versioning",
+        items: [
+          {
+            title: "Patch labeling",
+            bullets: [
+              "Updated in-game patch/version labels to 1.1.5 (The Blackbark Oath)."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.1.42",
+    title: "Patch 1.1.42: Cheat Menu UX Pass + Mobile Layout Fixes + Docs Refresh",
+    sections: [
+      {
+        heading: "Cheat Menu",
+        items: [
+          {
+            title: "Faster navigation",
+            bullets: [
+              "Core Cheats no longer auto-expands when opening the Cheat Menu.",
+              "Added quick status pills (Level/HP/etc.) for at-a-glance context while testing.",
+              "Improved in-menu ergonomics for rapid multi-step testing (less accidental modal closing)."
+            ]
+          },
+          {
+            title: "Mobile layout + spacing",
+            bullets: [
+              "Fixed misaligned button rows inside cheat panels on small screens (notably multi-control rows like Give Item).",
+              "Tightened vertical spacing between cheat buttons/controls while preserving the existing UI aesthetic.",
+              "Status pills now clamp to a maximum of two rows and automatically scale to fit (no scrolling)."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Versioning & Docs",
+        items: [
+          {
+            title: "Patch labeling",
+            bullets: [
+              "Updated in-game patch/version labels to 1.1.42 (The Blackbark Oath)."
+            ]
+          },
+          {
+            title: "README refresh",
+            bullets: [
+              "Expanded README with deeper system overviews, dev/QA workflows, troubleshooting notes, and project structure."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.1.4",
+    title: "QA & Bug-Squash: Determinism + Smoke Tests + Better Reports",
+    sections: [
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Acceptance & storage hardening",
+            bullets: [
+              "Wrapped all localStorage access in safe helpers to avoid crashes when storage is blocked or quota-limited.",
+              "Acceptance gating now uses a versioned key and a single shared remove helper.",
+              "Feedback / diagnostics flows avoid fatal exceptions when clipboard or storage APIs are unavailable."
+            ]
+          },
+          {
+            title: "State integrity auditing",
+            bullets: [
+              "Added a lightweight invariant validator that detects NaN, negative gold, broken HP/resource bounds, and common corruption patterns.",
+              "Automatic audits run before save and after load; failures are recorded into the crash report system for easy reproduction."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Dev Tools",
+        items: [
+          {
+            title: "Deterministic RNG mode (seeded)",
+            bullets: [
+              "Optional deterministic randomness for reproducible runs.",
+              "RNG logging can be enabled to capture a tagged trail of random draws (useful for replaying ‘rare’ outcomes)."
+            ]
+          },
+          {
+            title: "Smoke tests",
+            bullets: [
+              "Added a small in-game smoke test runner that exercises save/load, daily ticks, combat boot-up, and core invariants.",
+              "Outputs a copyable report for quick triage when something breaks."
+            ]
+          },
+          {
+            title: "Bug report bundle",
+            bullets: [
+              "Added a one-click JSON report (version + save meta + last crash + RNG seed/index + input breadcrumbs).",
+              "Includes recent invariant failures to reduce ‘can’t reproduce’ issues."
+            ]
+          },
+          {
+            title: "Spawn & Teleport helpers",
+            bullets: [
+              "Teleport to any zone, force a specific enemy encounter, and grant items by id from the Cheat Menu.",
+              "Designed to help quickly repro quest locks, economy edge-cases, and combat issues."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.1.3",
+    title: "Quest Modularization: Quests extracted from Future.js",
+    sections: [
+      {
+        heading: "Refactor",
+        items: [
+          {
+            title: "Quest system moved into the Quests folder",
+            bullets: [
+              "Moved main-quest beats, side-quest events, quest UI rendering, and boss-trigger logic out of Future.js.",
+              "Added a small binding adapter so older call sites (like the tavern quest board) can keep using the same quest hook signatures.",
+              "No save-schema bump: old saves are backfilled with any missing quest flags on load."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    version: "1.1.2",
+    title: "Stability & Diagnostics: Save Safety + Tick Hardening",
+    sections: [
+      {
+        heading: "Fixed / Stability",
+        items: [
+          {
+            title: "Storage-safe saves and settings",
+            bullets: [
+              "Wrapped localStorage reads/writes in defensive helpers so blocked storage, private browsing, and quota issues don’t crash the game.",
+              "Failures now surface as a clear, player-readable warning instead of a silent break."
+            ]
+          },
+          {
+            title: "Corrupt save detection and recovery flow",
+            bullets: [
+              "Hardened migration/loading so malformed saves are detected early.",
+              "Added a ‘Save Error’ UI path that offers reset options instead of booting into a broken state."
+            ]
+          },
+          {
+            title: "Crash report persistence",
+            bullets: [
+              "Best-effort persistence of the last crash report so it can be included in Feedback even after reload."
+            ]
+          },
+          {
+            title: "Modal ownership + lock enforcement",
+            bullets: [
+              "Acceptance / blocking modals now claim ownership and lock closing behaviors so other UI code can’t accidentally dismiss them.",
+              "Prevents overlay-click / Escape inconsistencies across browsers and mobile."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Simulation / Balance",
+        items: [
+          {
+            title: "Daily tick normalization",
+            bullets: [
+              "Day indices are normalized to non-negative integers before running catch-up ticks to prevent double-application or off-by-one edge cases."
+            ]
+          },
+          {
+            title: "Economy metric rounding + clamps",
+            bullets: [
+              "Village economy drift now rounds to integers after applying drift and clamps to expected ranges to avoid float jitter in tier thresholds and UI."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Dev Tools",
+        items: [
+          {
+            title: "Progression Auditor",
+            bullets: [
+              "Added a diagnostics report to help find stuck progression: quest steps, unlock flags, boss defeats, and contradictions with copy-to-clipboard output."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.1.1",
+    title: "Blackbark Balance: Combat Fixes + Scaling Pass",
+    sections: [
+      {
+        heading: "Fixes",
+        items: [
+          {
+            title: "Enemy magic damage now mitigates correctly",
+            bullets: [
+              "Fixed enemy spell/elemental attacks being treated as physical mitigation in several AI/ability paths.",
+              "Player magical resistance now exists in baseline stat recalculation so casters are resistible without relying on a specific affix."
+            ]
+          },
+          {
+            title: "Resist All is now actually applied",
+            bullets: [
+              "Resist All gear affix now reduces incoming damage as intended."
+            ]
+          },
+          {
+            title: "Resource potions respect class resource",
+            bullets: [
+              "Fury/Mana/Blood/Essence restoratives no longer restore the wrong resource type when used by another class."
+            ]
+          },
+          {
+            title: "Element naming normalized",
+            bullets: [
+              "Ice effects now use the same 'frost' element label as loot affixes."
+            ]
+          },
+          {
+            title: "On-hit element pass-through",
+            bullets: [
+              "On-hit passives that depend on element type (ex: Necromancer tithe) now work on basic attacks."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Combat & Balance",
+        items: [
+          {
+            title: "Zone scaling tuned down slightly",
+            bullets: [
+              "Reduced late-zone HP/ATK/DEF growth to prevent drawn-out fights while keeping difficulty meaningful."
+            ]
+          },
+          {
+            title: "Crit swinginess reduced",
+            bullets: [
+              "Lowered baseline crit chances slightly to reduce early-fight volatility."
+            ]
+          },
+          {
+            title: "Vulnerable debuff now matters",
+            bullets: [
+              "Vulnerable increases incoming damage while active, making enemy setup abilities more readable and impactful."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.1.0",
+    title: "Oathbound Arsenal: Class Engines, Loadouts, and Upgrades",
+    sections: [
+      {
+        heading: "New / Systems",
+        items: [
+          {
+            title: "Class Engines (Passives + Resource Identity)",
+            bullets: [
+              "Added lightweight class passives that shape combat rhythm without bloating the UI.",
+              "Mage: every 3rd spell is discounted and gains crit; Warrior: Bulwark at high Fury; Blood Knight: Crimson Exchange; Vampire: Hungering Vein."
+            ]
+          },
+          {
+            title: "Spell Loadouts",
+            bullets: [
+              "Equip up to 4 abilities for combat; in-fight casting is restricted to your equipped kit.",
+              "Loadouts auto-clean if a spell is removed and auto-fill from known spells when needed."
+            ]
+          },
+          {
+            title: "Ability Upgrades",
+            bullets: [
+              "Earn upgrade tokens on level-up and invest them into abilities (Tier 1–3).",
+              "Choose a path per ability: Potency (+effect) or Efficiency (-cost)."
+            ]
+          },
+          {
+            title: "Class Spell Progression",
+            bullets: [
+              "Each class now unlocks new abilities at levels 3 and 6.",
+              "Older saves migrate forward and receive any missed unlocks based on current level."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Combat & Balance",
+        items: [
+          {
+            title: "Chilled is now a real debuff",
+            bullets: [
+              "Chilled reduces enemy outgoing damage while active and ticks down cleanly."
+            ]
+          },
+          {
+            title: "Companion boon is now functional",
+            bullets: [
+              "Companion ‘empower’ boon now correctly boosts your next action and is consumed/expired properly."
+            ]
+          },
+          {
+            title: "Fight-scoped status cleanup",
+            bullets: [
+              "Temporary shields/buffs/boons reset at combat start/end to prevent between-fight carryover."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "UI / UX",
+        items: [
+          {
+            title: "Spellbook panels",
+            bullets: [
+              "Reworked the Spells & Abilities screen into a two-panel layout (list + details) for faster browsing and a cleaner look.",
+              "Details panel shows cost, upgrade tier/path, and contextual actions (Use / Equip / Upgrade)."
+            ]
+          }
+        ]
+      },
+      {
+        heading: "Fixes",
+        items: [
+          {
+            title: "Twin Arrows now triggers on-hit effects",
+            bullets: [
+              "Life Steal and other on-hit hooks now apply per arrow."
+            ]
+          },
+          {
+            title: "Player buffs no longer stick forever",
+            bullets: [
+              "Key buff abilities now apply durations, and combat-only buffs are cleared reliably."
+            ]
+          },
+          {
+            title: "Save migration hardened",
+            bullets: [
+              "Schema migration updated to add loadouts, upgrades, and new status fields without breaking older saves."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+    {
     version: "1.0.9",
     title: "Bugfix Patch: Settings Defaults, Economy Tick Init, and Log ID Consistency",
     sections: [
