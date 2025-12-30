@@ -13,6 +13,8 @@
 // - Material progression (iron -> steel -> starsteel -> etc.)
 // - Unique, more flavorful item naming (prefixes/suffixes + named legendaries)
 
+import { rngInt, rngFloat } from "./rng.js";
+
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary']
 
 const RARITY_LABEL = {
@@ -75,7 +77,7 @@ function clamp(n, lo, hi) {
 }
 
 function randint(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min
+    return rngInt(null, min, max, 'loot.randint')
 }
 
 function round1(n) {
@@ -89,7 +91,7 @@ function cap(s) {
 
 function pickWeighted(pairs) {
     const total = pairs.reduce((a, [, w]) => a + w, 0)
-    let r = Math.random() * total
+    let r = rngFloat(null, 'loot.pickWeighted') * total
     for (const [v, w] of pairs) {
         r -= w
         if (r <= 0) return v
@@ -104,7 +106,7 @@ function makeId(prefix) {
         '_' +
         Date.now().toString(36) +
         '_' +
-        Math.floor(Math.random() * 1e9).toString(36)
+        Math.floor(rngFloat(null, 'loot.makeId') * 1e9).toString(36)
     )
 }
 
@@ -147,10 +149,10 @@ function uniqueSyllableName() {
 
     const p1 = pickWeighted(a.map((x) => [x, 1]))
     const p2 = pickWeighted(b.map((x) => [x, 1]))
-    const tail = Math.random() < 0.55 ? pickWeighted(c.map((x) => [x, 1])) : ''
+    const tail = rngFloat(null, 'loot.nameTail') < 0.55 ? pickWeighted(c.map((x) => [x, 1])) : ''
 
     // occasional apostrophe flavor
-    const glue = Math.random() < 0.16 ? "'" : ''
+    const glue = rngFloat(null, 'loot.nameGlue') < 0.16 ? "'" : ''
 
     return cap(p1 + glue + p2 + tail)
 }
@@ -339,6 +341,16 @@ export function getItemPowerScore(item) {
         const thorns = item.thorns || 0
         const regen = item.hpRegen || 0
 
+        // Some armor pieces (notably accessories) can also grant offense/utility.
+        const atk = item.attackBonus || 0
+        const mag = item.magicBonus || 0
+        const spd = item.speedBonus || 0
+        const crit = item.critChance || 0
+        const haste = item.haste || 0
+        const ls = item.lifeSteal || 0
+        const pen = item.armorPen || 0
+        const elem = item.elementalBonus || 0
+
         return (
             armor +
             maxRes / 10 +
@@ -346,7 +358,15 @@ export function getItemPowerScore(item) {
             resist * 0.9 +
             dodge * 0.7 +
             thorns / 12 +
-            regen * 1.2
+            regen * 1.2 +
+            atk * 0.9 +
+            mag * 0.9 +
+            spd * 0.8 +
+            crit * 0.8 +
+            haste * 0.6 +
+            ls * 1.0 +
+            pen * 0.5 +
+            elem * 0.6
         )
     }
 
@@ -418,7 +438,7 @@ function affixCountFor(rarity, isBoss) {
     // Common is mostly “clean” items, with a rare chance at 1 affix.
     let base =
         rarity === 'common'
-            ? Math.random() < 0.18
+            ? rngFloat(null, 'loot.rareMat') < 0.18
                 ? 1
                 : 0
             : rarity === 'uncommon'
@@ -430,7 +450,7 @@ function affixCountFor(rarity, isBoss) {
             : 4
 
     // Bosses have a chance to add one extra affix (cap at 5).
-    if (isBoss && Math.random() < 0.35) base += 1
+    if (isBoss && rngFloat(null, 'loot.bossBump') < 0.35) base += 1
     return clamp(base, 0, 5)
 }
 
@@ -600,8 +620,60 @@ const ARMOR_AFFIX_POOL = [
     }
 ]
 
+
+// Accessories (Neck / Ring) can roll a slightly broader stat palette.
+// This pool is intentionally modest so accessories feel meaningful without eclipsing weapons.
+const ACCESSORY_AFFIX_POOL = [
+    ...ARMOR_AFFIX_POOL,
+    {
+        id: 'vicious',
+        weight: 12,
+        namePrefix: 'Vicious',
+        apply: ({ level, rarity }) => {
+            const mult = RARITY_MULT[rarity] || 1
+            const v = Math.max(1, Math.round((1 + level * 0.22) * mult))
+            return { mods: { attackBonus: v }, desc: [`+${v} Attack`] }
+        }
+    },
+    {
+        id: 'savant',
+        weight: 12,
+        namePrefix: 'Savant',
+        apply: ({ level, rarity }) => {
+            const mult = RARITY_MULT[rarity] || 1
+            const v = Math.max(1, Math.round((1 + level * 0.22) * mult))
+            return { mods: { magicBonus: v }, desc: [`+${v} Magic`] }
+        }
+    },
+    {
+        id: 'precise',
+        weight: 10,
+        namePrefix: 'Precise',
+        apply: ({ level, rarity }) => {
+            const mult = RARITY_MULT[rarity] || 1
+            const v = round1((0.7 + level * 0.035) * mult)
+            return { mods: { critChance: v }, desc: [`+${v}% Crit`] }
+        }
+    },
+    {
+        id: 'quickened',
+        weight: 10,
+        namePrefix: 'Quickened',
+        apply: ({ level, rarity }) => {
+            const mult = RARITY_MULT[rarity] || 1
+            const v = round1((0.9 + level * 0.04) * mult)
+            return { mods: { haste: v }, desc: [`+${v}% Haste`] }
+        }
+    }
+]
+
 function rollAffixes({ itemType, count, ctx }) {
-    const pool = itemType === 'weapon' ? WEAPON_AFFIX_POOL : ARMOR_AFFIX_POOL
+    const pool =
+        itemType === 'weapon'
+            ? WEAPON_AFFIX_POOL
+            : itemType === 'accessory'
+            ? ACCESSORY_AFFIX_POOL
+            : ARMOR_AFFIX_POOL
     const picked = []
     const usedIds = new Set()
 
@@ -688,7 +760,7 @@ function composeName({
 
         // Allow the elemental suffix to still show up sometimes, otherwise use epithet.
         const tail =
-            affixSuffix && Math.random() < 0.45 ? affixSuffix : `of ${epithet}`
+            affixSuffix && rngFloat(null, 'loot.suffixChance') < 0.45 ? affixSuffix : `of ${epithet}`
 
         // Legendary items: Named + comma subtitle. Example: “Vaelor’s Oath, Starsteel Longsword of the Eclipse”
         return `${owner}s ${title}, ${core} ${tail}`.replace(/\s+/g, ' ').trim()
@@ -840,27 +912,36 @@ function buildWeapon(level, rarity, area = 'forest', isBoss = false) {
 function buildArmor(level, rarity, area = 'forest', isBoss = false) {
     const mult = RARITY_MULT[rarity] || 1.0
 
+    // Slot weights: body armor is most common; jewelry is rarer.
+    const slot = pickWeighted([
+        ['armor', 34],
+        ['head', 16],
+        ['hands', 14],
+        ['feet', 14],
+        ['belt', 12],
+        ['neck', 6],
+        ['ring', 4]
+    ])
+
+    const element = rollElement(area)
+    const material = rollMaterial(level, rarity)
+
+    // Base stats by slot (then affixes add on top)
+    let armor = 0
+    let maxRes = 0
+    let maxHP = 0
+    let resistAll = 0
+    let speedBonus = 0
+
+    // Aesthetic style influences naming and (for body armor) baseline scaling.
     const style = pickWeighted([
         ['plate', 35],
         ['leather', 40],
         ['robe', 25]
     ])
 
-    let armor = 0
-    let maxRes = 0
-
-    if (style === 'plate') {
-        armor = Math.round((4 + level * 1.15) * mult)
-        maxRes = Math.round(level * 1.0 * mult)
-    } else if (style === 'leather') {
-        armor = Math.round((3 + level * 1.0) * mult)
-        maxRes = Math.round(level * 1.5 * mult)
-    } else {
-        armor = Math.round((2 + level * 0.85) * mult)
-        maxRes = Math.round((10 + level * 4.0) * mult)
-    }
-
-    const baseName =
+    // --- Base names by slot/style ------------------------------------------
+    const bodyName =
         style === 'plate'
             ? pickWeighted([
                   ['Plate Harness', 20],
@@ -885,20 +966,182 @@ function buildArmor(level, rarity, area = 'forest', isBoss = false) {
                   ['Arcanist Mantle', 8]
               ])
 
-    const element = rollElement(area)
-    const material = rollMaterial(level, rarity)
+    const headName =
+        style === 'plate'
+            ? pickWeighted([
+                  ['Greathelm', 18],
+                  ['Visored Helm', 14],
+                  ['Warden Helm', 12],
+                  ['Iron Crown', 10]
+              ])
+            : style === 'leather'
+            ? pickWeighted([
+                  ['Leather Cap', 18],
+                  ['Hunter Hood', 14],
+                  ['Nightmask', 12],
+                  ['Ranger Hood', 10]
+              ])
+            : pickWeighted([
+                  ['Runed Cowl', 18],
+                  ['Aether Hood', 14],
+                  ['Sigil Circlet', 12],
+                  ['Hexed Veil', 10]
+              ])
 
-    // Affixes
+    const handsName =
+        style === 'plate'
+            ? pickWeighted([
+                  ['Gauntlets', 20],
+                  ['Iron Grips', 14],
+                  ['Warden Gauntlets', 12],
+                  ['Templar Gloves', 10]
+              ])
+            : style === 'leather'
+            ? pickWeighted([
+                  ['Leather Gloves', 20],
+                  ['Shadow Grips', 14],
+                  ['Hunter Wraps', 12],
+                  ['Ranger Gloves', 10]
+              ])
+            : pickWeighted([
+                  ['Spellwraps', 20],
+                  ['Sigil Gloves', 14],
+                  ['Aether Wraps', 12],
+                  ['Arcanist Mitts', 10]
+              ])
+
+    const feetName =
+        style === 'plate'
+            ? pickWeighted([
+                  ['Greaves', 20],
+                  ['War Treads', 14],
+                  ['Bulwark Greaves', 12],
+                  ['Iron Boots', 10]
+              ])
+            : style === 'leather'
+            ? pickWeighted([
+                  ['Leather Boots', 20],
+                  ['Ranger Boots', 14],
+                  ['Night Treads', 12],
+                  ['Hunter Boots', 10]
+              ])
+            : pickWeighted([
+                  ['Runed Slippers', 20],
+                  ['Aether Steps', 14],
+                  ['Sigil Shoes', 12],
+                  ['Hexed Sandals', 10]
+              ])
+
+    const beltName =
+        style === 'plate'
+            ? pickWeighted([
+                  ['War Belt', 22],
+                  ['Iron Girdle', 14],
+                  ['Warden Belt', 12],
+                  ['Knight Sash', 10]
+              ])
+            : style === 'leather'
+            ? pickWeighted([
+                  ['Leather Belt', 22],
+                  ['Ranger Belt', 14],
+                  ['Hunter Strap', 12],
+                  ['Shadow Cinch', 10]
+              ])
+            : pickWeighted([
+                  ['Runed Sash', 22],
+                  ['Aether Sash', 14],
+                  ['Sigil Cord', 12],
+                  ['Arcanist Girdle', 10]
+              ])
+
+    const neckName = pickWeighted([
+        ['Amulet', 22],
+        ['Talisman', 16],
+        ['Pendant', 16],
+        ['Charm', 12],
+        ['Locket', 10]
+    ])
+
+    const ringName = pickWeighted([
+        ['Ring', 28],
+        ['Band', 18],
+        ['Signet', 14],
+        ['Loop', 10],
+        ['Seal', 8]
+    ])
+
+    const baseName =
+        slot === 'armor'
+            ? bodyName
+            : slot === 'head'
+            ? headName
+            : slot === 'hands'
+            ? handsName
+            : slot === 'feet'
+            ? feetName
+            : slot === 'belt'
+            ? beltName
+            : slot === 'neck'
+            ? neckName
+            : ringName
+
+    // --- Baseline stat scaling ---------------------------------------------
+    // Body armor retains the original progression curve; other slots are smaller.
+    if (slot === 'armor') {
+        if (style === 'plate') {
+            armor = Math.round((4 + level * 1.15) * mult)
+            maxRes = Math.round(level * 1.0 * mult)
+        } else if (style === 'leather') {
+            armor = Math.round((3 + level * 1.0) * mult)
+            maxRes = Math.round(level * 1.5 * mult)
+        } else {
+            armor = Math.round((2 + level * 0.85) * mult)
+            maxRes = Math.round((10 + level * 4.0) * mult)
+        }
+    } else if (slot === 'head') {
+        armor = Math.round((2 + level * 0.6) * mult)
+        maxRes = Math.round((4 + level * 1.0) * mult)
+        maxHP = Math.round((1 + level * 0.25) * mult)
+    } else if (slot === 'hands') {
+        armor = Math.round((1 + level * 0.45) * mult)
+        maxRes = Math.round((3 + level * 0.8) * mult)
+    } else if (slot === 'feet') {
+        armor = Math.round((1 + level * 0.45) * mult)
+        maxRes = Math.round((3 + level * 0.8) * mult)
+        speedBonus = Math.max(0, Math.round((0.5 + level * 0.04) * mult))
+    } else if (slot === 'belt') {
+        armor = Math.round((1 + level * 0.35) * mult)
+        maxRes = Math.round((8 + level * 1.4) * mult)
+        maxHP = Math.round((2 + level * 0.55) * mult)
+    } else if (slot === 'neck') {
+        armor = 0
+        maxRes = Math.round((10 + level * 1.8) * mult)
+        maxHP = Math.round((4 + level * 0.8) * mult)
+        resistAll = round1((0.8 + level * 0.05) * mult)
+    } else if (slot === 'ring') {
+        armor = 0
+        maxRes = Math.round((8 + level * 1.5) * mult)
+        maxHP = Math.round((2 + level * 0.6) * mult)
+        resistAll = round1((0.6 + level * 0.04) * mult)
+    }
+
+    // --- Affixes -------------------------------------------------------------
     const affixCount = affixCountFor(rarity, isBoss)
+    const affixType =
+        slot === 'neck' || slot === 'ring' ? 'accessory' : 'armor'
+
     const rolled = rollAffixes({
-        itemType: 'armor',
+        itemType: affixType,
         count: affixCount,
         ctx: { level, rarity, area, element }
     })
 
-    // Apply affix mods (some affixes add flat Armor/Max Resource)
+    // Apply affix mods (some affixes add flat Armor/Max Resource/etc.)
     armor += rolled.mods.armorBonus || 0
     maxRes += rolled.mods.maxResourceBonus || 0
+    maxHP += rolled.mods.maxHPBonus || 0
+    resistAll += rolled.mods.resistAll || 0
+    speedBonus += rolled.mods.speedBonus || 0
 
     const name = composeName({
         rarity,
@@ -910,18 +1153,33 @@ function buildArmor(level, rarity, area = 'forest', isBoss = false) {
     })
 
     const item = {
-        id: makeId('gen_armor'),
+        id: makeId('gen_gear'),
         name,
         type: 'armor',
+        slot, // 'armor' | 'head' | 'hands' | 'feet' | 'belt' | 'neck' | 'ring'
+
+        // Core stats
         armorBonus: armor || undefined,
         maxResourceBonus: maxRes || undefined,
+        maxHPBonus: maxHP || undefined,
+        resistAll: resistAll || undefined,
+        speedBonus: speedBonus || undefined,
 
-        // optional affix stats:
-        maxHPBonus: rolled.mods.maxHPBonus || undefined,
-        resistAll: rolled.mods.resistAll || undefined,
+        // Optional affix stats:
+        attackBonus: rolled.mods.attackBonus || undefined,
+        magicBonus: rolled.mods.magicBonus || undefined,
+        critChance: rolled.mods.critChance || undefined,
+        haste: rolled.mods.haste || undefined,
+        lifeSteal: rolled.mods.lifeSteal || undefined,
+        armorPen: rolled.mods.armorPen || undefined,
+
         dodgeChance: rolled.mods.dodgeChance || undefined,
         thorns: rolled.mods.thorns || undefined,
         hpRegen: rolled.mods.hpRegen || undefined,
+
+        // Elemental bonus support (mostly weapons, but safe)
+        elementalType: rolled.mods.elementalType || undefined,
+        elementalBonus: rolled.mods.elementalBonus || undefined,
 
         rarity,
         generated: true,
@@ -937,7 +1195,11 @@ function buildArmor(level, rarity, area = 'forest', isBoss = false) {
     )
 
     const descParts = []
+    if (item.attackBonus) descParts.push(`+${item.attackBonus} Attack`)
+    if (item.magicBonus) descParts.push(`+${item.magicBonus} Magic`)
     if (item.armorBonus) descParts.push(`+${item.armorBonus} Armor`)
+    if (item.speedBonus) descParts.push(`+${item.speedBonus} Speed`)
+    if (item.maxHPBonus) descParts.push(`+${item.maxHPBonus} Max HP`)
     if (item.maxResourceBonus)
         descParts.push(`+${item.maxResourceBonus} Max Resource`)
     if (rolled.descParts.length) descParts.push(...rolled.descParts)
@@ -982,7 +1244,7 @@ function buildPotion(level, rarity, resourceKey, area = 'forest') {
     // Tiny “flavor” without breaking stacking names
     const element = rollElement(area)
     const flavor =
-        Math.random() < 0.25
+        rngFloat(null, 'loot.potionRoll') < 0.25
             ? `Brewed with ${ELEMENT_LABEL[element] || cap(element)} salts.`
             : null
 
@@ -1077,9 +1339,9 @@ const drops = []
 
     // Bosses can drop multiple items.
     const dropCount = isBoss
-        ? (Math.random() < 0.55 ? 2 : 3)
+        ? (rngFloat(null, 'loot.qtyA') < 0.55 ? 2 : 3)
         : isElite
-        ? (Math.random() < 0.35 ? 2 : 1)
+        ? (rngFloat(null, 'loot.qtyB') < 0.35 ? 2 : 1)
         : 1
 
     // Prefer dropping a resource potion that the player can actually use.

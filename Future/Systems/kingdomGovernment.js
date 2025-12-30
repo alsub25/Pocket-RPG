@@ -20,6 +20,8 @@
 //       `state` object passed in (like state.flags). It does not touch DOM.
 // -----------------------------------------------------------------------------
 
+import { rngInt, rngFloat } from "./rng.js";
+
 // --- CONSTANTS / SMALL HELPERS ------------------------------------------------
 
 const COUNCIL_ROLES = [
@@ -52,11 +54,12 @@ function clamp01(x) {
 
 // Random helpers
 function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return rngInt(null, min, max, 'government.randInt');
 }
 
 function randChoice(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+  if (!Array.isArray(arr) || !arr.length) return null;
+  return arr[rngInt(null, 0, arr.length - 1, 'government.randChoice')];
 }
 
 // Tiny name generator (keeps flavor light but varied)
@@ -84,7 +87,7 @@ function randomNameForGender(gender) {
 // --- CORE FACTORY FUNCTIONS ---------------------------------------------------
 
 function createInitialMonarch(absoluteDay = 0) {
-  const isFemaleRuler = Math.random() < 0.4;
+  const isFemaleRuler = rngFloat(null, 'government.isFemaleRuler') < 0.4;
   const rulerGender = isFemaleRuler ? "female" : "male";
   const spouseGender = isFemaleRuler ? "male" : "female";
 
@@ -94,7 +97,7 @@ function createInitialMonarch(absoluteDay = 0) {
   const rulerName = randomNameForGender(rulerGender);
   const spouseName = randomNameForGender(spouseGender);
 
-  const married = Math.random() < 0.8; // 80% chance the ruler starts married
+  const married = rngFloat(null, 'government.married') < 0.8; // 80% chance...
 
   const monarch = {
     title: rulerTitle,
@@ -119,7 +122,7 @@ function createInitialMonarch(absoluteDay = 0) {
   if (married) {
     const numKids = randInt(0, 3);
     for (let i = 0; i < numKids; i++) {
-      const gender = Math.random() < 0.5 ? "male" : "female";
+      const gender = rngFloat(null, 'government.childGender') < 0.5 ? "male" : "female";
       monarch.children.push({
         name: randomNameForGender(gender),
         gender,
@@ -137,7 +140,7 @@ function createInitialCouncil(absoluteDay = 0) {
   const council = [];
 
   COUNCIL_ROLES.forEach(role => {
-    const gender = Math.random() < 0.5 ? "male" : "female";
+    const gender = rngFloat(null, 'government.childGender') < 0.5 ? "male" : "female";
     const member = {
       id: role.toLowerCase().replace(/\s+/g, "_"),
       role,
@@ -451,7 +454,7 @@ function maybeIssueRoyalDecree(government, absoluteDay, hooks) {
 
   // About ~10% chance per day, scaled slightly by instability
   const baseChance = 0.1 + (50 - metrics.stability) / 400; // 5–20%
-  if (Math.random() > baseChance) return;
+  if (rngFloat(null, 'government.randomDecree') > baseChance) return;
 
   // Very rough “situation awareness”
   const needsMoney = metrics.prosperity < 45;
@@ -460,9 +463,9 @@ function maybeIssueRoyalDecree(government, absoluteDay, hooks) {
   // Pick a decree type based on the situation
   let decreeType;
   if (unrestHigh) {
-    decreeType = Math.random() < 0.5 ? "hold_festival" : "ease_taxes";
+    decreeType = rngFloat(null, 'government.decreePick') < 0.5 ? "hold_festival" : "ease_taxes";
   } else if (needsMoney) {
-    decreeType = Math.random() < 0.5 ? "raise_taxes" : "merchant_charters";
+    decreeType = rngFloat(null, 'government.decreePick') < 0.5 ? "raise_taxes" : "merchant_charters";
   } else {
     decreeType = randChoice([
       "anti_bandit_crackdown",
@@ -609,10 +612,18 @@ function maybeIssueRoyalDecree(government, absoluteDay, hooks) {
 export function handleGovernmentDayTick(state, absoluteDay, hooks = {}) {
   if (!state) return;
 
-  initGovernmentState(state, absoluteDay);
+  // Normalize day to a non-negative integer.
+  const dayRaw = Number(absoluteDay);
+  const day = Number.isFinite(dayRaw) && dayRaw >= 0 ? Math.floor(dayRaw) : 0;
+
+  initGovernmentState(state, day);
   const g = state.government;
 
-  g.lastUpdatedDay = absoluteDay;
+  const lastRaw = Number(g.lastUpdatedDay);
+  const lastDay = Number.isFinite(lastRaw) && lastRaw >= 0 ? Math.floor(lastRaw) : null;
+  if (lastDay === day) return;
+
+  g.lastUpdatedDay = day;
 
   // 1) Passive metric drift and story-based effects
   applyPassiveDrift(g, state);
@@ -624,7 +635,7 @@ export function handleGovernmentDayTick(state, absoluteDay, hooks = {}) {
   updateVillageAttitudes(g, state);
 
   // 4) Possibly issue a new royal decree
-  maybeIssueRoyalDecree(g, absoluteDay, hooks);
+  maybeIssueRoyalDecree(g, day, hooks);
 }
 
 // --- READ-ONLY HELPERS FOR OTHER SYSTEMS -------------------------------------
