@@ -37,10 +37,21 @@ export function validateState(state) {
           push(issues, 'inv.entry.bad', `inventory[${i}] not an object`);
           continue;
         }
-        if (!('qty' in it)) continue;
-        const q = Number(it.qty);
+        const qRaw =
+          ('quantity' in it) ? it.quantity
+          : (('qty' in it) ? it.qty : null);
+
+        // Prefer `quantity` going forward, but accept legacy `qty` on older saves.
+        if (qRaw == null) continue;
+
+        const q = Number(qRaw);
         if (!Number.isFinite(q) || q < 0 || Math.floor(q) !== q) {
-          push(issues, 'inv.qty.bad', `inventory[${i}].qty=${String(it.qty)}`);
+          push(issues, 'inv.quantity.bad', `inventory[${i}].quantity=${String(qRaw)}`);
+        }
+
+        // If both fields exist and disagree, record it (helpful for bug reports).
+        if (('quantity' in it) && ('qty' in it) && Number(it.quantity) !== Number(it.qty)) {
+          push(issues, 'inv.quantity.mismatch', `inventory[${i}] quantity=${String(it.quantity)} qty=${String(it.qty)}`);
         }
       }
     }

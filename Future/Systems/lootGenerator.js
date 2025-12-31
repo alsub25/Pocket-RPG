@@ -89,11 +89,15 @@ function cap(s) {
     return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function pickWeighted(pairs) {
-    const total = pairs.reduce((a, [, w]) => a + w, 0)
+export function pickWeighted(pairs) {
+    if (!Array.isArray(pairs) || pairs.length === 0) return null
+
+    const total = pairs.reduce((a, [, w]) => a + (Number(w) || 0), 0)
+    if (!Number.isFinite(total) || total <= 0) return pairs[0] ? pairs[0][0] : null
+
     let r = rngFloat(null, 'loot.pickWeighted') * total
     for (const [v, w] of pairs) {
-        r -= w
+        r -= (Number(w) || 0)
         if (r <= 0) return v
     }
     return pairs[pairs.length - 1][0]
