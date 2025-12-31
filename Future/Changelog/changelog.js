@@ -3,6 +3,147 @@
 
 export const CHANGELOG = [
   {
+  version: "1.1.6",
+  title: "Combat Patch 1.1.6: Intent Telegraphs, Posture Break, and Interrupt Counterplay",
+  sections: [
+    {
+      heading: "New Combat Features",
+      items: [
+        {
+          title: "Enemy Intent Telegraphs",
+          bullets: [
+            "Certain high-impact enemy abilities now telegraph before firing, giving the player a clear counterplay window.",
+            "Telegraphed moves show up on the enemy status line as an Intent with remaining turns.",
+            "Currently telegraphed: Heavy Cleave, Void Breath, Seismic Stomp, Tail Swipe, and Inferno."
+          ]
+        },
+        {
+          title: "New Player Action: Interrupt",
+          bullets: [
+            "Added a new combat action button: Interrupt (costs 10 of your current resource).",
+            "If the enemy has an Intent, Interrupt cancels it (and staggers non-boss enemies).",
+            "If no Intent is present, Interrupt still performs a quick jab to build Posture pressure."
+          ]
+        },
+        {
+          title: "Posture + Break System",
+          bullets: [
+            "Player damage now builds enemy Posture; reaching the enemy's Posture cap causes a Break.",
+            "Broken enemies lose their action and take increased damage while Broken.",
+            "Break also disrupts any pending Intent (telegraphed attack is canceled).",
+            "Enemy status line now displays Posture, Broken state, and relevant debuffs."
+          ]
+        }
+      ]
+    },
+    {
+      heading: "Bug Fixes + Combat Stability",
+      items: [
+        {
+          title: "Enemy stun handling",
+          bullets: [
+            "Fixed an enemyTurn logic issue where stun could be decremented twice and the tick function's return value was ignored.",
+            "Stun/Broken now properly prevent actions and can disrupt pending Intent."
+          ]
+        },
+        {
+          title: "Companion crit stat reference",
+          bullets: [
+            "Fixed a crit check referencing a non-existent `p.stats.crit` field; companions now correctly read `p.stats.critChance`."
+          ]
+        },
+        {
+          title: "Enemy attack debuff permanence",
+          bullets: [
+            "Fixed attack-down effects that permanently reduced enemy attack.",
+            "Attack-down now uses timed debuff fields and a computed effective attack value."
+          ]
+        },
+        {
+          title: "Enemy runtime + Posture break determinism",
+          bullets: [
+            "Fixed ensureEnemyRuntime overwriting explicitly provided small enemy ability arrays (including smoke test dummies).",
+            "Adjusted posture per-hit capping so very small posture caps used in tests can deterministically trigger Break (normal enemies unchanged)."
+          ]
+        }
+      ]
+    },
+    {
+      heading: "Smoke Tests",
+      items: [
+        {
+          title: "New coverage",
+          bullets: [
+            "Added unit smoke tests for telegraph→Intent creation and Interrupt canceling the Intent.",
+            "Added a unit smoke test for Posture reaching cap → Break triggering and disrupting Intent.",
+            "Expanded combat regression coverage: Intent execution after countdown, Interrupt resource cost/insufficient-resource behavior, Broken damage bonus determinism, forced-guard skip, and enemy atkDown expiry.",
+            "Added new smoke tests for cooldown integrity (telegraph commits cooldown even if interrupted) and Interrupt-without-Intent posture pressure.",
+            "Added new smoke tests for player status ticking (duration decrements and value clearing), companion empty-ability safety, and enemy death with pending Intent.",
+            "Added new smoke tests for equipment non-stacking, safe weapon swaps (no double-apply), and mid-combat save round-trip + forward-compat migration tolerance.",
+            "Smoke Tests output now includes a seed line and per-section pass/fail breakdown for faster triage.",
+            "Smoke Tests output is now grouped with a pass/fail summary and per-section breakdown, including the deterministic QA seed used.",
+            "In dev cheat mode, Smoke Tests are now available via a small \"Tests\" pill next to the Menu button (removed from the Cheat Menu).",
+            "In dev cheat mode, Cheats are now accessed via a 🛠️ HUD pill next to 🧪 and the Menu button (removed from the action bar)."
+          ]
+        }
+      ]
+    }
+  ]
+  },
+  {
+  version: "1.1.52",
+  title: "Bug Fix Patch 1.1.52: Merchant Restock, Inventory Safety, and Stability Fixes",
+  sections: [
+    {
+      heading: "Bug Fixes",
+      items: [
+        {
+          title: "Merchant daily restock",
+          bullets: [
+            "Fixed a variable mix-up that prevented daily merchant restocking from running reliably.",
+            "Merchant stock buckets now self-clean invalid or removed item keys to prevent 'ghost stock' persisting across patches."
+          ]
+        },
+        {
+          title: "Inventory / equipment edge cases",
+          bullets: [
+            "Selling or dropping gear now unequips by exact item instance first, preventing the wrong copy from being unequipped when duplicates exist.",
+            "Legacy id-based unequip fallback is now only used when the player has a single copy of that item id, preventing accidental unequips when duplicates exist."
+          ]
+        },
+        {
+          title: "Save compatibility + invariants",
+          bullets: [
+            "Added save migration to normalize legacy inventory `qty` fields into `quantity`.",
+            "State validator now audits `quantity` (and legacy `qty`) and records mismatches for easier bug reports."
+          ]
+        },
+        {
+          title: "UI / stability hardening",
+          bullets: [
+            "Hardened screen switching to avoid crashes if a screen element is missing from the DOM.",
+            "Fixed an issue where the Smoke Tests could leave the UI on a blank screen after closing (the screen-guard test now restores prior visibility + audio state).",
+            "Loot weighted-picker now safely handles empty/zero-weight tables (returns null instead of throwing or returning undefined).",
+            "Expanded the in-game Smoke Tests to cover inventory stacking/consumption, save round-trip + legacy migrations, daily tick idempotence, merchant pruning + purchase flow, loot generation + determinism, and combat sanity (no NaN/HP clamping).",
+            "Smoke Tests are now fully sandboxed: they stub UI/combat hooks and restore prior combat state, so tests cannot leave behind dummy enemies, alter real HP, or affect the active save."
+          ]
+        }
+      ]
+    },
+    {
+      heading: "Versioning",
+      items: [
+        {
+          title: "Patch labeling",
+          bullets: [
+            "Updated in-game patch/version labels to 1.1.52 (The Blackbark Oath)."
+          ]
+        }
+      ]
+    }
+  ]
+},
+  {
     version: "1.1.5",
     title: "Patch 1.1.5: Expanded Gear Slots + Loot Drops + Bug Fixes",
     sections: [
