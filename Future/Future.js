@@ -64,6 +64,21 @@ import {
 import { QUEST_DEFS } from './Quests/questDefs.js'
 import { createDefaultQuestState, createDefaultQuestFlags } from './Quests/questDefaults.js'
 import { createQuestBindings } from './Quests/questBindings.js'
+import {
+    buildEnemyForBattle,
+    applyEnemyRarity as applyEnemyRarityImpl,
+    applyEliteModifiers as applyEliteModifiersImpl,
+    applyEnemyAffixes as applyEnemyAffixesImpl,
+    applyEnemyAffixesOnEnemyHit as applyEnemyAffixesOnEnemyHitImpl,
+    applyEnemyAffixesOnPlayerHit as applyEnemyAffixesOnPlayerHitImpl,
+    getEnemyRarityDef,
+    getEnemyAffixDef,
+    getEnemyAffixLabels as getEnemyAffixLabelsImpl,
+    rebuildEnemyDisplayName as rebuildEnemyDisplayNameImpl,
+    ensureEnemyRuntime as ensureEnemyRuntimeImpl,
+    syncEnemyBaseStats as syncEnemyBaseStatsImpl,
+    computeEnemyPostureMax as computeEnemyPostureMaxImpl
+} from './Systems/Enemy/index.js'
 
 
 
@@ -183,9 +198,9 @@ function runDailyTicks(state, absoluteDay, hooks = {}) {
     state.sim.lastDailyTickDay = targetDay
 }
 // --- GAME DATA -----------------------------------------------------------------
-const GAME_PATCH = '1.1.6' // current patch/version
+const GAME_PATCH = '1.1.92' // current patch/version
 const GAME_PATCH_NAME = 'The Blackbark Oath'
-const SAVE_SCHEMA = 6 // bump when the save structure changes (migrations run on load)
+const SAVE_SCHEMA = 7 // bump when the save structure changes (migrations run on load)
 
 /* --------------------------- Safety helpers --------------------------- */
 // Imported from ./Systems/safety.js (keep NaN/Infinity guards consistent across systems).
@@ -334,14 +349,24 @@ const DIFFICULTY_CONFIG = {
 
 // --- Progression / special encounters --------------------------------------
 const MAX_PLAYER_LEVEL = 50 // used by dev cheats; raise if you want a longer grind
-const ELITE_BASE_CHANCE = 0.08 // non-boss elite chance (tuned per difficulty)
+
+// Enemy rarity & scaling helpers live in Systems/Enemy.
+function applyEnemyRarity(enemy) {
+    return applyEnemyRarityImpl(enemy, { diffCfg: getActiveDifficultyConfig(), rand })
+}
+
+// After difficulty/elite/rarity/affix scaling, ensure baseAttack/baseMagic match the current stats.
+function syncEnemyBaseStats(enemy) {
+    return syncEnemyBaseStatsImpl(enemy)
+}
+
 
 
 
 function getActiveDifficultyConfig() {
     // Before state exists, just use Normal
     if (typeof state === 'undefined' || !state) {
-        return DIFFICULTY_CONFIG.normal
+        return { ...DIFFICULTY_CONFIG.normal, band: 0, closestId: 'normal' }
     }
 
     const normalBase = DIFFICULTY_CONFIG.normal
@@ -349,7 +374,7 @@ function getActiveDifficultyConfig() {
 
     // Non-dynamic difficulties use their static config
     if (state.difficulty !== 'dynamic') {
-        return raw
+        return { ...raw, band: 0, closestId: raw.id }
     }
 
     // Ensure dynamicDifficulty exists
@@ -414,7 +439,9 @@ function getActiveDifficultyConfig() {
         enemyHpMod,
         enemyDmgMod,
         playerDmgMod,
-        aiSmartness
+        aiSmartness,
+        band,
+        closestId
     }
 }
 const PLAYER_CLASSES = {
@@ -509,7 +536,7 @@ const PLAYER_CLASSES = {
         resourceKey: 'mana',
         resourceName: 'Mana',
         baseStats: { maxHp: 105, attack: 10, magic: 10, armor: 5, speed: 9 },
-        startingSpells: ['lightningLash', 'earthskin', 'spiritHowl']
+        startingSpells: ['lightningLash', 'earthskin', 'spiritHowl', 'totemSpark']
     },
 
     // 7) BERSERKER – uses Fury
@@ -621,47 +648,69 @@ const CLASS_PASSIVES = {
 const CLASS_LEVEL_UNLOCKS = {
     mage: [
         { level: 3, spell: 'arcaneSurge' },
-        { level: 6, spell: 'meteorSigil' }
+        { level: 6, spell: 'meteorSigil' },
+        { level: 9, spell: 'blink' },
+        { level: 12, spell: 'arcaneOverload' }
     ],
     warrior: [
         { level: 3, spell: 'cleave' },
-        { level: 6, spell: 'ironFortress' }
+        { level: 6, spell: 'ironFortress' },
+        { level: 9, spell: 'shieldBash' },
+        { level: 12, spell: 'unbreakable' }
     ],
     blood: [
         { level: 3, spell: 'crimsonPact' },
-        { level: 6, spell: 'bloodNova' }
+        { level: 6, spell: 'bloodNova' },
+        { level: 9, spell: 'bloodArmor' },
+        { level: 12, spell: 'crimsonAvatar' }
     ],
     ranger: [
-        { level: 3, spell: 'evasionRoll' },
-        { level: 6, spell: 'rainOfThorns' }
+{ level: 3, spell: 'headshot' },
+        { level: 6, spell: 'evasionRoll' },
+        { level: 9, spell: 'huntersTrap' },
+        { level: 12, spell: 'rainOfThorns' }
     ],
     paladin: [
         { level: 3, spell: 'judgment' },
-        { level: 6, spell: 'aegisVow' }
+        { level: 6, spell: 'aegisVow' },
+        { level: 9, spell: 'cleanseFlame' },
+        { level: 12, spell: 'divineIntervention' }
     ],
     rogue: [
-        { level: 3, spell: 'smokeBomb' },
-        { level: 6, spell: 'cripplingFlurry' }
+{ level: 3, spell: 'eviscerate' },
+        { level: 6, spell: 'smokeBomb' },
+        { level: 9, spell: 'cripplingFlurry' },
+        { level: 12, spell: 'vanish' }
     ],
     cleric: [
         { level: 3, spell: 'divineWard' },
-        { level: 6, spell: 'benediction' }
+        { level: 6, spell: 'benediction' },
+        { level: 9, spell: 'sanctify' },
+        { level: 12, spell: 'massPrayer' }
     ],
     necromancer: [
         { level: 3, spell: 'boneArmor' },
-        { level: 6, spell: 'deathMark' }
+        { level: 6, spell: 'deathMark' },
+        { level: 9, spell: 'harvest' },
+        { level: 12, spell: 'lichForm' }
     ],
     shaman: [
-        { level: 3, spell: 'totemSpark' },
-        { level: 6, spell: 'stoneQuake' }
+{ level: 3, spell: 'totemEarth' },
+        { level: 6, spell: 'stoneQuake' },
+        { level: 9, spell: 'tempest' },
+        { level: 12, spell: 'totemSpark' }
     ],
     berserker: [
         { level: 3, spell: 'rageRush' },
-        { level: 6, spell: 'execute' }
+        { level: 6, spell: 'execute' },
+        { level: 9, spell: 'enrage' },
+        { level: 12, spell: 'bloodFrenzy' }
     ],
     vampire: [
         { level: 3, spell: 'nightFeast' },
-        { level: 6, spell: 'mistForm' }
+        { level: 6, spell: 'mistForm' },
+        { level: 9, spell: 'mesmerize' },
+        { level: 12, spell: 'bloodMoon' }
     ]
 }
 
@@ -710,6 +759,15 @@ function ensurePlayerSpellSystems(p) {
     if (typeof p.status.firstHitBonusAvailable === 'undefined') {
         p.status.firstHitBonusAvailable = true
     }
+
+    // Patch 1.1.7: additional class mechanics
+    if (typeof p.status.comboPoints !== 'number' || !Number.isFinite(p.status.comboPoints)) p.status.comboPoints = 0
+    if (typeof p.status.soulShards !== 'number' || !Number.isFinite(p.status.soulShards)) p.status.soulShards = 0
+    if (typeof p.status.lichTurns !== 'number' || !Number.isFinite(p.status.lichTurns)) p.status.lichTurns = 0
+    if (typeof p.status.totemType !== 'string') p.status.totemType = ''
+    if (typeof p.status.totemTurns !== 'number' || !Number.isFinite(p.status.totemTurns)) p.status.totemTurns = 0
+    if (typeof p.status.vanishTurns !== 'number' || !Number.isFinite(p.status.vanishTurns)) p.status.vanishTurns = 0
+
 }
 
 function getAbilityUpgrade(p, id) {
@@ -791,6 +849,14 @@ function resetPlayerCombatStatus(p) {
     // Reset per-fight class cadence.
     st.spellCastCount = 0
     st.firstHitBonusAvailable = true
+
+    // Patch 1.1.7 class mechanics
+    st.comboPoints = 0
+    st.soulShards = 0
+    st.lichTurns = 0
+    st.totemType = ''
+    st.totemTurns = 0
+    st.vanishTurns = 0
 }
 
 const ABILITIES = {
@@ -1060,7 +1126,7 @@ const ABILITIES = {
         name: 'Meteor Sigil',
         classId: 'mage',
         cost: { mana: 40 },
-        note: 'Carve a sigil that calls down a meteor for massive damage. (Unlocks at level 6)'
+        note: 'Carve a sigil that calls down a meteor for massive damage to your target and splash damage to nearby foes. (Unlocks at level 6)'
     },
 
     // WARRIOR (unlocks)
@@ -1069,7 +1135,7 @@ const ABILITIES = {
         name: 'Cleave',
         classId: 'warrior',
         cost: { fury: 28 },
-        note: 'A wide, brutal swing that hits hard and feeds your Fury. (Unlocks at level 3)'
+        note: 'A wide, brutal swing that damages multiple enemies and feeds your Fury. (Unlocks at level 3)'
     },
     ironFortress: {
         id: 'ironFortress',
@@ -1092,7 +1158,7 @@ const ABILITIES = {
         name: 'Blood Nova',
         classId: 'blood',
         cost: { blood: 28 },
-        note: 'Detonate your Blood into a violent nova that also makes the foe bleed. (Unlocks at level 6)'
+        note: 'Detonate your Blood into a violent nova that damages all enemies and makes them bleed. (Unlocks at level 6)'
     },
 
     // RANGER (unlocks)
@@ -1108,7 +1174,7 @@ const ABILITIES = {
         name: 'Rain of Thorns',
         classId: 'ranger',
         cost: { fury: 30 },
-        note: 'A volley that shreds and deepens bleeding. (Unlocks at level 6)'
+        note: 'A volley that peppers multiple enemies and deepens bleeding. (Unlocks at level 6)'
     },
 
     // PALADIN (unlocks)
@@ -1188,7 +1254,7 @@ const ABILITIES = {
         name: 'Stone Quake',
         classId: 'shaman',
         cost: { mana: 30 },
-        note: 'Shake the ground to damage and chill the foe. (Unlocks at level 6)'
+        note: 'Shake the ground to damage and chill multiple enemies. (Unlocks at level 6)'
     },
 
     // BERSERKER (unlocks)
@@ -1223,6 +1289,184 @@ const ABILITIES = {
         note: 'Become misty and elusive, heavily reducing damage taken for 3 turns. (Unlocks at level 6)'
     },
 
+
+    // --- PATCH 1.1.7: NEW CLASS UNLOCKS (Lv 9 / Lv 12) --------------------
+
+    // MAGE
+    blink: {
+        id: 'blink',
+        name: 'Blink',
+        classId: 'mage',
+        cost: { mana: 18 },
+        note: 'Slip through space, gaining high evasion for 2 turns. (Unlocks at level 9)'
+    },
+    arcaneOverload: {
+        id: 'arcaneOverload',
+        name: 'Arcane Overload',
+        classId: 'mage',
+        cost: { mana: 48 },
+        note: 'Overcharge arcane power for massive damage and splash damage to other foes. (Unlocks at level 12)'
+    },
+
+    // WARRIOR
+    shieldBash: {
+        id: 'shieldBash',
+        name: 'Shield Bash',
+        classId: 'warrior',
+        cost: { fury: 20 },
+        note: 'Bash with your shield to stagger and shield yourself. (Unlocks at level 9)'
+    },
+    unbreakable: {
+        id: 'unbreakable',
+        name: 'Unbreakable',
+        classId: 'warrior',
+        cost: { fury: 36 },
+        note: 'Become a fortress: huge barrier and damage reduction. (Unlocks at level 12)'
+    },
+
+    // BLOOD KNIGHT
+    bloodArmor: {
+        id: 'bloodArmor',
+        name: 'Blood Armor',
+        classId: 'blood',
+        cost: { blood: 22 },
+        note: 'Condense blood into armor, granting a heavy shield. (Unlocks at level 9)'
+    },
+    crimsonAvatar: {
+        id: 'crimsonAvatar',
+        name: 'Crimson Avatar',
+        classId: 'blood',
+        cost: { hp: 18 },
+        note: 'Sacrifice HP to enter a brutal stance, empowering your attacks. (Unlocks at level 12)'
+    },
+
+    // RANGER
+    huntersTrap: {
+        id: 'huntersTrap',
+        name: "Hunter's Trap",
+        classId: 'ranger',
+        cost: { fury: 22 },
+        note: 'Set a trap that wounds and hinders the foe. (Unlocks at level 9)'
+    },
+    headshot: {
+        id: 'headshot',
+        name: 'Headshot',
+        classId: 'ranger',
+        cost: { fury: 38 },
+        note: 'Spend Marks to deliver devastating precision damage. (Unlocks at level 12)'
+    },
+
+    // PALADIN
+    cleanseFlame: {
+        id: 'cleanseFlame',
+        name: 'Cleansing Flame',
+        classId: 'paladin',
+        cost: { mana: 18 },
+        note: 'Cleanse harmful effects and restore health. (Unlocks at level 9)'
+    },
+    divineIntervention: {
+        id: 'divineIntervention',
+        name: 'Divine Intervention',
+        classId: 'paladin',
+        cost: { mana: 44 },
+        note: 'A miracle of healing and shielding. (Unlocks at level 12)'
+    },
+
+    // ROGUE
+    eviscerate: {
+        id: 'eviscerate',
+        name: 'Eviscerate',
+        classId: 'rogue',
+        cost: { fury: 32 },
+        note: 'Spend Combo Points for burst damage. (Unlocks at level 9)'
+    },
+    vanish: {
+        id: 'vanish',
+        name: 'Vanish',
+        classId: 'rogue',
+        cost: { fury: 24 },
+        note: 'Disappear into shadows, gaining huge evasion and combo momentum. (Unlocks at level 12)'
+    },
+
+    // CLERIC
+    sanctify: {
+        id: 'sanctify',
+        name: 'Sanctify',
+        classId: 'cleric',
+        cost: { mana: 26 },
+        note: 'Cleanse and shield yourself with holy light. (Unlocks at level 9)'
+    },
+    massPrayer: {
+        id: 'massPrayer',
+        name: 'Mass Prayer',
+        classId: 'cleric',
+        cost: { mana: 46 },
+        note: 'A deep prayer that heals and empowers your magic. (Unlocks at level 12)'
+    },
+
+    // NECROMANCER
+    harvest: {
+        id: 'harvest',
+        name: 'Harvest',
+        classId: 'necromancer',
+        cost: { mana: 26 },
+        note: 'Reap life and gather Soul Shards for later power. (Unlocks at level 9)'
+    },
+    lichForm: {
+        id: 'lichForm',
+        name: 'Lich Form',
+        classId: 'necromancer',
+        cost: { mana: 40 },
+        note: 'Ascend briefly, empowering shadow magic and siphoning life. (Unlocks at level 12)'
+    },
+
+    // SHAMAN
+    totemEarth: {
+        id: 'totemEarth',
+        name: 'Totem: Earth',
+        classId: 'shaman',
+        cost: { mana: 24 },
+        note: 'Call an earth totem for protection. (Unlocks at level 9)'
+    },
+    tempest: {
+        id: 'tempest',
+        name: 'Tempest',
+        classId: 'shaman',
+        cost: { mana: 40 },
+        note: 'Unleash a storm burst that chains through multiple enemies; stronger with an active totem. (Unlocks at level 12)'
+    },
+
+    // BERSERKER
+    enrage: {
+        id: 'enrage',
+        name: 'Enrage',
+        classId: 'berserker',
+        cost: { fury: 20 },
+        note: 'Fan the flames: longer attack buff and Fury flow. (Unlocks at level 9)'
+    },
+    bloodFrenzy: {
+        id: 'bloodFrenzy',
+        name: 'Blood Frenzy',
+        classId: 'berserker',
+        cost: { fury: 40 },
+        note: 'A violent finisher that heals based on damage dealt. (Unlocks at level 12)'
+    },
+
+    // VAMPIRE
+    mesmerize: {
+        id: 'mesmerize',
+        name: 'Mesmerize',
+        classId: 'vampire',
+        cost: { essence: 24 },
+        note: 'Charm and stagger the foe with shadow magic. (Unlocks at level 9)'
+    },
+    bloodMoon: {
+        id: 'bloodMoon',
+        name: 'Blood Moon',
+        classId: 'vampire',
+        cost: { essence: 45 },
+        note: 'A brutal eclipse: huge shadow damage and healing. (Unlocks at level 12)'
+    },
 }
 
 
@@ -1283,6 +1527,43 @@ function _dealPlayerMagic(p, enemy, baseStat, elementType) {
     applyPlayerOnHitEffects(dmg, elementType)
     applyEnemyPostureFromPlayerHit(enemy, dmg, { damageType: 'magic', elementType: elementType || null })
     return dmg
+}
+
+// Patch 1.1.92: player AoE helpers (multi-enemy spell support)
+// - Primary target takes full damage.
+// - Other alive enemies take splash damage (default 70%).
+function _dealPlayerPhysicalAoe(p, primaryEnemy, baseStat, elementType, opts = {}) {
+    const splashMult = typeof opts.splashMult === 'number' && Number.isFinite(opts.splashMult)
+        ? Math.max(0, Math.min(1, opts.splashMult))
+        : 0.7
+    const enemies = getAliveEnemies()
+    if (!enemies || enemies.length === 0) return { total: 0, hits: [] }
+    const primary = primaryEnemy && enemies.includes(primaryEnemy) ? primaryEnemy : enemies[0]
+    const out = { total: 0, hits: [] }
+    enemies.forEach((e) => {
+        const mult = (e === primary) ? 1 : splashMult
+        const dmg = _dealPlayerPhysical(p, e, baseStat * mult, elementType)
+        out.total += dmg
+        out.hits.push({ enemy: e, dmg })
+    })
+    return out
+}
+
+function _dealPlayerMagicAoe(p, primaryEnemy, baseStat, elementType, opts = {}) {
+    const splashMult = typeof opts.splashMult === 'number' && Number.isFinite(opts.splashMult)
+        ? Math.max(0, Math.min(1, opts.splashMult))
+        : 0.7
+    const enemies = getAliveEnemies()
+    if (!enemies || enemies.length === 0) return { total: 0, hits: [] }
+    const primary = primaryEnemy && enemies.includes(primaryEnemy) ? primaryEnemy : enemies[0]
+    const out = { total: 0, hits: [] }
+    enemies.forEach((e) => {
+        const mult = (e === primary) ? 1 : splashMult
+        const dmg = _dealPlayerMagic(p, e, baseStat * mult, elementType)
+        out.total += dmg
+        out.hits.push({ enemy: e, dmg })
+    })
+    return out
 }
 
 function _consumeCompanionBoonIfNeeded(p, ctx) {
@@ -1372,6 +1653,44 @@ function buildAbilityContext(p, abilityId) {
         ctx.critBonus += rhythm.critBonus
     }
 
+
+// Patch 1.1.92: class meter is now combat-relevant.
+// Mage (Rhythm): every 3rd spell also boosts effect and refunds a small amount of mana.
+if (p.classId === 'mage' && rhythm.active) {
+    ctx.dmgMult *= 1.30
+    ctx.healMult *= 1.30
+    ctx._mageRhythmActive = true
+    ctx._manaRefund = (ctx._manaRefund || 0) + 4
+}
+
+// Warrior (Bulwark): while Fury is high, your next damaging ability is empowered.
+// The empowerment is consumed after you deal damage (spends Fury and grants a small shield).
+if (p.classId === 'warrior' && p.resourceKey === 'fury' && (p.resource || 0) >= 40) {
+    ctx.dmgMult *= 1.25
+    ctx._bulwarkActive = true
+}
+
+// Ranger (Marks): marked targets take slightly increased damage from your abilities.
+// (The Headshot finisher already consumes marks for a large payoff; this makes the meter matter between finishers.)
+try {
+    const enemy = state.currentEnemy
+    if (p.classId === 'ranger' && enemy && (enemy.markedStacks || 0) > 0) {
+        const marks = Math.max(0, Math.min(5, enemy.markedStacks || 0))
+        ctx.dmgMult *= 1 + marks * 0.03
+    }
+} catch (_) {}
+
+// Blood Knight (Blood): high Blood triggers Bloodrush, boosting damage and lifesteal.
+if (p.classId === 'blood' && p.resourceKey === 'blood') {
+    const mx = Math.max(1, Number(p.maxResource || 0))
+    const ratio = Number(p.resource || 0) / mx
+    if (ratio >= 0.80) {
+        ctx.dmgMult *= 1.12
+        ctx.lifeStealBonusPct = (ctx.lifeStealBonusPct || 0) + 12
+        ctx._bloodrushActive = true
+    }
+}
+
     // Ranger passive: first hit each fight.
     if (p.classId === 'ranger' && st.firstHitBonusAvailable) {
         ctx.dmgMult *= 1.12
@@ -1453,6 +1772,8 @@ const ABILITY_EFFECTS = {
         // FIX: on-hit effects now apply to each arrow.
         const dmg1 = _dealPlayerPhysical(p, enemy, p.stats.attack * 0.75)
         const dmg2 = enemy.hp > 0 ? _dealPlayerPhysical(p, enemy, p.stats.attack * 0.75) : 0
+        enemy.markedStacks = Math.min(5, (enemy.markedStacks || 0) + (dmg2 > 0 ? 2 : 1))
+        enemy.markedTurns = Math.max(enemy.markedTurns || 0, 3)
         ctx.didDamage = true
         return 'Twin Arrows strike twice for ' + (dmg1 + dmg2) + ' total damage.'
     },
@@ -1460,6 +1781,8 @@ const ABILITY_EFFECTS = {
         const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * 0.8)
         ctx.didDamage = true
         applyEnemyAtkDown(enemy, 2, 2)
+        enemy.markedStacks = Math.min(5, (enemy.markedStacks || 0) + 1)
+        enemy.markedTurns = Math.max(enemy.markedTurns || 0, 3)
         return 'Marked Prey hits for ' + dmg + ' and weakens the foe.'
     },
 
@@ -1483,6 +1806,7 @@ const ABILITY_EFFECTS = {
     backstab: (p, enemy, ctx) => {
         const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * 1.6)
         ctx.didDamage = true
+        p.status.comboPoints = Math.min(5, (p.status.comboPoints || 0) + 1)
         return 'You Backstab for ' + dmg + ' damage!'
     },
     poisonedBlade: (p, enemy, ctx) => {
@@ -1490,11 +1814,13 @@ const ABILITY_EFFECTS = {
         ctx.didDamage = true
         enemy.bleedDamage = Math.max(enemy.bleedDamage || 0, Math.round(p.stats.attack * 0.5))
         enemy.bleedTurns = (enemy.bleedTurns || 0) + 3
+        p.status.comboPoints = Math.min(5, (p.status.comboPoints || 0) + 1)
         return 'Poisoned Blade deals ' + dmg + ' and leaves the foe suffering over time.'
     },
     shadowstep: (p, enemy, ctx) => {
         const healed = _healPlayer(p, Math.round(p.maxHp * 0.15), ctx)
         _applyTimedBuff(p.status, 'buffAttack', 2, 2) // FIX: timed buff instead of permanent
+        p.status.comboPoints = Math.min(5, (p.status.comboPoints || 0) + 1)
         return 'Shadowstep restores ' + healed + ' HP and sharpens your next strikes.'
     },
 
@@ -1522,6 +1848,8 @@ const ABILITY_EFFECTS = {
         const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 1.4, 'shadow')
         ctx.didDamage = true
         const healed = _healPlayer(p, Math.round(dmg * 0.4), ctx)
+        const st = p.status || (p.status = {})
+        st.soulShards = Math.min(5, (st.soulShards || 0) + 1)
         return 'Soul Bolt hits for ' + dmg + ' and siphons ' + healed + ' HP.'
     },
     raiseBones: (p, enemy, ctx) => {
@@ -1611,15 +1939,25 @@ const ABILITY_EFFECTS = {
         return 'Arcane Surge deals ' + dmg + ' and charges your magic for 2 turns.'
     },
     meteorSigil: (p, enemy, ctx) => {
-        const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 2.2, 'fire')
+        const hit = _dealPlayerMagicAoe(p, enemy, p.stats.magic * 2.2, 'fire', { splashMult: 0.6 })
         ctx.didDamage = true
-        return 'Meteor Sigil calls down destruction for ' + dmg + ' damage!'
+        const alive = getAliveEnemies()
+        if (alive.length > 1) {
+            const primary = hit.hits.find((h) => h.enemy === enemy)
+            const primaryDmg = primary ? primary.dmg : 0
+            const splashTotal = Math.max(0, hit.total - primaryDmg)
+            return 'Meteor Sigil slams the battlefield for ' + hit.total + ' total damage (' + primaryDmg + ' to your target, ' + splashTotal + ' to the rest).'
+        }
+        return 'Meteor Sigil calls down destruction for ' + hit.total + ' damage!'
     },
     cleave: (p, enemy, ctx) => {
-        const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * 1.25)
+        const hit = _dealPlayerPhysicalAoe(p, enemy, p.stats.attack * 1.25, null, { splashMult: 0.72 })
         ctx.didDamage = true
         p.resource = Math.min(p.maxResource, p.resource + 12)
-        return 'Cleave hits for ' + dmg + ' and stokes your Fury.'
+        if (getAliveEnemies().length > 1) {
+            return 'Cleave carves through the group for ' + hit.total + ' total damage and stokes your Fury.'
+        }
+        return 'Cleave hits for ' + hit.total + ' and stokes your Fury.'
     },
     ironFortress: (p, enemy, ctx) => {
         const shield = Math.round(35 * (ctx.healMult || 1))
@@ -1634,11 +1972,19 @@ const ABILITY_EFFECTS = {
         return 'Crimson Pact grants +' + gain + ' Blood and a fierce Attack buff.'
     },
     bloodNova: (p, enemy, ctx) => {
-        const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 1.45, 'shadow')
+        const hit = _dealPlayerMagicAoe(p, enemy, p.stats.magic * 1.45, 'shadow', { splashMult: 0.78 })
         ctx.didDamage = true
-        enemy.bleedDamage = Math.max(enemy.bleedDamage || 0, Math.round(p.stats.magic * 0.6))
-        enemy.bleedTurns = (enemy.bleedTurns || 0) + 3
-        return 'Blood Nova detonates for ' + dmg + ' and makes the foe bleed.'
+        // Bleed all enemies hit.
+        const bleedDmg = Math.round(p.stats.magic * 0.6)
+        hit.hits.forEach(({ enemy: e }) => {
+            if (!e || finiteNumber(e.hp, 0) <= 0) return
+            e.bleedDamage = Math.max(e.bleedDamage || 0, bleedDmg)
+            e.bleedTurns = (e.bleedTurns || 0) + 3
+        })
+        if (getAliveEnemies().length > 1) {
+            return 'Blood Nova erupts for ' + hit.total + ' total shadow damage and sets the group bleeding.'
+        }
+        return 'Blood Nova detonates for ' + hit.total + ' and makes the foe bleed.'
     },
     evasionRoll: (p, enemy, ctx) => {
         p.status.evasionBonus = Math.max(p.status.evasionBonus || 0, 0.25)
@@ -1646,12 +1992,27 @@ const ABILITY_EFFECTS = {
         return 'Evasion Roll makes you harder to hit for 2 turns.'
     },
     rainOfThorns: (p, enemy, ctx) => {
-        const d1 = _dealPlayerPhysical(p, enemy, p.stats.attack * 0.75)
-        const d2 = enemy.hp > 0 ? _dealPlayerPhysical(p, enemy, p.stats.attack * 0.75) : 0
+        const enemies = getAliveEnemies()
+        let total = 0
+        const base = p.stats.attack * 0.75
+        // One hit to everyone, plus a second hit to the primary target.
+        enemies.forEach((e) => {
+            total += _dealPlayerPhysical(p, e, base, 'piercing')
+        })
+        if (enemy && finiteNumber(enemy.hp, 0) > 0) {
+            total += _dealPlayerPhysical(p, enemy, base, 'piercing')
+        }
         ctx.didDamage = true
-        enemy.bleedDamage = Math.max(enemy.bleedDamage || 0, Math.round(p.stats.attack * 0.55))
-        enemy.bleedTurns = (enemy.bleedTurns || 0) + 4
-        return 'Rain of Thorns deals ' + (d1 + d2) + ' and deepens bleeding.'
+        const bleedDmg = Math.round(p.stats.attack * 0.55)
+        enemies.forEach((e) => {
+            if (!e || finiteNumber(e.hp, 0) <= 0) return
+            e.bleedDamage = Math.max(e.bleedDamage || 0, bleedDmg)
+            e.bleedTurns = (e.bleedTurns || 0) + 4
+        })
+        if (enemies.length > 1) {
+            return 'Rain of Thorns peppers the group for ' + total + ' total damage and leaves them bleeding.'
+        }
+        return 'Rain of Thorns deals ' + total + ' and deepens bleeding.'
     },
     judgment: (p, enemy, ctx) => {
         const extra = (enemy.bleedTurns && enemy.bleedTurns > 0) || (enemy.chilledTurns && enemy.chilledTurns > 0)
@@ -1709,6 +2070,9 @@ const ABILITY_EFFECTS = {
         return 'A Death Mark brands the foe. Your next shadow hit will be amplified.'
     },
     totemSpark: (p, enemy, ctx) => {
+        const st = p.status || (p.status = {})
+        st.totemType = 'spark'
+        st.totemTurns = Math.max(st.totemTurns || 0, 3)
         const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 1.05, 'lightning')
         ctx.didDamage = true
         if (!enemy.isBoss && rand('encounter.eliteRoll') < 0.20) {
@@ -1718,10 +2082,16 @@ const ABILITY_EFFECTS = {
         return 'Totem Spark zaps for ' + dmg + ' damage.'
     },
     stoneQuake: (p, enemy, ctx) => {
-        const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 1.2, 'earth')
+        const hit = _dealPlayerMagicAoe(p, enemy, p.stats.magic * 1.2, 'earth', { splashMult: 0.82 })
         ctx.didDamage = true
-        enemy.chilledTurns = Math.max(enemy.chilledTurns || 0, 2)
-        return 'Stone Quake deals ' + dmg + ' and chills the foe.'
+        hit.hits.forEach(({ enemy: e }) => {
+            if (!e || finiteNumber(e.hp, 0) <= 0) return
+            e.chilledTurns = Math.max(e.chilledTurns || 0, 2)
+        })
+        if (getAliveEnemies().length > 1) {
+            return 'Stone Quake ripples through the battlefield for ' + hit.total + ' total damage and chills the group.'
+        }
+        return 'Stone Quake deals ' + hit.total + ' and chills the foe.'
     },
     rageRush: (p, enemy, ctx) => {
         const missingPct = Math.max(0, (p.maxHp - p.hp) / Math.max(1, p.maxHp))
@@ -1752,6 +2122,227 @@ const ABILITY_EFFECTS = {
         const shield = Math.round(20 * (ctx.healMult || 1))
         _addShield(p.status, shield)
         return 'Mist Form shrouds you: heavy damage reduction and a ' + shield + '-point veil.'
+    }
+,
+    // --- PATCH 1.1.7: NEW UNLOCKS (Lv 9 / Lv 12) -------------------------
+
+    // Mage
+    blink: (p, enemy, ctx) => {
+        p.status.evasionBonus = Math.max(p.status.evasionBonus || 0, 0.30)
+        p.status.evasionTurns = Math.max(p.status.evasionTurns || 0, 2)
+        const shield = Math.round(12 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        return 'Blink warps you to safety: evasion rises and you gain a ' + shield + '-point ward.'
+    },
+    arcaneOverload: (p, enemy, ctx) => {
+        // If Arcane Rhythm is active (3rd spell), this hits harder.
+        const bonus = (ctx && ctx.critBonus && ctx.critBonus > 0) ? 1.15 : 1
+        const hit = _dealPlayerMagicAoe(p, enemy, p.stats.magic * 2.05 * bonus, 'arcane', { splashMult: 0.55 })
+        ctx.didDamage = true
+        if (getAliveEnemies().length > 1) {
+            return 'Arcane Overload bursts across the line for ' + hit.total + ' total arcane damage.'
+        }
+        return 'Arcane Overload detonates for ' + hit.total + ' arcane damage.'
+    },
+
+    // Warrior
+    shieldBash: (p, enemy, ctx) => {
+        const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * 1.05)
+        ctx.didDamage = true
+        if (!enemy.isBoss) enemy.stunTurns = Math.max(enemy.stunTurns || 0, 1)
+        const shield = Math.round(18 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        return 'Shield Bash deals ' + dmg + ' damage, staggers the foe, and grants a ' + shield + '-point shield.'
+    },
+    unbreakable: (p, enemy, ctx) => {
+        const shield = Math.round(60 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        p.status.dmgReductionTurns = Math.max(p.status.dmgReductionTurns || 0, 4)
+        p.resource = Math.min(p.maxResource, p.resource + 10)
+        return 'Unbreakable: a ' + shield + '-point barrier forms and you harden for 4 turns.'
+    },
+
+    // Blood Knight
+    bloodArmor: (p, enemy, ctx) => {
+        const shield = Math.round(55 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        return 'Blood Armor crystallizes into a ' + shield + '-point shield.'
+    },
+    crimsonAvatar: (p, enemy, ctx) => {
+        _applyTimedBuff(p.status, 'buffAttack', 5, 3)
+        _applyTimedBuff(p.status, 'buffMagic', 3, 3)
+        p.resource = Math.min(p.maxResource, p.resource + Math.max(1, Math.round(8 * _gainMult)))
+        return 'Crimson Avatar awakens: your power surges for 3 turns.'
+    },
+
+    // Ranger
+    huntersTrap: (p, enemy, ctx) => {
+        const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * 0.95)
+        ctx.didDamage = true
+        enemy.bleedDamage = Math.max(enemy.bleedDamage || 0, Math.round(p.stats.attack * 0.55))
+        enemy.bleedTurns = (enemy.bleedTurns || 0) + 2
+        enemy.markedStacks = Math.min(5, (enemy.markedStacks || 0) + 2)
+        enemy.markedTurns = Math.max(enemy.markedTurns || 0, 3)
+        if (!enemy.isBoss) enemy.stunTurns = Math.max(enemy.stunTurns || 0, 1)
+        return "Hunter's Trap snaps for " + dmg + ' damage, marks the foe, and hinders them.'
+    },
+    headshot: (p, enemy, ctx) => {
+        const marks = Math.max(0, Math.min(5, enemy.markedStacks || 0))
+        const mult = 1.85 + (marks * 0.18)
+        const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * mult)
+        ctx.didDamage = true
+        if (marks > 0) {
+            enemy.markedStacks = 0
+            enemy.markedTurns = 0
+        }
+        return marks > 0
+            ? 'Headshot consumes ' + marks + ' Mark(s) for ' + dmg + ' damage!'
+            : 'Headshot strikes for ' + dmg + ' damage.'
+    },
+
+    // Paladin
+    cleanseFlame: (p, enemy, ctx) => {
+        const healed = _healPlayer(p, Math.round(p.maxHp * 0.22), ctx)
+        // Cleanse common debuffs
+        p.status.bleedTurns = 0
+        p.status.bleedDamage = 0
+        p.status.armorDownTurns = 0
+        p.status.armorDown = 0
+        p.status.atkDownTurns = 0
+        p.status.atkDown = 0
+        p.status.magicDownTurns = 0
+        p.status.magicDown = 0
+        const shield = Math.round(18 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        return 'Cleansing Flame heals ' + healed + ' HP, cleanses afflictions, and grants a ' + shield + '-point shield.'
+    },
+    divineIntervention: (p, enemy, ctx) => {
+        const healed = _healPlayer(p, Math.round(p.maxHp * 0.42), ctx)
+        const shield = Math.round(30 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        p.status.dmgReductionTurns = Math.max(p.status.dmgReductionTurns || 0, 2)
+        return 'Divine Intervention restores ' + healed + ' HP and grants a ' + shield + '-point holy barrier.'
+    },
+
+    // Rogue
+    eviscerate: (p, enemy, ctx) => {
+        const st = p.status || (p.status = {})
+        const cp = Math.max(0, Math.min(5, st.comboPoints || 0))
+        const bleedBonus = (enemy.bleedTurns || 0) > 0 ? 1.15 : 1
+        const mult = (1.05 + cp * 0.35) * bleedBonus
+        const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * mult)
+        ctx.didDamage = true
+        st.comboPoints = 0
+        return cp > 0
+            ? 'Eviscerate spends ' + cp + ' Combo for ' + dmg + ' damage!'
+            : 'Eviscerate strikes for ' + dmg + ' damage.'
+    },
+    vanish: (p, enemy, ctx) => {
+        const st = p.status || (p.status = {})
+        st.vanishTurns = Math.max(st.vanishTurns || 0, 2)
+        st.evasionBonus = Math.max(st.evasionBonus || 0, 0.35)
+        st.evasionTurns = Math.max(st.evasionTurns || 0, 2)
+        st.comboPoints = Math.min(5, (st.comboPoints || 0) + 2)
+        return 'Vanish: you slip into shadows, become elusive for 2 turns, and gain Combo momentum.'
+    },
+
+    // Cleric
+    sanctify: (p, enemy, ctx) => {
+        const healed = _healPlayer(p, Math.round(p.maxHp * 0.26), ctx)
+        const oldBleed = p.status.bleedTurns || 0
+        p.status.bleedTurns = 0
+        p.status.bleedDamage = 0
+        const shield = Math.round(26 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        return 'Sanctify heals ' + healed + ' HP, cleanses bleeding (' + oldBleed + ' turn(s)), and adds a ' + shield + '-point shield.'
+    },
+    massPrayer: (p, enemy, ctx) => {
+        const healed = _healPlayer(p, Math.round(p.maxHp * 0.38), ctx)
+        _applyTimedBuff(p.status, 'buffMagic', 3, 3)
+        const shield = Math.round(28 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        return 'Mass Prayer restores ' + healed + ' HP, empowers your magic, and grants a ' + shield + '-point ward.'
+    },
+
+    // Necromancer
+    harvest: (p, enemy, ctx) => {
+        const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 1.35, 'shadow')
+        ctx.didDamage = true
+        const healed = _healPlayer(p, Math.round(dmg * 0.35), ctx)
+        const st = p.status || (p.status = {})
+        const gain = enemy.hp <= enemy.maxHp * 0.30 ? 3 : 2
+        st.soulShards = Math.min(5, (st.soulShards || 0) + gain)
+        return 'Harvest reaps ' + dmg + ' damage, heals ' + healed + ', and gathers ' + gain + ' Soul Shard(s).' 
+    },
+    lichForm: (p, enemy, ctx) => {
+        const st = p.status || (p.status = {})
+        st.lichTurns = Math.max(st.lichTurns || 0, 3)
+        return 'Lich Form awakens: shadow magic is empowered for 3 turns.'
+    },
+
+    // Shaman
+    totemEarth: (p, enemy, ctx) => {
+        const st = p.status || (p.status = {})
+        st.totemType = 'earth'
+        st.totemTurns = Math.max(st.totemTurns || 0, 3)
+        const shield = Math.round(28 * (ctx.healMult || 1))
+        _addShield(p.status, shield)
+        return 'An Earth Totem rises: you gain a ' + shield + '-point barrier for protection.'
+    },
+    tempest: (p, enemy, ctx) => {
+        const st = p.status || (p.status = {})
+        const mult = st.totemTurns > 0 ? 2.05 : 1.75
+        const hit = _dealPlayerMagicAoe(p, enemy, p.stats.magic * mult, 'lightning', { splashMult: 0.65 })
+        ctx.didDamage = true
+
+        // Totem synergy: chance to stun each hit enemy (non-boss) while the totem is active.
+        let stunned = 0
+        if (st.totemTurns > 0) {
+            hit.hits.forEach(({ enemy: e }) => {
+                if (!e || e.isBoss || finiteNumber(e.hp, 0) <= 0) return
+                if (rand('encounter.eliteRoll') < 0.22) {
+                    e.stunTurns = Math.max(e.stunTurns || 0, 1)
+                    stunned += 1
+                }
+            })
+        }
+
+        if (getAliveEnemies().length > 1) {
+            const extra = stunned > 0 ? ' (' + stunned + ' stunned)' : ''
+            return 'Tempest chains through the group for ' + hit.total + ' total lightning damage' + extra + '.'
+        }
+        if (stunned > 0 && enemy && enemy.name) addLog(enemy.name + ' is stunned by the Tempest!', 'good')
+        return 'Tempest crashes for ' + hit.total + ' lightning damage.'
+    },
+
+    // Berserker
+    enrage: (p, enemy, ctx) => {
+        _applyTimedBuff(p.status, 'buffAttack', 4, 4)
+        p.resource = Math.min(p.maxResource, p.resource + 12)
+        return 'Enrage fuels your fury: Attack rises for 4 turns.'
+    },
+    bloodFrenzy: (p, enemy, ctx) => {
+        const dmg = _dealPlayerPhysical(p, enemy, p.stats.attack * 2.05)
+        ctx.didDamage = true
+        const healed = _healPlayer(p, Math.round(dmg * 0.22), ctx)
+        return 'Blood Frenzy tears for ' + dmg + ' damage and restores ' + healed + ' HP.'
+    },
+
+    // Vampire
+    mesmerize: (p, enemy, ctx) => {
+        const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 1.15, 'shadow')
+        ctx.didDamage = true
+        if (!enemy.isBoss) enemy.stunTurns = Math.max(enemy.stunTurns || 0, 1)
+        const before = p.resource
+        p.resource = Math.min(p.maxResource, p.resource + Math.max(1, Math.round(8 * _gainMult)))
+        return 'Mesmerize deals ' + dmg + ' and staggers the foe, restoring ' + (p.resource - before) + ' Essence.'
+    },
+    bloodMoon: (p, enemy, ctx) => {
+        const dmg = _dealPlayerMagic(p, enemy, p.stats.magic * 2.1, 'shadow')
+        ctx.didDamage = true
+        const healed = _healPlayer(p, Math.round(dmg * 0.55), ctx)
+        p.status.dmgReductionTurns = Math.max(p.status.dmgReductionTurns || 0, 2)
+        return 'Blood Moon eclipses the foe for ' + dmg + ' damage and heals ' + healed + ' HP.'
     }
 }
 
@@ -3182,6 +3773,7 @@ function createEmptyState() {
     let savedTextSpeed = 100 // matches the HTML default
     let savedMusicEnabled = true
     let savedSfxEnabled = true
+    let savedReduceMotion = false
     try {
         const vRaw = safeStorageGet('pq-master-volume')
         if (vRaw !== null) {
@@ -3199,6 +3791,10 @@ function createEmptyState() {
         if (m !== null) savedMusicEnabled = m === '1' || m === 'true'
         const s = safeStorageGet('pq-sfx-enabled')
         if (s !== null) savedSfxEnabled = s === '1' || s === 'true'
+
+        const rm = safeStorageGet('pq-reduce-motion')
+        if (rm !== null) savedReduceMotion = rm === '1' || rm === 'true'
+
     } catch (e) {
         // ignore storage errors (private mode, etc.)
     }
@@ -3211,6 +3807,9 @@ function createEmptyState() {
         // Global settings (persisted in localStorage)
         settingsVolume: savedVolume, // 0-100
         settingsTextSpeed: savedTextSpeed, // 0-200 (100 = normal)
+
+        // Motion / animation accessibility (persisted in localStorage)
+        settingsReduceMotion: savedReduceMotion,
 
         // Audio toggles (persisted in localStorage)
         musicEnabled: savedMusicEnabled,
@@ -3231,7 +3830,8 @@ function createEmptyState() {
             neverCrit: false,
 
             // NEW: gate the Cheat menu behind a dev toggle
-            devCheatsEnabled: false
+            devCheatsEnabled: false,
+
         },
 
         // Debug / QA helpers (persisted in the save)
@@ -3246,7 +3846,11 @@ function createEmptyState() {
             lastInvariantIssues: null
         },
         inCombat: false,
+        // Multi-enemy combat (Patch 1.1.9): currentEnemy is the player's current target.
         currentEnemy: null,
+        enemies: [],
+        targetEnemyIndex: 0,
+        combat: null,
         log: [],
         logFilter: 'all',
         lastSaveJson: null,
@@ -3289,6 +3893,7 @@ function createEmptyState() {
 // ⬇️ ADD THIS
 let state = createEmptyState()
 initRngState(state)
+applyMotionPreference()
 syncGlobalStateRef()
 
 // Quest system bindings (moved out of Future.js in patch 1.1.3)
@@ -3901,6 +4506,16 @@ function syncGlobalStateRef() {
         window.__emberwoodStateRef = state
     } catch (_) {}
 }
+
+function escapeHtml(str) {
+    const s = String(str == null ? '' : str)
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
 // --- DOM HELPERS --------------------------------------------------------------
 
 const enemyPanelEls = {
@@ -3923,9 +4538,18 @@ const modalTitleEl = document.getElementById('modalTitle')
 const modalBodyEl = document.getElementById('modalBody')
 let modalOnClose = null // optional one-shot callback run when closeModal() is called
 
+// Separate modal for the Enemy Sheet so dev tools (Smoke Tests) don't "replace" it.
+const enemyModalEl = document.getElementById('enemyModal')
+const enemyModalTitleEl = document.getElementById('enemyModalTitle')
+const enemyModalBodyEl = document.getElementById('enemyModalBody')
+let enemyModalOnClose = null // optional one-shot callback run when closeEnemyModal() is called
+
 // --- MODAL ACCESSIBILITY (focus + escape + focus trap) -----------------------
 let _modalLastFocusEl = null
 let _modalTrapHandler = null
+
+let _enemyModalLastFocusEl = null
+let _enemyModalTrapHandler = null
 
 function _getFocusableElements(root) {
     if (!root) return []
@@ -3994,6 +4618,55 @@ function _removeModalFocusTrap() {
     if (_modalTrapHandler) {
         document.removeEventListener('keydown', _modalTrapHandler)
         _modalTrapHandler = null
+    }
+}
+
+function _installEnemyModalFocusTrap() {
+    if (!enemyModalEl) return
+    if (_enemyModalTrapHandler) return
+
+    _enemyModalTrapHandler = (e) => {
+        if (!enemyModalEl || enemyModalEl.classList.contains('hidden')) return
+
+        // Escape closes the Enemy Sheet
+        if (e.key === 'Escape') {
+            e.preventDefault()
+            closeEnemyModal()
+            return
+        }
+
+        if (e.key !== 'Tab') return
+
+        const focusables = _getFocusableElements(enemyModalEl)
+        if (!focusables.length) {
+            e.preventDefault()
+            return
+        }
+
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        const active = document.activeElement
+
+        if (e.shiftKey) {
+            if (active === first || !enemyModalEl.contains(active)) {
+                e.preventDefault()
+                last.focus()
+            }
+        } else {
+            if (active === last) {
+                e.preventDefault()
+                first.focus()
+            }
+        }
+    }
+
+    document.addEventListener('keydown', _enemyModalTrapHandler)
+}
+
+function _removeEnemyModalFocusTrap() {
+    if (_enemyModalTrapHandler) {
+        document.removeEventListener('keydown', _enemyModalTrapHandler)
+        _enemyModalTrapHandler = null
     }
 }
 
@@ -4161,6 +4834,70 @@ function closeModal() {
     updateAreaMusic()
 }
 
+function openEnemyModal(title, builderFn) {
+    if (!enemyModalEl) return
+
+    // Record focus so we can restore it on close.
+    _enemyModalLastFocusEl = document.activeElement
+
+    enemyModalTitleEl.textContent = title
+
+    // Reset body and build content
+    enemyModalBodyEl.className = ''
+    enemyModalBodyEl.innerHTML = ''
+    builderFn(enemyModalBodyEl)
+
+    try {
+        enemyModalEl.setAttribute('aria-hidden', 'false')
+        enemyModalEl.dataset.open = '1'
+        const panel = document.getElementById('enemyModalPanel')
+        if (panel) {
+            panel.setAttribute('role', 'dialog')
+            panel.setAttribute('aria-modal', 'true')
+            panel.setAttribute('aria-labelledby', 'enemyModalTitle')
+            panel.tabIndex = -1
+        }
+    } catch (_) {}
+
+    enemyModalEl.classList.remove('hidden')
+    _installEnemyModalFocusTrap()
+
+    // Focus first focusable control (or the panel)
+    try {
+        const panel = document.getElementById('enemyModalPanel')
+        const focusables = _getFocusableElements(panel || enemyModalEl)
+        if (focusables.length) focusables[0].focus()
+        else if (panel) panel.focus()
+    } catch (_) {}
+}
+
+function closeEnemyModal() {
+    if (!enemyModalEl) return
+
+    _removeEnemyModalFocusTrap()
+    enemyModalEl.classList.add('hidden')
+
+    try {
+        enemyModalEl.setAttribute('aria-hidden', 'true')
+        enemyModalEl.dataset.open = '0'
+    } catch (_) {}
+
+    if (typeof enemyModalOnClose === 'function') {
+        const fn = enemyModalOnClose
+        enemyModalOnClose = null
+        try { fn() } catch (err) { console.error(err) }
+    } else {
+        enemyModalOnClose = null
+    }
+
+    try {
+        if (_enemyModalLastFocusEl && typeof _enemyModalLastFocusEl.focus === 'function' && document.contains(_enemyModalLastFocusEl)) {
+            _enemyModalLastFocusEl.focus()
+        }
+    } catch (_) {}
+    _enemyModalLastFocusEl = null
+}
+
 // --- LOG & UI RENDERING -------------------------------------------------------
 
 // Log render state (for incremental DOM updates)
@@ -4313,26 +5050,53 @@ function setScene(title, text) {
 // Quest logic moved to ./Quests/questSystem.js (bound via ./Quests/questBindings.js).
 
 function updateEnemyPanel() {
+    if (!enemyPanelEls.panel) {
+        enemyPanelEls.panel = document.getElementById('enemyPanel')
+        enemyPanelEls.name = document.getElementById('enemyName')
+        enemyPanelEls.tags = document.getElementById('enemyTags')
+        enemyPanelEls.hpFill = document.getElementById('enemyHpFill')
+        enemyPanelEls.hpLabel = document.getElementById('enemyHpLabel')
+        enemyPanelEls.status = document.getElementById('enemyStatusLine')
+        enemyPanelEls.targetHint = document.getElementById('enemyTargetHint')
+    } else if (!enemyPanelEls.targetHint) {
+        enemyPanelEls.targetHint = document.getElementById('enemyTargetHint')
+    }
+
     const ep = enemyPanelEls
     if (!ep.panel) return
 
-    const enemy = state.currentEnemy
+    // Keep target sane for multi-enemy fights.
+    try { if (state && state.inCombat) syncCurrentEnemyToTarget() } catch (_) {}
 
-    // No active enemy or not in combat → hide panel
-    if (!state.inCombat || !enemy) {
+    const enemy = state.currentEnemy
+    const all = (state && state.inCombat) ? getAllEnemies() : []
+    const alive = (state && state.inCombat) ? getAliveEnemies() : []
+
+    if (!state.inCombat || !enemy || alive.length <= 0 || finiteNumber(enemy.hp, 0) <= 0) {
         ep.panel.classList.add('hidden')
-        ep.status.textContent = ''
+        if (ep.status) ep.status.textContent = ''
+        if (ep.hpFill) ep.hpFill.style.width = '0%'
+        if (ep.targetHint) ep.targetHint.textContent = ''
         return
     }
 
     ep.panel.classList.remove('hidden')
 
-    // Name
-    ep.name.textContent = enemy.name || 'Enemy'
+    if (ep.name) ep.name.textContent = enemy.name || 'Enemy'
 
-    // Tags (boss / behavior labels)
+    // Target hint (multi-enemy)
+    if (ep.targetHint) {
+        if (all.length > 1) {
+            const idx = Math.max(0, Math.min(all.length - 1, Math.floor(Number(state.targetEnemyIndex || 0))))
+            ep.targetHint.textContent = 'Target ' + (idx + 1) + '/' + all.length + ' • Swipe to switch'
+        } else {
+            ep.targetHint.textContent = ''
+        }
+    }
+
     const tags = []
     if (enemy.level) tags.push('Lv ' + enemy.level)
+    if (enemy.rarityLabel) tags.push(enemy.rarityLabel)
     if (enemy.isBoss) tags.push('Boss')
     if (enemy.behavior === 'bossDragon') tags.push('Dragon')
     else if (enemy.behavior === 'bossGoblin') tags.push('Warlord')
@@ -4344,35 +5108,38 @@ function updateEnemyPanel() {
     else if (enemy.behavior === 'aggressive') tags.push('Aggressive')
     else if (enemy.behavior === 'cunning') tags.push('Cunning')
 
-    ep.tags.textContent = tags.join(' • ')
-
-    // HP bar
-    const hpPct = Math.max(0, Math.min(100, (enemy.hp / enemy.maxHp) * 100))
-    ep.hpFill.style.width = hpPct + '%'
-
-    if (ep.hpLabel) {
-        ep.hpLabel.textContent =
-            'HP ' + Math.max(0, Math.round(enemy.hp)) + '/' + enemy.maxHp
+    const affixLabels = getEnemyAffixLabels(enemy)
+    if (affixLabels.length > 0) {
+        tags.push('Affixes: ' + affixLabels.join(', '))
     }
 
-    // Status line: bleed / chilled / guard
+    if (ep.tags) ep.tags.textContent = tags.join(' • ')
+
+    const maxHp = Math.max(1, Math.floor(finiteNumber(enemy.maxHp, enemy.hp || 1)))
+    const hp = clampFinite(enemy.hp, 0, maxHp, maxHp)
+    const hpPct = Math.max(0, Math.min(100, (hp / maxHp) * 100))
+    if (ep.hpFill) ep.hpFill.style.width = hpPct + '%'
+
+    if (ep.hpLabel) {
+        ep.hpLabel.textContent = 'HP ' + Math.max(0, Math.round(hp)) + '/' + maxHp
+    }
+
     const statusParts = []
 
     if (enemy.bleedTurns && enemy.bleedTurns > 0 && enemy.bleedDamage) {
-        statusParts.push(
-            `Bleeding (${enemy.bleedTurns}t, ${enemy.bleedDamage} dmg)`
-        )
+        statusParts.push(`Bleeding (${enemy.bleedTurns}t, ${enemy.bleedDamage} dmg)`) 
     }
     if (enemy.chilledTurns && enemy.chilledTurns > 0) {
-        statusParts.push(`Chilled (${enemy.chilledTurns}t)`)
+        statusParts.push(`Chilled (${enemy.chilledTurns}t)`) 
     }
     if (enemy.guardTurns && enemy.guardTurns > 0) {
-        statusParts.push(`Guarding (${enemy.guardTurns}t)`)
+        statusParts.push(`Guarding (${enemy.guardTurns}t)`) 
     }
 
-    // Posture + telegraphs (Patch 1.1.6)
-    if (typeof enemy.postureMax === 'number' && enemy.postureMax > 0) {
-        statusParts.push('Posture ' + (enemy.posture || 0) + '/' + enemy.postureMax)
+    if (typeof enemy.postureMax === 'number' && Number.isFinite(enemy.postureMax) && enemy.postureMax > 0) {
+        const pm = Math.max(1, Math.floor(enemy.postureMax))
+        const posture = clampFinite(enemy.posture, 0, pm, 0)
+        statusParts.push('Posture ' + posture + '/' + pm)
     }
     if (enemy.brokenTurns && enemy.brokenTurns > 0) {
         statusParts.push('Broken ' + enemy.brokenTurns + 't')
@@ -4382,11 +5149,11 @@ function updateEnemyPanel() {
     }
     if (enemy.intent && enemy.intent.aid) {
         const ab = ENEMY_ABILITIES[enemy.intent.aid]
-        const turns = Math.max(0, enemy.intent.turnsLeft || 0)
+        const turns = clampFinite(enemy.intent.turnsLeft, 0, 99, 0)
         statusParts.push('Intent: ' + (ab ? ab.name : enemy.intent.aid) + ' (' + turns + 't)')
     }
 
-    ep.status.textContent = statusParts.join(' • ')
+    if (ep.status) ep.status.textContent = statusParts.join(' • ')
 }
 
 function updateHUD() {
@@ -4410,6 +5177,11 @@ function updateHUD() {
     const resLabel = document.getElementById('resLabel')
     const hudLevel = document.getElementById('hud-level')
     const hudGold = document.getElementById('hud-gold')
+    const hudBottom = document.getElementById('hud-bottom')
+    const hudTime = document.getElementById('timeLabel')
+
+    // Defensive: if HUD nodes are missing (partial DOM / early calls), don't crash.
+    if (!nameEl || !classDiffEl || !hpFill || !hpLabel || !resFill || !resLabel || !hudLevel || !hudGold || !hudBottom) return
 
     // Decide which entity to show: default to player if no companion
     let mode = state.hudView || 'player'
@@ -4417,6 +5189,7 @@ function updateHUD() {
         mode = 'player'
         state.hudView = 'player'
     }
+
 
     if (mode === 'player') {
         // --- PLAYER VIEW ---
@@ -4426,19 +5199,33 @@ function updateHUD() {
             ' • ' +
             (diff ? diff.name : '')
 
-        const hpPercent = Math.max(0, Math.min(100, (p.hp / p.maxHp) * 100))
+        const maxHp = Math.max(1, Math.floor(finiteNumber(p.maxHp, 1)))
+        const hpNow = clampFinite(p.hp, 0, maxHp, maxHp)
+        const hpPercent = Math.max(0, Math.min(100, (hpNow / maxHp) * 100))
         hpFill.style.width = hpPercent + '%'
-        hpLabel.textContent = 'HP ' + Math.round(p.hp) + '/' + p.maxHp
+        hpLabel.textContent = 'HP ' + Math.round(hpNow) + '/' + maxHp
         hpFill.className = 'bar-fill hp-fill'
 
-        const resPercent = Math.max(
-            0,
-            Math.min(100, (p.resource / p.maxResource) * 100)
-        )
-        resFill.style.width = resPercent + '%'
-        resFill.className = 'bar-fill resource-fill ' + p.resourceKey
-        resLabel.textContent =
-            p.resourceName + ' ' + Math.round(p.resource) + '/' + p.maxResource
+        const rk =
+            p.resourceKey === 'mana' || p.resourceKey === 'fury' || p.resourceKey === 'blood' || p.resourceKey === 'essence'
+                ? p.resourceKey
+                : 'mana'
+        const resName = p.resourceName || 'Resource'
+        const maxResRaw = finiteNumber(p.maxResource, 0)
+        const maxRes = maxResRaw > 0 ? maxResRaw : 0
+
+        if (maxRes <= 0) {
+            // Some classes / corrupted saves may temporarily have no resource pool.
+            resFill.style.width = '0%'
+            resFill.className = 'bar-fill resource-fill ' + rk
+            resLabel.textContent = resName + ' —'
+        } else {
+            const resNow = clampFinite(p.resource, 0, maxRes, maxRes)
+            const resPercent = Math.max(0, Math.min(100, (resNow / maxRes) * 100))
+            resFill.style.width = resPercent + '%'
+            resFill.className = 'bar-fill resource-fill ' + rk
+            resLabel.textContent = resName + ' ' + Math.round(resNow) + '/' + Math.round(maxRes)
+        }
     } else {
         // --- COMPANION VIEW ---
         // We already guaranteed comp exists above.
@@ -4460,12 +5247,299 @@ function updateHUD() {
         resLabel.textContent = 'HP Bonus +' + comp.hpBonus
     }
 
-    // Bottom: still always show player progression & gold
-    hudLevel.textContent =
-        'Lv ' + p.level + ' • ' + p.xp + '/' + p.nextLevelXp + ' XP'
+    // Bottom: progression + gold are hidden during combat per HUD request.
+    // (Show again immediately after combat ends.)
+    if (hudLevel) {
+        hudLevel.textContent =
+            'Lv ' + p.level + ' • ' + p.xp + '/' + p.nextLevelXp + ' XP'
+    }
+    if (hudGold) {
+        hudGold.innerHTML = '<span class="gold">' + p.gold + '</span> Gold'
+    }
 
-    hudGold.innerHTML = '<span class="gold">' + p.gold + '</span> Gold'
+    const inCombatNow = !!(state.inCombat && state.currentEnemy)
+    if (hudBottom) {
+        if (inCombatNow) hudBottom.classList.add('hidden')
+        else hudBottom.classList.remove('hidden')
+    } else {
+        // Fallback if DOM changed: hide individual fields.
+        if (hudLevel) hudLevel.classList.toggle('hidden', inCombatNow)
+        if (hudGold) hudGold.classList.toggle('hidden', inCombatNow)
+        if (hudTime) hudTime.classList.toggle('hidden', inCombatNow)
+    }
+
+    // Class mechanics meter (combat only)
+    try { updateClassMeterHUD() } catch (_) {}
 }
+
+// --- Combat HUD: class mechanics meter ---------------------------------------
+// Shows lightweight class-specific generation systems in a compact HUD row.
+// (Rogue combo points, Ranger marks on target, Shaman totem uptime)
+function updateClassMeterHUD() {
+    const el = document.getElementById('hudClassMeter')
+    if (!el) return
+
+    const p = state && state.player
+    if (!p || !state.inCombat) {
+        el.classList.add('hidden')
+        el.innerHTML = ''
+        return
+    }
+
+    const enemy = state.currentEnemy || null
+    const classId = String(p.classId || '')
+    const st = p.status || {}
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+    const clampInt = (v, min, max) => {
+        const n = Math.floor(Number(v))
+        return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min))
+    }
+    const clampNum = (v, min, max) => {
+        const n = Number(v)
+        return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min))
+    }
+    const cap = (s) => {
+        s = String(s || '')
+        if (!s) return ''
+        return s.charAt(0).toUpperCase() + s.slice(1)
+    }
+    const escHtml = (s) => {
+        s = String(s == null ? '' : s)
+        return s.replace(/[&<>\"]/g, (ch) => {
+            if (ch === '&') return '&amp;'
+            if (ch === '<') return '&lt;'
+            if (ch === '>') return '&gt;'
+            return '&quot;'
+        })
+    }
+
+    // IMPORTANT: The HUD is often used on iOS via file://. Using an inline <symbol>
+    // sprite in index.html keeps icons available without fetch() or bundling.
+    // We render icons as crisp outlines (no fills) so the meter reads cleanly at tiny sizes.
+    // Expects sprite symbols: <id>-stroke.
+    const iconUse = (symbolId) => {
+        const id = escHtml(symbolId || '')
+        if (!id) return ''
+        const strokeId = id + '-stroke'
+        return (
+            '<svg class="meter-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+            '<use class="meter-icon-stroke" href="#' + strokeId + '" xlink:href="#' + strokeId + '"></use>' +
+            '</svg>'
+        )
+    }
+
+    const renderPips = (filled, max, symbolId) => {
+        filled = clampInt(filled, 0, max)
+        max = clampInt(max, 1, 12)
+        const svg = iconUse(symbolId)
+        let out = '<span class="meter-dots" aria-hidden="true">'
+        for (let i = 1; i <= max; i++) {
+            out += '<span class="meter-dot' + (i <= filled ? ' filled' : '') + '">' + svg + '</span>'
+        }
+        out += '</span>'
+        return out
+    }
+
+    // ---------------------------------------------------------------------
+    // Meter definitions (data-driven so adding new classes is low-risk)
+    // ---------------------------------------------------------------------
+    const M = {
+        rogue: {
+            label: 'Combo',
+            kind: 'pips',
+            icon: 'i-dagger',
+            max: 5,
+            filled: () => clampInt(st.comboPoints || 0, 0, 5)
+        },
+        ranger: {
+            label: 'Marks',
+            kind: 'pips+turns',
+            icon: 'i-bullseye',
+            max: 5,
+            filled: () => clampInt(enemy && enemy.markedStacks ? enemy.markedStacks : 0, 0, 5),
+            turns: () => clampInt(enemy && enemy.markedTurns ? enemy.markedTurns : 0, 0, 99)
+        },
+        shaman: {
+            label: 'Totem',
+            kind: 'chip+turns',
+            chip: () => cap(st.totemType || '') || 'None',
+            turns: () => clampInt(st.totemTurns || 0, 0, 99)
+        },
+        necromancer: {
+            label: 'Shards',
+            kind: 'pips',
+            icon: 'i-skull',
+            max: 5,
+            filled: () => clampInt(st.soulShards || 0, 0, 5)
+        },
+        mage: {
+            label: 'Rhythm',
+            kind: 'pips+chip',
+            icon: 'i-starburst',
+            max: 3,
+            filled: () => {
+                const count = clampInt(st.spellCastCount || 0, 0, 999999)
+                return clampInt(count % 3, 0, 3)
+            },
+            chip: () => {
+                const count = clampInt(st.spellCastCount || 0, 0, 999999)
+                return (count % 3) === 2 ? 'Ready' : ''
+            }
+        },
+        warrior: {
+            label: 'Bulwark',
+            kind: 'pips+chip',
+            icon: 'i-shield',
+            max: 5,
+            filled: () => {
+                const fury = clampNum(p.resource || 0, 0, p.maxResource || 0)
+                const threshold = 40
+                return clampInt(Math.round((Math.min(fury, threshold) / threshold) * 5), 0, 5)
+            },
+            chip: () => {
+                const fury = clampNum(p.resource || 0, 0, p.maxResource || 0)
+                return fury >= 40 ? 'On' : ''
+            }
+        },
+        blood: {
+            label: 'Blood',
+            kind: 'pips',
+            icon: 'i-blooddrop',
+            max: 5,
+            filled: () => {
+                const cur = clampNum(p.resource || 0, 0, p.maxResource || 0)
+                const mx = clampNum(p.maxResource || 0, 1, 99999)
+                return clampInt(Math.round((cur / mx) * 5), 0, 5)
+            }
+        },
+        paladin: {
+            label: 'Sanctuary',
+            kind: 'pips+chip',
+            icon: 'i-shield',
+            max: 5,
+            filled: () => {
+                const shield = clampNum(st.shield || 0, 0, 99999)
+                const mx = clampNum(p.maxHp || 1, 1, 99999)
+                return clampInt(Math.round((Math.min(shield, mx) / mx) * 5), 0, 5)
+            },
+            chip: () => (clampNum(st.shield || 0, 0, 99999) > 0 ? 'On' : 'Off')
+        },
+        cleric: {
+            label: 'Ward',
+            kind: 'pips+value',
+            icon: 'i-cross',
+            max: 5,
+            filled: () => {
+                const shield = clampNum(st.shield || 0, 0, 99999)
+                const mx = clampNum(p.maxHp || 1, 1, 99999)
+                return clampInt(Math.round((Math.min(shield, mx) / mx) * 5), 0, 5)
+            },
+            value: () => {
+                const shield = clampNum(st.shield || 0, 0, 99999)
+                return shield > 0 ? String(Math.round(shield)) : ''
+            }
+        },
+        berserker: {
+            label: 'Frenzy',
+            kind: 'pips',
+            icon: 'i-flame',
+            max: 5,
+            filled: () => {
+                const mx = clampNum(p.maxHp || 1, 1, 99999)
+                const hp = clampNum(p.hp || 0, 0, mx)
+                const missingPct = clampNum((mx - hp) / mx, 0, 1)
+                return clampInt(Math.round(missingPct * 5), 0, 5)
+            }
+        },
+        vampire: {
+            label: 'Hunger',
+            kind: 'pips+chip',
+            icon: 'i-bat',
+            max: 5,
+            filled: () => {
+                const cur = clampNum(p.resource || 0, 0, p.maxResource || 0)
+                const mx = clampNum(p.maxResource || 0, 1, 99999)
+                return clampInt(Math.round((cur / mx) * 5), 0, 5)
+            },
+            chip: () => {
+                const cur = clampNum(p.resource || 0, 0, p.maxResource || 0)
+                const mx = clampNum(p.maxResource || 0, 1, 99999)
+                return (cur / mx) >= 0.55 ? 'On' : ''
+            }
+        }
+    }
+
+    const meter = M[classId]
+    if (!meter) {
+        el.classList.add('hidden')
+        el.innerHTML = ''
+        return
+    }
+
+    // Expose class identity to CSS so the meter can tint per-class.
+    // Using a dedicated data attribute avoids collisions with other datasets.
+    el.setAttribute('data-meter-class', classId)
+
+    // ---------------------------------------------------------------------
+    // Render
+    // ---------------------------------------------------------------------
+    let html = '<span class="meter-label">' + escHtml(meter.label) + '</span>'
+
+    // If the meter uses pips, determine whether it's "ready".
+    // When ready, we apply a subtle hue shimmer to the dots area.
+    let pipFilled = 0
+    let pipMax = 0
+    let chipPreview = ''
+    if (meter.kind === 'pips' || meter.kind === 'pips+turns' || meter.kind === 'pips+chip' || meter.kind === 'pips+value') {
+        pipMax = clampInt(meter.max || 5, 1, 12)
+        pipFilled = clampInt(meter.filled(), 0, pipMax)
+        if (meter.kind === 'pips+chip') chipPreview = String(meter.chip() || '')
+
+        // Some meters express readiness via a chip label (ex: Mage rhythm).
+        // If the chip literally says "Ready", visually fill all pips so the
+        // shimmer condition "all ticks active" makes sense at a glance.
+        const chipLower = chipPreview.trim().toLowerCase()
+        const filledForRender = (chipLower === 'ready') ? pipMax : pipFilled
+
+        html += renderPips(filledForRender, pipMax, meter.icon)
+
+        const isReady = (filledForRender >= pipMax) && pipMax > 0
+        el.classList.toggle('is-ready', isReady)
+    } else {
+        el.classList.remove('is-ready')
+    }
+
+    if (meter.kind === 'chip+turns') {
+        const chip = escHtml(meter.chip())
+        const turns = clampInt(meter.turns(), 0, 99)
+        html += '<span class="meter-chip">' + chip + '</span>'
+        html += '<span class="meter-turns">' + turns + 't</span>'
+    }
+
+    if (meter.kind === 'pips+turns') {
+        const turns = clampInt(meter.turns(), 0, 99)
+        html += '<span class="meter-turns">' + turns + 't</span>'
+    }
+
+    if (meter.kind === 'pips+chip') {
+        // Use chipPreview if we already computed it for readiness.
+        const chip = escHtml(chipPreview || meter.chip())
+        if (chip) html += '<span class="meter-chip">' + chip + '</span>'
+    }
+
+    if (meter.kind === 'pips+value') {
+        const v = escHtml(meter.value())
+        if (v) html += '<span class="meter-turns">' + v + '</span>'
+    }
+
+    el.innerHTML = html
+    el.classList.remove('hidden')
+}
+
+
 
 function renderActions() {
     const actionsEl = document.getElementById('actions')
@@ -4473,18 +5547,54 @@ function renderActions() {
 
     if (!state.player) return
 
-    if (state.inCombat && state.currentEnemy) {
-        renderCombatActions(actionsEl)
+    if (state.inCombat) {
+        // Hardening: never allow Explore actions to render while inCombat.
+        // If combat pointers desync, attempt a quick repair.
+        try { ensureCombatPointers() } catch (_) {}
+
+        if (state.inCombat && state.currentEnemy) {
+            renderCombatActions(actionsEl)
+        } else {
+            // If we still can't recover, fall back safely.
+            state.inCombat = false
+            state.currentEnemy = null
+            state.enemies = []
+            state.targetEnemyIndex = 0
+            if (state.combat) {
+                state.combat.busy = false
+                state.combat.phase = 'player'
+            }
+            renderExploreActions(actionsEl)
+        }
     } else {
         renderExploreActions(actionsEl)
     }
 }
 
-function makeActionButton(label, onClick, extraClass) {
+function makeActionButton(label, onClick, extraClass, opts) {
+    // Backwards-compatible: allow makeActionButton(label, onClick, opts)
+    let cls = extraClass
+    let o = opts
+    if (cls && typeof cls === 'object' && !o) {
+        o = cls
+        cls = ''
+    }
+
     const btn = document.createElement('button')
-    btn.className = 'btn small ' + (extraClass || '')
+    btn.className = 'btn small ' + (cls || '')
     btn.textContent = label
-    btn.addEventListener('click', onClick)
+
+    const cfg = o || {}
+    if (cfg.title) btn.title = String(cfg.title)
+    if (cfg.disabled) {
+        btn.disabled = true
+        btn.classList.add('disabled')
+    }
+
+    btn.addEventListener('click', (e) => {
+        if (btn.disabled) return
+        onClick(e)
+    })
     return btn
 }
 
@@ -4584,62 +5694,45 @@ function renderExploreActions(actionsEl) {
     // In dev-cheat mode, Cheats are accessed via the 🛠️ HUD pill next to 🧪 and the Menu button.
 }
 function renderCombatActions(actionsEl) {
+    actionsEl.innerHTML = ''
+
+    const locked = !canPlayerActNow()
+    const lockTitle = locked ? 'Resolve the current turn first.' : ''
+
     actionsEl.appendChild(
-        makeActionButton(
-            'Attack',
-            () => {
-                playerBasicAttack()
-            },
-            ''
-        )
+        makeActionButton('Attack', () => {
+            playerBasicAttack()
+        }, '', { disabled: locked, title: lockTitle })
     )
 
     actionsEl.appendChild(
-        makeActionButton(
-            'Interrupt',
-            () => {
-                playerInterrupt()
-            },
-            'outline'
-        )
+        makeActionButton('Interrupt', () => {
+            playerInterrupt()
+        }, 'outline', { disabled: locked, title: lockTitle })
     )
 
     actionsEl.appendChild(
         makeActionButton('Spells', () => {
             openSpellsModal(true)
-        })
+        }, '', { disabled: locked, title: lockTitle })
     )
 
     actionsEl.appendChild(
-        makeActionButton('Inventory', () => {
+        makeActionButton('Items', () => {
             openInventoryModal(true)
-        })
+        }, '', { disabled: locked, title: lockTitle })
     )
 
-    const isBoss = state.currentEnemy && state.currentEnemy.isBoss
+    const isBoss = !!(state.currentEnemy && state.currentEnemy.isBoss)
     actionsEl.appendChild(
-        makeActionButton(
-            isBoss ? 'No Escape' : 'Flee',
-            () => {
-                if (isBoss) {
-                    addLog('You cannot flee from this foe!', 'system')
-                } else {
-                    tryFlee()
-                }
-            },
-            isBoss ? 'outline' : ''
-        )
+        makeActionButton(isBoss ? 'No Escape' : 'Flee', () => {
+            if (isBoss) {
+                addLog('This foe blocks your escape!', 'danger')
+            } else {
+                tryFlee()
+            }
+        }, isBoss ? 'outline' : '', { disabled: locked, title: lockTitle })
     )
-
-    // NEW: Character sheet also accessible in combat
-    actionsEl.appendChild(
-        makeActionButton('Character', () => {
-            openCharacterSheet()
-        })
-    )
-
-    // Cheats button removed from the combat action bar.
-    // In dev-cheat mode, Cheats are accessed via the 🛠️ HUD pill next to 🧪 and the Menu button.
 }
 
 // HUD swipe tracking
@@ -4682,17 +5775,37 @@ function buildCharacterCreationOptions() {
         vampire: '🦇'
     }
 
+    // Combat meters (shown in the combat HUD). Listed here so players know what the extra bar/dots mean.
+    const CLASS_METERS = {
+        mage: 'Rhythm — every 3rd spell is discounted and crit-boosted.',
+        warrior: 'Bulwark — fills toward 40 Fury; at 40+ Fury the Bulwark bonus is active.',
+        blood: 'Blood — quick gauge of your Blood resource for Blood Knight abilities.',
+        ranger: 'Marks — stack on the target, then spend with Headshot (Marks decay over time).',
+        paladin: 'Sanctuary — active while shielded; the meter reflects your current warding.',
+        rogue: 'Combo — build with Rogue skills, spend with Eviscerate.',
+        cleric: 'Ward — reflects your current shield/warding (heals can over-heal into shields).',
+        necromancer: 'Shards — generated by shadow spells, spent by shard abilities; Lich Form sustains on shadow hits.',
+        shaman: 'Totem — activate Totems for bonuses; Tempest hits harder while a Totem is active.',
+        berserker: 'Frenzy — rises as you lose HP (missing HP increases your damage).',
+        vampire: 'Hunger — above 55% Essence your Hungering Vein bonuses are active.'
+    }
+
     // Build one card per class in PLAYER_CLASSES
     Object.values(PLAYER_CLASSES).forEach((cls) => {
         const div = document.createElement('div')
         div.className = 'class-card'
         div.dataset.classId = cls.id
 
+        const meter = CLASS_METERS[cls.id]
+            ? `<div class="class-card-meter" style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Combat Meter (HUD): ${CLASS_METERS[cls.id]}</div>`
+            : ''
+
         div.innerHTML = `
       <div class="class-card-icon">${CLASS_ICONS[cls.id] || '🎭'}</div>
       <div class="class-card-content">
         <div class="class-card-name">${cls.name}</div>
         <div class="class-card-desc">${cls.desc}</div>
+        ${meter}
       </div>
     `
 
@@ -4938,7 +6051,9 @@ function cloneItemDef(id) {
 }
 
 function addItemToInventory(itemId, quantity) {
-    quantity = quantity || 1
+    // Defensive: normalize quantity (prevents negative / NaN quantities from corrupting inventory).
+    quantity = Math.floor(Number(quantity))
+    if (!Number.isFinite(quantity) || quantity <= 0) quantity = 1
     const def = cloneItemDef(itemId)
     if (!def) return
 
@@ -4947,8 +6062,8 @@ function addItemToInventory(itemId, quantity) {
         (it) => it.id === def.id && it.type === 'potion'
     )
     if (existingIndex >= 0 && def.type === 'potion') {
-        inv[existingIndex].quantity =
-            (inv[existingIndex].quantity || 1) + quantity
+        const prev = Math.floor(Number(inv[existingIndex].quantity))
+        inv[existingIndex].quantity = (Number.isFinite(prev) ? prev : 0) + quantity
     } else {
         def.quantity = quantity
         inv.push(def)
@@ -4959,6 +6074,8 @@ function addItemToInventory(itemId, quantity) {
 // Allows dynamically generated items (weapons/armor/potions) to be added directly.
 function addGeneratedItemToInventory(item, quantity = 1) {
     if (!item) return
+    quantity = Math.floor(Number(quantity))
+    if (!Number.isFinite(quantity) || quantity <= 0) quantity = 1
     const inv = state.player.inventory
 
     // Deep-clone to avoid accidental shared references.
@@ -4970,8 +6087,8 @@ function addGeneratedItemToInventory(item, quantity = 1) {
             (it) => it.id === cloned.id && it.type === 'potion'
         )
         if (existingIndex >= 0) {
-            inv[existingIndex].quantity =
-                (inv[existingIndex].quantity || 1) + quantity
+            const prev = Math.floor(Number(inv[existingIndex].quantity))
+            inv[existingIndex].quantity = (Number.isFinite(prev) ? prev : 0) + quantity
             return
         }
         cloned.quantity = quantity
@@ -5172,16 +6289,23 @@ function openInventoryModal(inCombat) {
             return !!(eqIt && (eqIt === item || (eqIt.id && item && eqIt.id === item.id)))
         }
 
-        function compareLine(item) {
-            if (item.type !== 'weapon' && item.type !== 'armor') return null
+        function powerDelta(item) {
+            if (!item || (item.type !== 'weapon' && item.type !== 'armor')) return null
             const equipped = equippedItemFor(item)
             if (!equipped) return null
 
             const cur = getItemPowerScore(equipped)
             const cand = getItemPowerScore(item)
             const delta = Math.round((cand - cur) * 10) / 10
-            if (!isFinite(delta) || Math.abs(delta) < 0.1) return '≈ same power'
-            return (delta > 0 ? '▲ ' : '▼ ') + Math.abs(delta) + ' power'
+            if (!isFinite(delta)) return null
+            return { delta, cur, cand }
+        }
+
+        function compareLine(item) {
+            const d = powerDelta(item)
+            if (!d) return null
+            if (Math.abs(d.delta) < 0.1) return '≈ same power'
+            return (d.delta > 0 ? '▲ ' : '▼ ') + Math.abs(d.delta) + ' power'
         }
 
         function renderList() {
@@ -5265,6 +6389,8 @@ function openInventoryModal(inCombat) {
 
                 const name = document.createElement('div')
                 name.className = 'inv-name'
+                // Rarity color (text). Defaults to common when missing.
+                name.classList.add('rarity-' + String(item.rarity || 'common').toLowerCase())
                 name.textContent =
                     item.name +
                     (item.type === 'potion' && (item.quantity || 1) > 1
@@ -5301,6 +6427,21 @@ function openInventoryModal(inCombat) {
                 score.textContent = Math.round((getItemPowerScore(item) || 0) * 10) / 10
                 right.appendChild(score)
 
+                // Power comparison indicator (visible even when the card is collapsed).
+                const d = powerDelta(item)
+                if (d) {
+                    const deltaEl = document.createElement('div')
+                    deltaEl.className = 'inv-delta'
+                    if (Math.abs(d.delta) < 0.1) {
+                        deltaEl.textContent = '≈'
+                        deltaEl.classList.add('same')
+                    } else {
+                        deltaEl.textContent = (d.delta > 0 ? '▲' : '▼') + Math.abs(d.delta)
+                        deltaEl.classList.add(d.delta > 0 ? 'up' : 'down')
+                    }
+                    right.appendChild(deltaEl)
+                }
+
                 summary.appendChild(left)
                 summary.appendChild(right)
 
@@ -5323,7 +6464,12 @@ function openInventoryModal(inCombat) {
                 const actions = document.createElement('div')
                 actions.className = 'inv-actions'
 
+                const tight = document.createElement('div')
+                tight.className = 'inv-actions-tight'
+
                 if (item.type === 'potion') {
+                    // Keep potion actions visually consistent with other inventory items.
+                    // (Use + Drop live in the tight group so spacing matches Equip/Unequip + Drop.)
                     const btn = document.createElement('button')
                     btn.className = 'btn small'
                     btn.textContent = 'Use'
@@ -5334,7 +6480,7 @@ function openInventoryModal(inCombat) {
                             onAfterUse: renderList
                         })
                     })
-                    actions.appendChild(btn)
+                    tight.appendChild(btn)
                 } else {
                     if (!isEquipped) {
                         const btn = document.createElement('button')
@@ -5347,7 +6493,7 @@ function openInventoryModal(inCombat) {
                                 onAfterEquip: renderList
                             })
                         })
-                        actions.appendChild(btn)
+                        tight.appendChild(btn)
                     } else {
                         const btn = document.createElement('button')
                         btn.className = 'btn small'
@@ -5360,7 +6506,7 @@ function openInventoryModal(inCombat) {
                             saveGame()
                             renderList()
                         })
-                        actions.appendChild(btn)
+                        tight.appendChild(btn)
                     }
                 }
 
@@ -5405,7 +6551,9 @@ function openInventoryModal(inCombat) {
                     saveGame()
                     renderList()
                 })
-                actions.appendChild(btnDrop)
+                tight.appendChild(btnDrop)
+
+                if (tight.childNodes.length) actions.appendChild(tight)
 
                 details.appendChild(actions)
 
@@ -5434,6 +6582,10 @@ function usePotionFromInventory(index, inCombat, opts = {}) {
     const item = p.inventory[index]
     if (!item || item.type !== 'potion') return
 
+    if (inCombat) {
+        if (!guardPlayerTurn()) return
+    }
+
     const stayOpen = !!opts.stayOpen
     const onAfterUse = typeof opts.onAfterUse === 'function' ? opts.onAfterUse : null
 
@@ -5443,33 +6595,21 @@ function usePotionFromInventory(index, inCombat, opts = {}) {
         p.hp = Math.min(p.maxHp, p.hp + item.hpRestore)
         if (p.hp > before) {
             addLog(
-                'You drink ' +
-                    item.name +
-                    ' and recover ' +
-                    (p.hp - before) +
-                    ' HP.',
+                'You drink ' + item.name + ' and recover ' + (p.hp - before) + ' HP.',
                 'good'
             )
             used = true
         }
     }
     if (item.resourceRestore) {
-        // Resource potions should only restore the matching resource.
-        // (Otherwise a Fury draught becomes a Mana potion for casters.)
         if (item.resourceKey && item.resourceKey !== p.resourceKey) {
             addLog(
-                item.name +
-                    " doesn't restore your " +
-                    (p.resourceName || 'power') +
-                    '.',
+                item.name + " doesn't restore your " + (p.resourceName || 'power') + '.',
                 'system'
             )
         } else {
             const before = p.resource
-            p.resource = Math.min(
-                p.maxResource,
-                p.resource + item.resourceRestore
-            )
+            p.resource = Math.min(p.maxResource, p.resource + item.resourceRestore)
             if (p.resource > before) {
                 addLog(
                     'You drink ' +
@@ -5498,7 +6638,7 @@ function usePotionFromInventory(index, inCombat, opts = {}) {
 
         if (inCombat) {
             closeModal()
-            enemyTurn()
+            endPlayerTurn({ source: 'item', item: item.id || item.name })
         } else if (!stayOpen) {
             closeModal()
         }
@@ -5710,12 +6850,19 @@ function recalcPlayerStats() {
     applyItemBonuses(p.equipment.neck, 'neck')
     applyItemBonuses(p.equipment.ring, 'ring')
 
+
+    // Speed now has a tangible combat effect: it contributes a small amount of dodge.
+    // This ensures Speed gear rolls are never “dead stats.”
+    const _spd = Number.isFinite(Number(p.stats.speed)) ? Number(p.stats.speed) : 0
+    const _dodgeFromSpeed = Math.max(0, Math.min(12, _spd * 0.6)) // +0.6% dodge per Speed (cap 12%)
+    p.stats.dodgeChance = (p.stats.dodgeChance || 0) + _dodgeFromSpeed
     // Clamp some percent-ish stats to sane gameplay ranges
     p.stats.critChance = Math.max(0, Math.min(75, p.stats.critChance || 0))
     p.stats.dodgeChance = Math.max(0, Math.min(60, p.stats.dodgeChance || 0))
     p.stats.resistAll = Math.max(0, Math.min(80, p.stats.resistAll || 0))
     p.stats.lifeSteal = Math.max(0, Math.min(60, p.stats.lifeSteal || 0))
     p.stats.armorPen = Math.max(0, Math.min(80, p.stats.armorPen || 0))
+    p.stats.haste = Math.max(0, Math.min(80, p.stats.haste || 0))
 
     let baseMaxRes = 60
     if (cls.resourceKey === 'mana') {
@@ -5766,6 +6913,14 @@ if (choice === 'swear') {
 
 function openMerchantModal(context = 'village') {
     recordInput('open.merchant', { context })
+
+    // Guard: prevent opening merchants while in combat.
+    if (state && state.inCombat) {
+        try { ensureCombatPointers() } catch (_) {}
+        addLog('You cannot trade while in combat.', 'danger')
+        return
+    }
+
     openMerchantModalImpl({
         context,
         state,
@@ -6699,6 +7854,100 @@ function openCheatMenu() {
         })
 
         diagRow.appendChild(btnAudit)
+
+        const btnGearAudit = document.createElement('button')
+        btnGearAudit.className = 'btn small'
+        btnGearAudit.textContent = 'Gear Effects Audit'
+        btnGearAudit.addEventListener('click', () => {
+            const p = state.player
+            if (!p) return
+
+            const snap = (label) => ({
+                label,
+                maxHp: p.maxHp,
+                maxResource: p.maxResource,
+                attack: p.stats ? p.stats.attack : 0,
+                magic: p.stats ? p.stats.magic : 0,
+                armor: p.stats ? p.stats.armor : 0,
+                speed: p.stats ? p.stats.speed : 0,
+                magicRes: p.stats ? p.stats.magicRes : 0,
+                critChance: p.stats ? p.stats.critChance : 0,
+                dodgeChance: p.stats ? p.stats.dodgeChance : 0,
+                resistAll: p.stats ? p.stats.resistAll : 0,
+                lifeSteal: p.stats ? p.stats.lifeSteal : 0,
+                armorPen: p.stats ? p.stats.armorPen : 0,
+                haste: p.stats ? p.stats.haste : 0,
+                thorns: p.stats ? p.stats.thorns : 0,
+                hpRegen: p.stats ? p.stats.hpRegen : 0
+            })
+
+            const eq = Object.assign({}, p.equipment || {})
+            const hp0 = p.hp
+            const res0 = p.resource
+
+            // Snapshot without gear
+            const slots = ['weapon','armor','head','hands','feet','belt','neck','ring']
+            if (!p.equipment) p.equipment = {}
+            slots.forEach((k) => { p.equipment[k] = null })
+            recalcPlayerStats()
+            const baseStats = snap('No Gear')
+
+            // Restore gear
+            p.equipment = Object.assign({}, eq)
+            recalcPlayerStats()
+            const gearedStats = snap('With Gear')
+
+            // Restore current HP/resource as close as possible
+            p.hp = Math.min(p.maxHp, Math.max(0, hp0))
+            p.resource = Math.min(p.maxResource, Math.max(0, res0))
+
+            const keys = ['maxHp','maxResource','attack','magic','armor','speed','magicRes','critChance','dodgeChance','resistAll','lifeSteal','armorPen','haste','thorns','hpRegen']
+            const lines = []
+            lines.push('GEAR EFFECTS AUDIT')
+            lines.push('-----------------')
+            lines.push('This report compares derived stats with gear removed vs equipped.')
+            lines.push('')
+
+            for (const k of keys) {
+                const b = Number(baseStats[k] || 0)
+                const g = Number(gearedStats[k] || 0)
+                const d = g - b
+                const sign = d > 0 ? '+' : ''
+                lines.push(k.padEnd(12) + ': ' + String(b).padEnd(8) + ' → ' + String(g).padEnd(8) + ' (' + sign + d + ')')
+            }
+
+            const report = lines.join('\n')
+            openModal('Gear Effects Audit', (b) => {
+                const pre = document.createElement('pre')
+                pre.className = 'code-block'
+                pre.textContent = report
+                b.appendChild(pre)
+
+                const actions = document.createElement('div')
+                actions.className = 'modal-actions'
+
+                const btnCopy = document.createElement('button')
+                btnCopy.className = 'btn outline'
+                btnCopy.textContent = 'Copy Report'
+                btnCopy.addEventListener('click', () => {
+                    copyFeedbackToClipboard(report).catch(() => {})
+                })
+
+                const btnBack = document.createElement('button')
+                btnBack.className = 'btn outline'
+                btnBack.textContent = 'Back'
+                btnBack.addEventListener('click', () => {
+                    closeModal()
+                    openCheatMenu()
+                })
+
+                actions.appendChild(btnCopy)
+                actions.appendChild(btnBack)
+                b.appendChild(actions)
+            })
+        })
+
+        diagRow.appendChild(btnGearAudit)
         diagContent.appendChild(diagRow)
 
         // --- Loot / gear cheats ------------------------------------------------
@@ -7430,7 +8679,7 @@ const lootRow = document.createElement('div')
                     ? state.time.dayIndex
                     : 0
             if (state.government && state.government.townHallEffects) {
-                // Clear in-place (don't delete) so the Town Hall UI keeps a stable shape.
+                // Expire the decree; cleanup will remove the payload (Town Hall recreates it on demand).
                 state.government.townHallEffects.expiresOnDay = -1
                 cleanupTownHallEffects(state, today)
                 addLog(
@@ -7526,7 +8775,285 @@ function openSpellsModal(inCombat) {
 
     const canEditLoadout = !inCombat
 
-    function formatCost(cost) {
+    // UI metadata for a clearer Spell Book.
+    const SPELL_UI = {
+        // AoE / multi-target
+        meteorSigil: { badges: ['AoE', 'Damage'] },
+        arcaneOverload: { badges: ['AoE', 'Damage'] },
+        cleave: { badges: ['AoE', 'Damage'] },
+        bloodNova: { badges: ['AoE', 'Damage'] },
+        rainOfThorns: { badges: ['AoE', 'Damage'] },
+        stoneQuake: { badges: ['AoE', 'Damage'] },
+        tempest: { badges: ['Chain', 'Damage'] }
+    }
+
+    function getSpellBadges(id) {
+        const ab = ABILITIES[id]
+        if (!ab) return []
+        const meta = SPELL_UI[id]
+        const badges = meta && meta.badges ? meta.badges.slice() : []
+        // Heuristics for support spells.
+        if (/heal|ward|shield|guard|barrier/i.test(ab.name)) {
+            if (!badges.includes('Support')) badges.push('Support')
+        }
+        if (!badges.length) badges.push('Single')
+        return badges.slice(0, 3)
+    }
+
+	// Patch 1.1.92: If the class meter is "full" (or in an active state) and it
+	// will affect the next ability cast, show a short preview line in the Spell Book.
+	function getMeterCastPreview(abilityId) {
+		// Only show cast-impact previews when the player is actually about to cast.
+		if (!inCombat) return ''
+		try {
+			const ab = ABILITIES[abilityId]
+			if (!ab) return ''
+
+			// Mage: Rhythm triggers on the next *mana* spell every 3rd cast.
+			if (p.classId === 'mage') {
+				const r = _getMageRhythmBonus(p, ab, abilityId)
+				if (r && r.active) {
+					return 'Rhythm Ready: +30% power, +15% crit, refund 4 Mana.'
+				}
+			}
+
+			// Ranger: show a "full" Marks preview when the target is max-marked.
+			// (Marks also help below max, but this callout focuses on the full meter state.)
+			if (p.classId === 'ranger' && inCombat) {
+				const enemy = state.currentEnemy
+				const stacks = enemy ? enemy.markedStacks || 0 : 0
+				if (stacks >= 5) {
+					return 'Marks Maxed: +15% damage to this target; Headshot will consume Marks for a finisher.'
+				}
+			}
+		} catch (_) {}
+		return ''
+	}
+
+	function getMeterGlobalBannerText() {
+		// Only show meter-readiness messaging in combat.
+		if (!inCombat) return ''
+		try {
+			// Warrior: Bulwark is active at high Fury and empowers the next damaging ability.
+			if (
+				p.classId === 'warrior' &&
+				p.resourceKey === 'fury' &&
+				(p.resource || 0) >= 40
+			) {
+				return 'Bulwark Ready: your next damaging ability deals +25% damage, then Bulwark spends Fury to grant a shield.'
+			}
+
+			// Blood Knight: Bloodrush is active at high Blood.
+			if (p.classId === 'blood' && p.resourceKey === 'blood') {
+				const mx = Math.max(1, Number(p.maxResource || 0))
+				const ratio = Number(p.resource || 0) / mx
+				if (ratio >= 0.8) {
+					return 'Bloodrush Active: your abilities deal +12% damage and gain +12% lifesteal while Blood stays high.'
+				}
+			}
+		} catch (_) {}
+		return ''
+	}
+
+	// Patch 1.1.92: spell list numeric previews (damage / heal / shield)
+	// These previews are deterministic (no RNG/crit) and use the *current* target
+	// in combat. Out of combat, they use a neutral "dummy" (no armor/resistance).
+	function _previewCalcPhysical(baseStat, elementType, enemy, ctx) {
+		const diff = getActiveDifficultyConfig()
+		const st = p && p.status ? p.status : {}
+		const atkDown = st.atkDownTurns > 0 ? st.atkDown || 0 : 0
+		const atkBuff = st.buffAttack || 0
+		let base = (baseStat || 0) + atkBuff - atkDown
+		base = Math.max(1, base)
+		const penPct = clampNumber(p && p.stats ? p.stats.armorPen || 0 : 0, 0, 80)
+		let effArmor = (((enemy && enemy.armor) || 0) + ((enemy && enemy.armorBuff) || 0)) * (1 - penPct / 100)
+		effArmor = Math.max(0, effArmor)
+		const defense = 100 / (100 + effArmor * 10)
+		let dmg = base * defense
+		dmg *= diff.playerDmgMod
+		if (ctx && ctx.dmgMult) dmg *= ctx.dmgMult
+		const et = elementType || null
+		const elemBonusPct = clampNumber(getPlayerElementalBonusPct(et), 0, 200)
+		if (elemBonusPct > 0) dmg *= 1 + elemBonusPct / 100
+		if (enemy && enemy.brokenTurns && enemy.brokenTurns > 0) dmg *= 1.2
+		return Math.max(1, Math.round(dmg))
+	}
+
+	function _previewCalcMagic(baseStat, elementType, enemy, ctx) {
+		const diff = getActiveDifficultyConfig()
+		const st = p && p.status ? p.status : {}
+		const magDown = st.magicDownTurns > 0 ? st.magicDown || 0 : 0
+		const magBuff = st.buffMagic || 0
+		let base = (baseStat || 0) + magBuff - magDown
+		base = Math.max(1, base)
+		const penPct = clampNumber(p && p.stats ? p.stats.armorPen || 0 : 0, 0, 80)
+		let effRes = (((enemy && enemy.magicRes) || 0) + ((enemy && enemy.magicResBuff) || 0)) * (1 - penPct / 100)
+		effRes = Math.max(0, effRes)
+		const resist = 100 / (100 + effRes * 9)
+		let dmg = base * resist
+		dmg *= diff.playerDmgMod
+		if (ctx && ctx.dmgMult) dmg *= ctx.dmgMult
+		const et = elementType || null
+		const elemBonusPct = clampNumber(getPlayerElementalBonusPct(et), 0, 200)
+		if (elemBonusPct > 0) dmg *= 1 + elemBonusPct / 100
+		if (enemy && enemy.brokenTurns && enemy.brokenTurns > 0) dmg *= 1.2
+		return Math.max(1, Math.round(dmg))
+	}
+
+	function _previewHeal(amount, ctx) {
+		const mult = ctx && ctx.healMult ? ctx.healMult : 1
+		const eff = Math.max(0, Math.round((amount || 0) * mult))
+		const missing = Math.max(0, (p.maxHp || 0) - (p.hp || 0))
+		return Math.max(0, Math.min(missing, eff))
+	}
+
+	function _previewShield(amount, ctx) {
+		const mult = ctx && ctx.healMult ? ctx.healMult : 1
+		return Math.max(0, Math.round((amount || 0) * mult))
+	}
+
+	function getAbilityNumericPreview(abilityId) {
+		try {
+			const ab = ABILITIES[abilityId]
+			if (!ab) return ''
+			const enemy = inCombat
+				? state.currentEnemy
+				: { name: 'Dummy', armor: 0, magicRes: 0, armorBuff: 0, magicResBuff: 0, brokenTurns: 0 }
+			const ctx = buildAbilityContext(p, abilityId)
+
+			// NOTE: These match the intent of ABILITY_EFFECTS, but avoid RNG/side-effects.
+			switch (abilityId) {
+				// Mage
+				case 'fireball':
+					return _previewCalcMagic(p.stats.magic * 1.6, 'fire', enemy, ctx) + ' dmg'
+				case 'iceShard':
+					return _previewCalcMagic(p.stats.magic * 1.25, 'frost', enemy, ctx) + ' dmg'
+				case 'arcaneShield':
+					return _previewShield(20, ctx) + ' shield'
+				case 'arcaneSurge':
+					return _previewCalcMagic(p.stats.magic * 1.25, 'arcane', enemy, ctx) + ' dmg'
+				case 'meteorSigil': {
+					const primary = _previewCalcMagic(p.stats.magic * 2.2, 'fire', enemy, ctx)
+					const splash = _previewCalcMagic(p.stats.magic * 2.2 * 0.6, 'fire', enemy, ctx)
+					const alive = inCombat ? getAliveEnemies().length : 1
+					if (alive > 1) return primary + '/' + splash + ' AoE'
+					return primary + ' dmg'
+				}
+				case 'arcaneOverload': {
+					// Added in 1.1.92 as mage AoE.
+					const primary = _previewCalcMagic(p.stats.magic * 1.55, 'arcane', enemy, ctx)
+					const splash = _previewCalcMagic(p.stats.magic * 1.55 * 0.75, 'arcane', enemy, ctx)
+					const alive = inCombat ? getAliveEnemies().length : 1
+					if (alive > 1) return primary + '/' + splash + ' AoE'
+					return primary + ' dmg'
+				}
+
+				// Warrior
+				case 'powerStrike':
+					return _previewCalcPhysical(p.stats.attack * 1.4, null, enemy, ctx) + ' dmg'
+				case 'cleave': {
+					const primary = _previewCalcPhysical(p.stats.attack * 1.25, null, enemy, ctx)
+					const splash = _previewCalcPhysical(p.stats.attack * 1.25 * 0.72, null, enemy, ctx)
+					const alive = inCombat ? getAliveEnemies().length : 1
+					if (alive > 1) return primary + '/' + splash + ' AoE'
+					return primary + ' dmg'
+				}
+				case 'ironFortress':
+					return _previewShield(35, ctx) + ' shield'
+
+				// Blood Knight
+				case 'bloodSlash':
+					return _previewCalcPhysical(p.stats.attack * 1.5, null, enemy, ctx) + ' dmg'
+				case 'leech': {
+					const dmg = _previewCalcMagic(p.stats.magic * 0.9, 'shadow', enemy, ctx)
+					const heal = _previewHeal(Math.round(dmg * 0.6), ctx)
+					return dmg + ' dmg / ' + heal + ' heal'
+				}
+				case 'bloodNova': {
+					const primary = _previewCalcMagic(p.stats.magic * 1.45, 'shadow', enemy, ctx)
+					const splash = _previewCalcMagic(p.stats.magic * 1.45 * 0.78, 'shadow', enemy, ctx)
+					const alive = inCombat ? getAliveEnemies().length : 1
+					if (alive > 1) return primary + '/' + splash + ' AoE'
+					return primary + ' dmg'
+				}
+
+				// Ranger
+				case 'piercingShot':
+					return _previewCalcPhysical(p.stats.attack * 1.3, null, enemy, ctx) + ' dmg'
+				case 'twinArrows': {
+					const one = _previewCalcPhysical(p.stats.attack * 0.75, null, enemy, ctx)
+					return (one * 2) + ' dmg'
+				}
+				case 'rainOfThorns': {
+					const primary = _previewCalcPhysical(p.stats.attack * 0.85, 'piercing', enemy, ctx)
+					const alive = inCombat ? getAliveEnemies().length : 1
+					// This spell is "hits all once"; show per-target.
+					if (alive > 1) return primary + ' ea (AoE)'
+					return primary + ' dmg'
+				}
+
+				// Paladin
+				case 'holyStrike':
+					return _previewCalcPhysical(p.stats.attack * 1.2, 'holy', enemy, ctx) + ' dmg'
+				case 'blessingLight': {
+					const heal = _previewHeal(Math.round(p.maxHp * 0.25), ctx)
+					return heal + ' heal'
+				}
+
+				// Cleric
+				case 'holyHeal':
+					return _previewHeal(Math.round(p.maxHp * 0.35), ctx) + ' heal'
+				case 'smite':
+					return _previewCalcMagic(p.stats.magic * 1.3, 'holy', enemy, ctx) + ' dmg'
+				case 'purify':
+					return _previewShield(15, ctx) + ' shield'
+
+				// Necromancer
+				case 'soulBolt': {
+					const dmg = _previewCalcMagic(p.stats.magic * 1.4, 'shadow', enemy, ctx)
+					const heal = _previewHeal(Math.round(dmg * 0.4), ctx)
+					return dmg + ' dmg / ' + heal + ' heal'
+				}
+				case 'decay':
+					return _previewCalcMagic(p.stats.magic * 0.9, 'poison', enemy, ctx) + ' dmg'
+
+				// Shaman
+				case 'lightningLash':
+					return _previewCalcMagic(p.stats.magic * 1.5, 'lightning', enemy, ctx) + ' dmg'
+				case 'earthskin':
+					return _previewShield(20, ctx) + ' shield'
+				case 'stoneQuake': {
+					const primary = _previewCalcMagic(p.stats.magic * 1.2, 'earth', enemy, ctx)
+					const splash = _previewCalcMagic(p.stats.magic * 1.2 * 0.82, 'earth', enemy, ctx)
+					const alive = inCombat ? getAliveEnemies().length : 1
+					if (alive > 1) return primary + '/' + splash + ' AoE'
+					return primary + ' dmg'
+				}
+				case 'tempest': {
+					const dmg = _previewCalcMagic(p.stats.magic * 1.05, 'lightning', enemy, ctx)
+					return dmg + ' dmg'
+				}
+
+				// Vampire
+				case 'essenceDrain': {
+					const dmg = _previewCalcMagic(p.stats.magic * 1.2, 'arcane', enemy, ctx)
+					const heal = _previewHeal(Math.round(dmg * 0.5), ctx)
+					return dmg + ' dmg / ' + heal + ' heal'
+				}
+				case 'batSwarm':
+					return _previewCalcMagic(p.stats.magic * 1.3, 'shadow', enemy, ctx) + ' dmg'
+
+				// Berserker
+				case 'frenziedBlow':
+					return _previewCalcPhysical(p.stats.attack * 1.0, null, enemy, ctx) + ' dmg'
+				case 'warCryBerserker':
+					return _previewHeal(Math.round(p.maxHp * 0.2), ctx) + ' heal'
+			}
+		} catch (_) {}
+		return ''
+	}
+
+    function formatCost(cost, abilityId) {
         if (!cost) return 'Cost: —'
         const parts = []
         if (cost.mana) parts.push(cost.mana + ' Mana')
@@ -7534,7 +9061,16 @@ function openSpellsModal(inCombat) {
         if (cost.blood) parts.push(cost.blood + ' Blood')
         if (cost.essence) parts.push(cost.essence + ' Essence')
         if (cost.hp) parts.push(cost.hp + ' HP')
-        return parts.length ? 'Cost: ' + parts.join(' • ') : 'Cost: —'
+
+		const preview = abilityId ? getAbilityNumericPreview(abilityId) : ''
+		if (preview && parts.length === 1) {
+			// Put the number right next to the primary resource.
+			return 'Cost: ' + parts[0] + ' (' + preview + ')'
+		}
+		if (preview && parts.length > 1) {
+			return 'Cost: ' + parts.join(' • ') + ' • ' + preview
+		}
+		return parts.length ? 'Cost: ' + parts.join(' • ') : 'Cost: —'
     }
 
     function getKnown() {
@@ -7588,6 +9124,33 @@ function openSpellsModal(inCombat) {
         }
 
         body.appendChild(topRow)
+
+        const help = document.createElement('div')
+        help.className = 'spells-help'
+        help.textContent = inCombat
+            ? 'Combat: tap a spell to cast it. Loadout changes are disabled in combat.'
+            : 'Outside combat: expand a spell to see details, equip/unequip, and upgrade.'
+        body.appendChild(help)
+
+        const legend = document.createElement('div')
+        legend.className = 'spells-legend'
+        legend.innerHTML = '<span class="badge">AoE</span><span class="badge">Single</span><span class="badge">Support</span>'
+        body.appendChild(legend)
+
+		// Patch 1.1.92: If your class meter is currently "ready", show a clear one-line
+		// preview of what it will do before you tap to cast.
+		const meterBannerText = getMeterGlobalBannerText()
+		if (meterBannerText) {
+			const mb = document.createElement('div')
+			mb.className = 'small'
+			mb.style.margin = '6px 0 10px 0'
+			mb.style.padding = '6px 8px'
+			mb.style.border = '1px solid rgba(255,255,255,0.10)'
+			mb.style.borderRadius = '8px'
+			mb.style.opacity = '0.95'
+			mb.textContent = meterBannerText
+			body.appendChild(mb)
+		}
 
         const list = document.createElement('div')
         list.className = 'inv-list spellbook-cards'
@@ -7713,15 +9276,48 @@ function openSpellsModal(inCombat) {
             name.textContent = ab.name
             left.appendChild(name)
 
+            const badges = document.createElement('div')
+            badges.className = 'spell-badges';
+            ;(getSpellBadges(id) || []).forEach((b) => {
+                const s = document.createElement('span')
+                s.className = 'badge'
+                s.textContent = b
+                badges.appendChild(s)
+            })
+            left.appendChild(badges)
+
             const sub = document.createElement('div')
             sub.className = 'inv-sub'
             const bits = []
-            bits.push(formatCost(effectiveCost).replace('Cost: ', ''))
+            bits.push(formatCost(effectiveCost, id).replace('Cost: ', ''))
             if (label) bits.push(label)
             if (isEq && !inCombat) bits.push('Equipped')
             if (tier > 0) bits.push('Tier ' + tier)
             sub.textContent = bits.filter(Boolean).join(' • ')
             left.appendChild(sub)
+
+            // Patch 1.1.92: In combat, show a short spell description inline
+            // because the card can't be expanded (tap casts immediately).
+            if (inCombat) {
+                const hint = document.createElement('div')
+                hint.className = 'small'
+                hint.style.opacity = '0.85'
+                hint.style.marginTop = '2px'
+                hint.textContent = ab.note || ''
+                left.appendChild(hint)
+            }
+
+			// Patch 1.1.92: show a clear preview when the class meter will affect the next cast.
+			const meterPreview = getMeterCastPreview(id)
+			if (meterPreview) {
+				const mp = document.createElement('div')
+				mp.className = 'small'
+				mp.style.opacity = '0.92'
+				mp.style.marginTop = inCombat ? '2px' : '4px'
+				mp.style.fontStyle = 'italic'
+				mp.textContent = meterPreview
+				left.appendChild(mp)
+			}
 
             summary.appendChild(left)
             // No right column in the Spell Book (keeps the header compact and avoids empty space).
@@ -7743,7 +9339,7 @@ function openSpellsModal(inCombat) {
                     : 'Upgrade: None'
             meta.textContent =
                 'Cost: ' +
-                formatCost(effectiveCost).replace('Cost: ', '') +
+                formatCost(effectiveCost, id).replace('Cost: ', '') +
                 '  •  ' +
                 upText
             details.appendChild(meta)
@@ -7765,6 +9361,11 @@ function openSpellsModal(inCombat) {
                 details.appendChild(actions)
             } else {
                 // Out of combat: equip/unequip + upgrade
+                    const tight = document.createElement('div')
+                    tight.className = 'inv-actions-tight'
+
+                if (!inCombat) {
+
                 if (isEq) {
                     const btnUn = document.createElement('button')
                     btnUn.className = 'btn small'
@@ -7778,7 +9379,7 @@ function openSpellsModal(inCombat) {
                         saveGame()
                         render()
                     })
-                    actions.appendChild(btnUn)
+                        tight.appendChild(btnUn)
                 } else {
                     const btnEq = document.createElement('button')
                     btnEq.className = 'btn small'
@@ -7800,7 +9401,7 @@ function openSpellsModal(inCombat) {
                         saveGame()
                         render()
                     })
-                    actions.appendChild(btnEq)
+                    tight.appendChild(btnEq)
                 }
 
                 // Remove the Upgrade button entirely once max tier is reached.
@@ -7813,8 +9414,12 @@ function openSpellsModal(inCombat) {
                         e.preventDefault()
                         openAbilityUpgradeModal(id)
                     })
-                    actions.appendChild(btnUp)
+                    tight.appendChild(btnUp)
                 }
+
+                }
+
+                if (tight.childNodes.length) actions.appendChild(tight)
 
                 details.appendChild(actions)
             }
@@ -7917,11 +9522,12 @@ function payCost(cost) {
 }
 
 function useAbilityInCombat(id) {
-    if (!state.inCombat || !state.currentEnemy) return
+    if (!guardPlayerTurn()) return
+
     const p = state.player
     recordInput('combat.ability', { id })
     const enemy = state.currentEnemy
-    if (!p) return
+    if (!p || !enemy) return
     ensurePlayerSpellSystems(p)
 
     // Enforce loadout rules during combat.
@@ -7935,7 +9541,6 @@ function useAbilityInCombat(id) {
     const ability = ABILITIES[id]
     if (!ability) return
 
-    // Compute effective cost (upgrades + passives).
     const cost = getEffectiveAbilityCost(p, id)
     if (!canPayCost(cost)) {
         addLog('Not enough resources to use that ability.', 'danger')
@@ -7945,7 +9550,6 @@ function useAbilityInCombat(id) {
     payCost(cost)
     _applyCostPassives(p, cost)
 
-    // Build transient context (multipliers, crit bonuses, etc).
     const ctx = buildAbilityContext(p, id)
     _setPlayerAbilityContext(ctx)
 
@@ -7964,11 +9568,34 @@ function useAbilityInCombat(id) {
 
     _setPlayerAbilityContext(null)
 
-    // Post-resolution: consume boons / cadences.
     _consumeCompanionBoonIfNeeded(p, ctx)
     if (ctx && ctx.didDamage && ctx.consumeFirstHitBonus) {
         p.status.firstHitBonusAvailable = false
     }
+
+
+// Patch 1.1.92: apply class-meter payoffs immediately after the action resolves.
+// Mage: Rhythm refunds mana on the empowered cast.
+if (ctx && ctx._mageRhythmActive && ctx._manaRefund && p.resourceKey === 'mana') {
+    const refund = Math.max(0, Math.round(ctx._manaRefund))
+    if (refund > 0) {
+        const before = p.resource
+        p.resource = Math.min(p.maxResource, p.resource + refund)
+        const gained = p.resource - before
+        if (gained > 0) addLog('Arcane Rhythm refunds ' + gained + ' Mana.', 'system')
+    }
+}
+
+// Warrior: Bulwark consumes Fury after you land a damaging ability, granting a small shield.
+if (ctx && ctx._bulwarkActive && ctx.didDamage && p.resourceKey === 'fury') {
+    const spend = 40
+    if ((p.resource || 0) >= spend) {
+        p.resource -= spend
+        const shield = Math.max(8, Math.round(p.maxHp * 0.08))
+        _addShield(p.status, shield)
+        addLog('Bulwark expends Fury, granting a ' + shield + '-point shield.', 'system')
+    }
+}
     p.status.spellCastCount = (p.status.spellCastCount || 0) + 1
 
     if (description) addLog(description, 'good')
@@ -7978,19 +9605,11 @@ function useAbilityInCombat(id) {
     closeModal()
 
     if (enemy.hp <= 0) {
-        handleEnemyDefeat()
-    } else {
-        // Companion acts after your ability
-        companionActIfPresent()
+        handleEnemyDefeat(enemy)
+    }
 
-        if (!state.inCombat || !state.currentEnemy) {
-            return
-        }
-        if (state.currentEnemy.hp <= 0) {
-            handleEnemyDefeat()
-        } else {
-            enemyTurn()
-        }
+    if (state.inCombat) {
+        endPlayerTurn({ source: 'ability', id })
     }
 }
 
@@ -8368,9 +9987,26 @@ function openCharacterSheet() {
     `
 
         // --- EQUIPMENT TAB --------------------------------------------------------
+        const escHtml = (s) =>
+            String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+
+        const rarityKey = (r) => String(r || 'common').toLowerCase()
+
         const slotName = (slot) => {
             const it = p.equipment && p.equipment[slot] ? p.equipment[slot] : null
-            return it ? it.name : '<span class="equip-empty">None</span>'
+            if (!it) return '<span class="equip-empty">None</span>'
+            return (
+                '<span class="equip-name rarity-' +
+                rarityKey(it.rarity) +
+                '">' +
+                escHtml(it.name) +
+                '</span>'
+            )
         }
 
         const weaponName = slotName('weapon')
@@ -8518,6 +10154,248 @@ function openCharacterSheet() {
 }
 
 // --- SKILLS -------------------------------------------------------------------
+
+
+// --- NEW: Enemy Sheet (tap enemy panel to inspect) ---------------------------
+function openEnemySheet() {
+    const enemy = state && state.currentEnemy ? state.currentEnemy : null
+    if (!state || !state.inCombat || !enemy) return
+
+    // Ensure runtime containers exist (safe for mid-combat inspection)
+    try { ensureEnemyRuntime(enemy) } catch (_) {}
+
+    const rarityDef = getEnemyRarityDef(enemy.rarity) || getEnemyRarityDef('common')
+    const rarityLabel = enemy.rarityLabel || (rarityDef ? rarityDef.label : 'Common')
+
+    const isBoss = !!enemy.isBoss
+    const isElite = !!enemy.isElite
+
+    const maxHp = Math.max(1, Math.floor(finiteNumber(enemy.maxHp, 1)))
+    const hp = clampFinite(enemy.hp, 0, maxHp, maxHp)
+
+    const pm = typeof enemy.postureMax === 'number' && Number.isFinite(enemy.postureMax) && enemy.postureMax > 0
+        ? Math.max(1, Math.floor(enemy.postureMax))
+        : 0
+    const posture = pm ? clampFinite(enemy.posture, 0, pm, 0) : 0
+
+    const effAtk = getEffectiveEnemyAttack(enemy)
+    const effMag = getEffectiveEnemyMagic(enemy)
+
+    const baseDropChance = isBoss ? 1.0 : isElite ? 0.9 : 0.7
+    const dropChance = clamp01(baseDropChance * finiteNumber(enemy.rarityDropMult, 1))
+
+    const fmtPct = (x) => Math.round(clamp01(Number(x) || 0) * 100) + '%'
+
+    function describeAffix(id) {
+        const def = getEnemyAffixDef(id)
+        if (!def) return id
+        const parts = []
+        if (def.vampiricHealPct) parts.push('Heals ' + Math.round(def.vampiricHealPct * 100) + '% of damage dealt')
+        if (def.thornsReflectPct) parts.push('Reflects ' + Math.round(def.thornsReflectPct * 100) + '% of damage taken')
+        if (def.chillChance) parts.push('On hit: ' + fmtPct(def.chillChance) + ' to apply Chilled (' + (def.chillTurns || 1) + 't)')
+        if (def.hexTurns) parts.push('On hit: applies Hex (' + def.hexTurns + 't)')
+        if (def.berserkThreshold) parts.push('Below ' + Math.round(def.berserkThreshold * 100) + '% HP: +'+ Math.round((def.berserkAtkPct||0)*100) + '% attack')
+        if (def.regenPct) parts.push('Regenerates ' + Math.round(def.regenPct * 100) + '% max HP at end of turn')
+        return def.label + (parts.length ? ' — ' + parts.join('; ') : '')
+    }
+
+    openEnemyModal('Enemy Sheet', (body) => {
+        body.innerHTML = ''
+
+        const tabs = document.createElement('div')
+        tabs.className = 'char-tabs'
+
+        const tabDefs = [
+            { id: 'overview', label: 'Overview' },
+            { id: 'stats', label: 'Stats' },
+            { id: 'abilities', label: 'Abilities' },
+            { id: 'effects', label: 'Affixes & Effects' },
+            { id: 'rewards', label: 'Rewards' }
+        ]
+
+        tabDefs.forEach((t, idx) => {
+            const btn = document.createElement('button')
+            btn.className = 'char-tab' + (idx === 0 ? ' active' : '')
+            btn.dataset.tab = t.id
+            btn.textContent = t.label
+            tabs.appendChild(btn)
+        })
+
+        body.appendChild(tabs)
+
+        const panelsWrapper = document.createElement('div')
+        panelsWrapper.className = 'char-tabs-wrapper'
+
+        function makePanel(id, innerHTML) {
+            const panel = document.createElement('div')
+            panel.className = 'char-tab-panel' + (id === 'overview' ? ' active' : '')
+            panel.dataset.tab = id
+            panel.innerHTML = innerHTML
+            panelsWrapper.appendChild(panel)
+            return panel
+        }
+
+        // --- OVERVIEW -----------------------------------------------------------
+        const overviewHtml = `
+      <div class="char-section">
+        <div class="char-section-title">Enemy</div>
+        <div class="stat-grid">
+          <div class="stat-label"><span class="char-stat-icon">🏷</span>Name</div>
+          <div class="stat-value">${enemy.name || 'Enemy'}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">⭐</span>Level</div>
+          <div class="stat-value">${finiteNumber(enemy.level, 1)}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">💠</span>Rarity</div>
+          <div class="stat-value">${rarityLabel}${isBoss ? ' • Boss' : ''}${isElite ? ' • Elite' : ''}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">❤️</span>HP</div>
+          <div class="stat-value">${Math.round(hp)}/${maxHp}</div>
+
+          ${pm ? `
+          <div class="stat-label"><span class="char-stat-icon">🛡</span>Posture</div>
+          <div class="stat-value">${Math.round(posture)}/${pm}</div>
+          ` : ''}
+
+          <div class="stat-label"><span class="char-stat-icon">🧠</span>Behavior</div>
+          <div class="stat-value">${enemy.behavior ? String(enemy.behavior) : '—'}</div>
+        </div>
+      </div>
+    `
+        makePanel('overview', overviewHtml)
+
+        // --- STATS --------------------------------------------------------------
+        const statsHtml = `
+      <div class="char-section">
+        <div class="char-section-title">Combat Stats</div>
+        <div class="stat-grid">
+          <div class="stat-label"><span class="char-stat-icon">⚔</span>Attack</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.attack, 0))} <span style="opacity:.7">(effective ${Math.round(effAtk)})</span></div>
+
+          <div class="stat-label"><span class="char-stat-icon">✨</span>Magic</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.magic, 0))} <span style="opacity:.7">(effective ${Math.round(effMag)})</span></div>
+
+          <div class="stat-label"><span class="char-stat-icon">🛡</span>Armor</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.armor, 0))}${enemy.armorBuff ? ' <span style="opacity:.7">(+' + Math.round(enemy.armorBuff) + ' buff)</span>' : ''}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">🔰</span>Magic Res</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.magicRes, 0))}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">📌</span>Base Attack</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.baseAttack, finiteNumber(enemy.attack, 0)))}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">📌</span>Base Magic</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.baseMagic, finiteNumber(enemy.magic, 0)))}</div>
+        </div>
+      </div>
+    `
+        makePanel('stats', statsHtml)
+
+        // --- ABILITIES ----------------------------------------------------------
+        const abilityLines = (() => {
+            const arr = Array.isArray(enemy.abilities) ? enemy.abilities : []
+            if (!arr.length) return '<div class="modal-subtitle">No special abilities.</div>'
+            return arr
+                .map((aid) => {
+                    const ab = ENEMY_ABILITIES && ENEMY_ABILITIES[aid] ? ENEMY_ABILITIES[aid] : null
+                    const name = ab ? ab.name : String(aid)
+                    const cd = ab && typeof ab.cooldown === 'number' ? ab.cooldown : null
+                    const tele = ab && ab.telegraphTurns ? ab.telegraphTurns : 0
+                    const desc = ab && ab.desc ? ab.desc : ''
+                    return `
+          <div class="item-row">
+            <div class="item-row-header">
+              <div><span class="item-name">${name}</span></div>
+              <div class="item-meta">${cd != null ? 'CD ' + cd : ''}${tele ? (cd != null ? ' • ' : '') + 'Telegraph ' + tele + 't' : ''}</div>
+            </div>
+            ${desc ? `<div style="font-size:.78rem;color:var(--muted)">${escapeHtml(desc)}</div>` : ''}
+          </div>
+        `
+                })
+                .join('')
+        })()
+
+        const abilitiesHtml = `
+      <div class="char-section">
+        <div class="char-section-title">Abilities</div>
+        ${abilityLines}
+      </div>
+    `
+        makePanel('abilities', abilitiesHtml)
+
+        // --- AFFIXES / EFFECTS --------------------------------------------------
+        const affixIds = Array.isArray(enemy.affixes) ? enemy.affixes : []
+        const affixHtml = affixIds.length
+            ? affixIds
+                  .map((id) => `<div class="item-row"><div class="item-row-header"><div><span class="item-name">${describeAffix(id)}</span></div></div></div>`)
+                  .join('')
+            : '<div class="modal-subtitle">No mini-affixes.</div>'
+
+        const eliteHtml = enemy.isElite
+            ? `<div class="item-row"><div class="item-row-header"><div><span class="item-name">Elite: ${enemy.eliteLabel || enemy.eliteAffix || 'Elite'}</span></div></div></div>`
+            : ''
+
+        const statusParts = []
+        if (enemy.bleedTurns && enemy.bleedTurns > 0) statusParts.push('Bleeding (' + enemy.bleedTurns + 't)')
+        if (enemy.chilledTurns && enemy.chilledTurns > 0) statusParts.push('Chilled (' + enemy.chilledTurns + 't)')
+        if (enemy.guardTurns && enemy.guardTurns > 0) statusParts.push('Guarding (' + enemy.guardTurns + 't)')
+        if (enemy.brokenTurns && enemy.brokenTurns > 0) statusParts.push('Broken (' + enemy.brokenTurns + 't)')
+        if (enemy.atkDownTurns && enemy.atkDownTurns > 0 && enemy.atkDownFlat) statusParts.push('Weakened ' + enemy.atkDownFlat + ' (' + enemy.atkDownTurns + 't)')
+        if (enemy.intent && enemy.intent.aid) {
+            const ab = ENEMY_ABILITIES && ENEMY_ABILITIES[enemy.intent.aid] ? ENEMY_ABILITIES[enemy.intent.aid] : null
+            statusParts.push('Intent: ' + (ab ? ab.name : enemy.intent.aid) + ' (' + clampFinite(enemy.intent.turnsLeft, 0, 99, 0) + 't)')
+        }
+
+        const effectsHtml = `
+      <div class="char-section">
+        <div class="char-section-title">Modifiers</div>
+        ${eliteHtml}
+        <div style="margin-top:.35rem">${affixHtml}</div>
+      </div>
+      <div class="char-section">
+        <div class="char-section-title">Current Effects</div>
+        <div class="modal-subtitle">${statusParts.length ? statusParts.join(' • ') : 'None'}</div>
+      </div>
+    `
+        makePanel('effects', effectsHtml)
+
+        // --- REWARDS ------------------------------------------------------------
+        const rewardsHtml = `
+      <div class="char-section">
+        <div class="char-section-title">Rewards</div>
+        <div class="stat-grid">
+          <div class="stat-label"><span class="char-stat-icon">📈</span>XP</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.xp, 0))}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">🪙</span>Gold</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.goldMin, 0))}–${Math.round(finiteNumber(enemy.goldMax, 0))}</div>
+
+          <div class="stat-label"><span class="char-stat-icon">🎁</span>Loot Drop Chance</div>
+          <div class="stat-value">${Math.round(dropChance * 100)}%</div>
+
+          <div class="stat-label"><span class="char-stat-icon">🎲</span>Loot Quality Driver</div>
+          <div class="stat-value">Enemy rarity tier ${finiteNumber(enemy.rarityTier, 1)}</div>
+        </div>
+      </div>
+    `
+        makePanel('rewards', rewardsHtml)
+
+        body.appendChild(panelsWrapper)
+
+        // Tab switching
+        const tabBtns = tabs.querySelectorAll('.char-tab')
+        tabBtns.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                tabBtns.forEach((b) => b.classList.remove('active'))
+                btn.classList.add('active')
+                const target = btn.dataset.tab
+                panelsWrapper.querySelectorAll('.char-tab-panel').forEach((pnl) => {
+                    pnl.classList.toggle('active', pnl.dataset.tab === target)
+                })
+            })
+        })
+    })
+}
 function autoDistributeSkillPoints(p) {
     if (!p || !p.skills) return
     if (p.skillPoints == null) p.skillPoints = 0
@@ -8716,6 +10594,13 @@ function clampNumber(v, min, max) {
     return Math.max(min, Math.min(max, n))
 }
 
+// Haste is a percent stat. We treat it as a general "tempo" multiplier for passive regen and similar ticks.
+// denom controls how powerful haste is: 60% haste => +50% when denom=120.
+function getPlayerHasteMultiplier(p, denom = 120) {
+    const hastePct = clampNumber(p && p.stats ? p.stats.haste || 0 : 0, 0, 80)
+    return 1 + hastePct / denom
+}
+
 function getPlayerElementalBonusPct(elementType) {
     const p = state.player
     if (!p || !p.stats || !p.stats.elementalBonuses || !elementType) return 0
@@ -8728,7 +10613,8 @@ function applyPlayerRegenTick() {
     const p = state.player
     if (!p || !p.stats) return
 
-    const regen = Number(p.stats.hpRegen || 0)
+    const mult = getPlayerHasteMultiplier(p, 120)
+    const regen = Number(p.stats.hpRegen || 0) * mult
     if (regen <= 0) return
 
     p._regenCarry = (p._regenCarry || 0) + regen
@@ -8765,6 +10651,13 @@ function applyPlayerOnHitEffects(damageDealt, elementType) {
         }
     }
 
+
+// Ability context can add temporary lifesteal (ex: Bloodrush).
+const actx = _getPlayerAbilityContext()
+if (actx && typeof actx.lifeStealBonusPct === 'number' && Number.isFinite(actx.lifeStealBonusPct)) {
+    lsPct = clampNumber(lsPct + actx.lifeStealBonusPct, 0, 75)
+}
+
     if (lsPct > 0 && damageDealt > 0) {
         const heal = Math.max(1, Math.round((damageDealt * lsPct) / 100))
         p.hp = Math.min(p.maxHp, p.hp + heal)
@@ -8779,21 +10672,20 @@ function applyPlayerOnHitEffects(damageDealt, elementType) {
     ) {
         p.resource = Math.min(p.maxResource, p.resource + 2)
     }
+
+    // Patch 1.1.7: Necromancer unlock (Lich Form) — siphon a bit of HP on shadow hits while active.
+    if (p.status && (p.status.lichTurns || 0) > 0 && resolvedElementType === 'shadow' && damageDealt > 0) {
+        const heal = Math.max(1, Math.round(damageDealt * 0.08))
+        p.hp = Math.min(p.maxHp, p.hp + heal)
+        addLog('Lich Form siphons ' + heal + ' HP.', 'system')
+    }
 }
 
 
 
 // --- Deep Combat: Posture + Intent helpers (Patch 1.1.6) -----------------------
-
 function computeEnemyPostureMax(enemy) {
-    if (!enemy) return 0
-    const lvl = Number(enemy.level || 1)
-    let base = 34 + lvl * 6
-    if (enemy.isElite) base *= 1.2
-    if (enemy.isBoss) base *= 1.6
-    // Keep within a sane range to avoid weird UI on malformed enemies.
-    base = Math.max(25, Math.min(420, Math.round(base)))
-    return base
+    return computeEnemyPostureMaxImpl(enemy)
 }
 
 function getEffectiveEnemyAttack(enemy) {
@@ -8848,6 +10740,9 @@ function applyEnemyPostureFromPlayerHit(enemy, damageDealt, meta = {}) {
     if (dmg <= 0) return
 
     ensureEnemyRuntime(enemy)
+
+    // Enemy mini-affixes that trigger when the player hits the enemy (e.g., Thorns reflect).
+    applyEnemyAffixesOnPlayerHit(enemy, dmg)
     if (typeof enemy.postureMax !== 'number' || enemy.postureMax <= 0) {
         enemy.postureMax = computeEnemyPostureMax(enemy)
     }
@@ -8937,6 +10832,11 @@ function calcPhysicalDamage(baseStat, elementType) {
     }
 
     // Critical hits
+    // Player chilled: reduced outgoing damage (from enemy affix / frost effects).
+    if (p && p.status && p.status.chilledTurns && p.status.chilledTurns > 0) {
+        dmg *= 0.9
+    }
+
     let crit = false
     // Slightly lower baseline crit to keep early combat swinginess down.
     const baseCrit = 0.10
@@ -9159,12 +11059,316 @@ function calcEnemyDamage(baseStat, elementType) {
     return dmg
 }
 
+// --- TRUE TURN-BASED COMBAT + MULTI-ENEMY (Patch 1.1.9) ------------------------
+
+function ensureCombatTurnState() {
+    if (!state) return null
+
+    if (!Array.isArray(state.enemies)) state.enemies = []
+    if (typeof state.targetEnemyIndex !== 'number') state.targetEnemyIndex = 0
+
+    if (!state.combat || typeof state.combat !== 'object') {
+        state.combat = {
+            phase: 'player', // 'player' | 'resolving'
+            busy: false,
+            round: 1,
+            battleDrops: 0
+        }
+    }
+
+    if (!state.combat.phase) state.combat.phase = 'player'
+    if (typeof state.combat.busy !== 'boolean') state.combat.busy = false
+    if (typeof state.combat.round !== 'number') state.combat.round = 1
+    if (typeof state.combat.battleDrops !== 'number') state.combat.battleDrops = 0
+
+    return state.combat
+}
+
+function combatIsPlayerTurn() {
+    const c = ensureCombatTurnState()
+    return !!(c && c.phase === 'player' && !c.busy)
+}
+
+function combatIsBusy() {
+    const c = ensureCombatTurnState()
+    return !!(c && c.busy)
+}
+
+function _combatDelayMs(base) {
+    const b = Math.max(0, Number(base || 0))
+
+    // Text speed: higher = faster (shorter pauses)
+    const speed = clampFinite(state && state.settingsTextSpeed, 30, 200, 100)
+    const speedMult = 100 / Math.max(30, speed)
+
+    // Reduce motion: keep the rhythm but shorten pauses.
+    const rm = !!(state && state.settingsReduceMotion)
+    const rmMult = rm ? 0.45 : 1
+
+    return Math.max(0, Math.round(b * speedMult * rmMult))
+}
+
+function combatPause(baseMs) {
+    // Smoke tests run synchronously; never wait on timers during the suite.
+    try {
+        if (state && state.debug && state.debug.smokeTestRunning) return Promise.resolve()
+    } catch (_) {}
+
+    const ms = _combatDelayMs(baseMs)
+    if (ms <= 0) return Promise.resolve()
+    return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function getAllEnemies() {
+    if (Array.isArray(state.enemies) && state.enemies.length) return state.enemies
+    return state.currentEnemy ? [state.currentEnemy] : []
+}
+
+function getAliveEnemies() {
+    return getAllEnemies().filter((e) => e && finiteNumber(e.hp, 0) > 0)
+}
+
+function anyEnemiesAlive() {
+    return getAliveEnemies().length > 0
+}
+
+function syncCurrentEnemyToTarget() {
+    const all = getAllEnemies()
+    if (!all.length) {
+        state.currentEnemy = null
+        return null
+    }
+
+    const alive = getAliveEnemies()
+    if (!alive.length) {
+        state.currentEnemy = null
+        return null
+    }
+
+    let idx = Math.floor(Number(state.targetEnemyIndex || 0))
+    if (!Number.isFinite(idx)) idx = 0
+
+    const cur = all[idx]
+    if (!cur || finiteNumber(cur.hp, 0) <= 0) {
+        const firstAlive = all.findIndex((e) => e && finiteNumber(e.hp, 0) > 0)
+        idx = firstAlive >= 0 ? firstAlive : 0
+        state.targetEnemyIndex = idx
+    }
+
+    state.currentEnemy = all[idx]
+    return state.currentEnemy
+}
+
+// Ensure combat pointers remain consistent (Patch 1.1.9 hardening).
+// Repairs cases where inCombat is true but currentEnemy is missing (e.g., after target dies).
+function ensureCombatPointers() {
+    if (!state || !state.inCombat) return
+
+    // Prefer multi-enemy container when present.
+    if (Array.isArray(state.enemies) && state.enemies.length) {
+        // If target index points at a dead enemy, sync will advance to a living one.
+        try {
+            syncCurrentEnemyToTarget()
+        } catch (_) {}
+
+        // If we still have no current enemy, fall back to first living enemy.
+        if (!state.currentEnemy) {
+            const firstAlive = state.enemies.find((e) => e && finiteNumber(e.hp, 0) > 0)
+            if (firstAlive) {
+                state.currentEnemy = firstAlive
+                state.targetEnemyIndex = Math.max(0, state.enemies.indexOf(firstAlive))
+            }
+        }
+
+        // If nobody is alive, combat should end.
+        const anyAlive = state.enemies.some((e) => e && finiteNumber(e.hp, 0) > 0)
+        if (!anyAlive) {
+            state.inCombat = false
+            state.currentEnemy = null
+            state.enemies = []
+            state.targetEnemyIndex = 0
+            if (state.combat) {
+                state.combat.busy = false
+                state.combat.phase = 'player'
+            }
+        }
+        return
+    }
+
+    // Legacy single-enemy combat: if inCombat true, currentEnemy must exist.
+    if (!state.currentEnemy) {
+        // If some code left an enemy on a different key, try to recover.
+        if (state.enemy) state.currentEnemy = state.enemy
+    }
+
+    // If still missing, treat as desync and exit combat safely.
+    if (!state.currentEnemy) {
+        state.inCombat = false
+        state.targetEnemyIndex = 0
+        if (state.combat) {
+            state.combat.busy = false
+            state.combat.phase = 'player'
+        }
+    }
+}
+
+
+function setTargetEnemyIndex(idx, opts = {}) {
+    const all = getAllEnemies()
+    if (!all.length) return
+
+    const n = all.length
+    let next = Math.floor(Number(idx || 0))
+    if (!Number.isFinite(next)) next = 0
+
+    // Wrap
+    next = ((next % n) + n) % n
+
+    // If chosen is dead, advance to the next alive.
+    let guard = 0
+    while (guard < n && all[next] && finiteNumber(all[next].hp, 0) <= 0) {
+        next = (next + 1) % n
+        guard += 1
+    }
+
+    state.targetEnemyIndex = next
+    state.currentEnemy = all[next]
+    updateEnemyPanel()
+
+    if (!opts.silent && n > 1 && state.currentEnemy) {
+        addLog('Target: ' + state.currentEnemy.name + '.', 'system')
+    }
+}
+
+function cycleTargetEnemy(delta, opts = {}) {
+    const all = getAllEnemies()
+    if (all.length <= 1) return
+    const d = Math.sign(Number(delta || 0))
+    if (!d) return
+    setTargetEnemyIndex((state.targetEnemyIndex || 0) + d, opts)
+}
+
+function canPlayerActNow() {
+    if (!state || !state.inCombat) return false
+    if (!anyEnemiesAlive()) return false
+    ensureCombatTurnState()
+    return combatIsPlayerTurn()
+}
+
+function guardPlayerTurn() {
+    if (!state || !state.inCombat) return false
+    ensureCombatTurnState()
+
+    if (combatIsBusy()) {
+        addLog('Actions are resolving...', 'system')
+        return false
+    }
+
+    if (state.combat.phase !== 'player') {
+        addLog('Not your turn.', 'system')
+        return false
+    }
+
+    if (!anyEnemiesAlive()) return false
+    syncCurrentEnemyToTarget()
+    return true
+}
+
+async function runPostPlayerTurnSequence() {
+    const c = ensureCombatTurnState()
+    if (!c) return
+
+    // Brief "thinking" pause after the player.
+    await combatPause(520)
+    if (!state.inCombat) return
+
+    // Companion (if any)
+    if (state.companion && anyEnemiesAlive()) {
+        syncCurrentEnemyToTarget()
+        companionActIfPresent()
+        updateHUD()
+        updateEnemyPanel()
+
+        if (!state.inCombat || !anyEnemiesAlive()) return
+
+        await combatPause(520)
+        if (!state.inCombat) return
+    }
+
+    // Enemies act in order.
+    const enemies = getAllEnemies().slice()
+    for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i]
+        if (!state.inCombat) return
+        if (!enemy || finiteNumber(enemy.hp, 0) <= 0) continue
+
+        // Small pause before each enemy action.
+        await combatPause(460)
+        if (!state.inCombat) return
+
+        enemyAct(enemy)
+
+        // enemyAct may change currentEnemy; restore UI target.
+        syncCurrentEnemyToTarget()
+        updateEnemyPanel()
+
+        if (!state.inCombat) return
+        if (!anyEnemiesAlive()) return
+
+        if (state.player && finiteNumber(state.player.hp, 0) <= 0) return
+    }
+
+    // End-of-round ticks happen once after all enemies.
+    if (state.inCombat) {
+        postEnemyTurn()
+        if (state.combat) state.combat.round = (state.combat.round || 1) + 1
+    }
+}
+
+function endPlayerTurn(meta) {
+    const c = ensureCombatTurnState()
+    if (!c) return
+
+    if (!state.inCombat) return
+    if (c.busy) return
+
+    // Smoke tests run synchronously; don't kick off async turn resolution.
+    try {
+        if (state && state.debug && state.debug.smokeTestRunning) return
+    } catch (_) {}
+
+    c.busy = true
+    c.phase = 'resolving'
+    renderActions()
+
+    Promise.resolve()
+        .then(() => runPostPlayerTurnSequence())
+        .catch((e) => console.error('turn-sequence error', e))
+        .finally(() => {
+            if (state && state.combat) {
+                state.combat.busy = false
+            }
+            // Return control to the player.
+            if (state && state.inCombat && state.combat) {
+                state.combat.phase = 'player'
+            } else if (state && state.combat) {
+                state.combat.phase = 'player'
+            }
+
+            // Re-sync target pointers and begin the next player turn.
+            syncCurrentEnemyToTarget()
+            beginPlayerTurn()
+            renderActions()
+        })
+}
+
 function playerBasicAttack() {
-    if (!state.inCombat || !state.currentEnemy) return
+    if (!guardPlayerTurn()) return
+
     const p = state.player
     recordInput('combat.attack')
     const enemy = state.currentEnemy
-    if (!p) return
+    if (!p || !enemy) return
     ensurePlayerSpellSystems(p)
 
     const st = p.status || (p.status = {})
@@ -9177,20 +11381,18 @@ function playerBasicAttack() {
         didDamage: false
     }
 
-    // Companion boon can empower basic attacks too.
     if (st.buffFromCompanionTurns && st.buffFromCompanionTurns > 0) {
         ctx.dmgMult *= 1.15
         ctx.consumeCompanionBoon = true
     }
 
-    // Ranger first-hit bonus each fight.
     if (p.classId === 'ranger' && st.firstHitBonusAvailable) {
         ctx.dmgMult *= 1.12
         ctx.consumeFirstHitBonus = true
     }
 
     _setPlayerAbilityContext(ctx)
-    const dmg = calcPhysicalDamage(p.stats.attack * 1.0)
+    const dmg = calcPhysicalDamage((p.stats.attack || 0) * 1.0)
     _setPlayerAbilityContext(null)
 
     enemy.hp -= dmg
@@ -9202,43 +11404,39 @@ function playerBasicAttack() {
     _consumeCompanionBoonIfNeeded(p, ctx)
     if (ctx.consumeFirstHitBonus) st.firstHitBonusAvailable = false
 
-    addLog('You strike the ' + enemy.name + ' for ' + dmg + ' damage.', 'good')
+    addLog('You strike ' + enemy.name + ' for ' + dmg + ' damage.', 'good')
+
+    const _gainMult = getPlayerHasteMultiplier(p, 150)
 
     if (p.resourceKey === 'fury') {
-        p.resource = Math.min(p.maxResource, p.resource + 8)
+        p.resource = Math.min(p.maxResource, (p.resource || 0) + Math.max(1, Math.round(8 * _gainMult)))
     } else if (p.resourceKey === 'blood') {
-        p.resource = Math.min(p.maxResource, p.resource + 5)
+        p.resource = Math.min(p.maxResource, (p.resource || 0) + Math.max(1, Math.round(5 * _gainMult)))
     } else if (p.resourceKey === 'mana') {
-        p.resource = Math.min(p.maxResource, p.resource + 4)
+        p.resource = Math.min(p.maxResource, (p.resource || 0) + Math.max(1, Math.round(4 * _gainMult)))
     } else if (p.resourceKey === 'essence') {
-        p.resource = Math.min(p.maxResource, p.resource + 4)
+        p.resource = Math.min(p.maxResource, (p.resource || 0) + Math.max(1, Math.round(4 * _gainMult)))
     }
 
     updateHUD()
-    updateEnemyPanel()
 
     if (enemy.hp <= 0) {
-        handleEnemyDefeat()
-    } else {
-        // Companion acts, might kill enemy
-        companionActIfPresent()
+        // Defeat handling may end combat and/or advance the target; do it before UI sync.
+        handleEnemyDefeat(enemy)
+    }
 
-        if (!state.inCombat || !state.currentEnemy) {
-            return
-        }
-        if (state.currentEnemy.hp <= 0) {
-            handleEnemyDefeat()
-        } else {
-            enemyTurn()
-        }
+    updateEnemyPanel()
+
+    if (state.inCombat) {
+        endPlayerTurn({ source: 'attack' })
     }
 }
 
 function playerInterrupt() {
-    if (!state.inCombat || !state.currentEnemy) return
+    if (!guardPlayerTurn()) return
     const p = state.player
     const enemy = state.currentEnemy
-    if (!p) return
+    if (!p || !enemy) return
 
     recordInput('combat.interrupt')
     ensurePlayerSpellSystems(p)
@@ -9251,7 +11449,6 @@ function playerInterrupt() {
 
     p.resource -= cost
 
-    // Quick jab / spellbreak: low damage, but can cancel telegraphed attacks.
     const ctx = {
         dmgMult: 1,
         healMult: 1,
@@ -9262,7 +11459,7 @@ function playerInterrupt() {
     }
 
     _setPlayerAbilityContext(ctx)
-    const dmg = calcPhysicalDamage((p.stats.attack || 0) * 0.55)
+    const dmg = calcPhysicalDamage(((p.stats.attack || 0) * 0.55))
     _setPlayerAbilityContext(null)
 
     enemy.hp -= dmg
@@ -9271,43 +11468,22 @@ function playerInterrupt() {
     applyPlayerRegenTick()
 
     if (enemy.intent) {
-        const planned = enemy.intent && enemy.intent.aid ? ENEMY_ABILITIES[enemy.intent.aid] : null
-        clearEnemyIntent(enemy)
+        enemy.intent = null
+        addLog('You disrupt the foe and cancel their telegraphed attack!', 'good')
+    }
 
-        if (!enemy.isBoss) {
-            enemy.stunTurns = Math.max(enemy.stunTurns || 0, 1)
-        } else {
-            // Bosses can't be hard-stunned, but still get their cast disrupted.
-            enemy.chilledTurns = Math.max(enemy.chilledTurns || 0, 1)
-        }
-
-        addLog(
-            'Interrupt! You disrupt ' +
-                enemy.name +
-                (planned ? ' (' + planned.name + ')' : '') +
-                '.',
-            'good'
-        )
+    if (enemy.hp <= 0) {
+        addLog('Your interrupt finishes ' + enemy.name + '!', 'good')
+        handleEnemyDefeat(enemy)
     } else {
-        addLog('You probe for an opening.', 'system')
+        addLog('You interrupt for ' + dmg + ' damage.', 'good')
     }
 
     updateHUD()
     updateEnemyPanel()
 
-    if (enemy.hp <= 0) {
-        handleEnemyDefeat()
-        return
-    }
-
-    // Companion acts, might kill enemy
-    companionActIfPresent()
-
-    if (!state.inCombat || !state.currentEnemy) return
-    if (state.currentEnemy.hp <= 0) {
-        handleEnemyDefeat()
-    } else {
-        enemyTurn()
+    if (state.inCombat) {
+        endPlayerTurn({ source: 'interrupt' })
     }
 }
 
@@ -9315,40 +11491,7 @@ function playerInterrupt() {
 
 // --- ENEMY TURN (ABILITY + LEARNING AI) --------------------------------------
 function ensureEnemyRuntime(enemy) {
-    if (!enemy) return
-    if (!enemy.abilityCooldowns) enemy.abilityCooldowns = {}
-    // Preserve explicitly provided ability kits (including small kits used by unit tests).
-    // Only auto-assign a kit when abilities are missing or empty.
-    if (!Array.isArray(enemy.abilities) || enemy.abilities.length === 0) {
-        enemy.abilities = [...pickEnemyAbilitySet(enemy)]
-    }
-    if (typeof enemy.guardTurns !== 'number') enemy.guardTurns = 0
-    if (typeof enemy.guardArmorBonus !== 'number') enemy.guardArmorBonus = 0
-    if (typeof enemy.enrageTurns !== 'number') enemy.enrageTurns = 0
-    if (typeof enemy.enrageAtkPct !== 'number') enemy.enrageAtkPct = 0
-    if (typeof enemy.baseAttack !== 'number') enemy.baseAttack = Number(enemy.attack || 0)
-    if (typeof enemy.baseMagic !== 'number') enemy.baseMagic = Number(enemy.magic || 0)
-
-    if (typeof enemy.atkDownTurns !== 'number') enemy.atkDownTurns = 0
-    if (typeof enemy.atkDownFlat !== 'number') enemy.atkDownFlat = 0
-    if (typeof enemy.magDownTurns !== 'number') enemy.magDownTurns = 0
-    if (typeof enemy.magDownFlat !== 'number') enemy.magDownFlat = 0
-
-    if (typeof enemy.brokenTurns !== 'number') enemy.brokenTurns = 0
-    if (typeof enemy.postureMax !== 'number' || enemy.postureMax <= 0) {
-        enemy.postureMax = computeEnemyPostureMax(enemy)
-    }
-    if (typeof enemy.posture !== 'number') enemy.posture = 0
-
-    if (!('intent' in enemy)) enemy.intent = null
-
-    // Learning memory (similar vibe to companion AI)
-    if (!enemy.memory) {
-        enemy.memory = {
-            abilityStats: {}, // abilityId -> { value, uses }
-            exploration: 0.22 // epsilon (decays slowly)
-        }
-    }
+    return ensureEnemyRuntimeImpl(enemy, { pickEnemyAbilitySet })
 }
 
 function ensureEnemyAbilityStat(enemy, aid) {
@@ -9394,7 +11537,25 @@ function tickEnemyStartOfTurn(enemy) {
         enemy.enrageTurns -= 1
         if (enemy.enrageTurns <= 0) {
             enemy.attackBuff = 0
+            enemy.enrageAtkPct = 0
             addLog(enemy.name + ' calms down.', 'system')
+        }
+    }
+
+    // Berserk affix: when low, permanently enter an "enraged" state for this fight.
+    if (
+        enemy.affixBerserkAtkPct &&
+        enemy.affixBerserkAtkPct > 0 &&
+        enemy.affixBerserkThreshold &&
+        enemy.affixBerserkThreshold > 0 &&
+        !enemy.affixBerserkActive
+    ) {
+        const ratio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1
+        if (ratio <= enemy.affixBerserkThreshold) {
+            enemy.affixBerserkActive = true
+            enemy.enrageTurns = Math.max(enemy.enrageTurns || 0, 999)
+            enemy.enrageAtkPct = Math.max(enemy.enrageAtkPct || 0, enemy.affixBerserkAtkPct)
+            addLog(enemy.name + ' enters a berserk frenzy!', 'danger')
         }
     }
 
@@ -9405,6 +11566,15 @@ function tickEnemyStartOfTurn(enemy) {
             addLog(enemy.name + ' shakes off the chill.', 'system')
         }
     }
+
+    // Marks (Ranger): ticks down and clears when expired.
+    if (enemy.markedTurns && enemy.markedTurns > 0) {
+        enemy.markedTurns -= 1
+        if (enemy.markedTurns <= 0) {
+            enemy.markedStacks = 0
+        }
+    }
+
 
     // Broken: posture break skips the next action and disrupts telegraphs.
     if (enemy.brokenTurns && enemy.brokenTurns > 0) {
@@ -9444,10 +11614,12 @@ function canUseEnemyAbility(enemy, aid) {
 }
 
 function tickEnemyCooldowns() {
-    const enemy = state.currentEnemy
-    if (!enemy || !enemy.abilityCooldowns) return
-    Object.keys(enemy.abilityCooldowns).forEach((k) => {
-        if (enemy.abilityCooldowns[k] > 0) enemy.abilityCooldowns[k] -= 1
+    const list = (Array.isArray(state.enemies) && state.enemies.length) ? state.enemies : (state.currentEnemy ? [state.currentEnemy] : [])
+    list.forEach((enemy) => {
+        if (!enemy || !enemy.abilityCooldowns) return
+        Object.keys(enemy.abilityCooldowns).forEach((k) => {
+            if (enemy.abilityCooldowns[k] > 0) enemy.abilityCooldowns[k] -= 1
+        })
     })
 }
 
@@ -9682,6 +11854,9 @@ function applyEnemyAbilityToPlayer(enemy, p, aid) {
         }
     }
 
+    // Track actual HP damage for affixes/rewards.
+    const hpDamage = (state.flags && state.flags.godMode) ? 0 : Math.max(0, remaining)
+
     if (remaining > 0) {
         if (state.flags.godMode) {
             addLog('God Mode: You ignore ' + remaining + ' damage.', 'system')
@@ -9698,7 +11873,7 @@ function applyEnemyAbilityToPlayer(enemy, p, aid) {
         addLog('Your thorns deal ' + thorns + ' back to ' + enemy.name + '!', 'good')
         if (enemy.hp <= 0) {
             enemy.hp = 0
-            handleEnemyDefeat()
+            handleEnemyDefeat(enemy)
             return { damageDealt: dmg, healDone: 0, shieldShattered }
         }
     }
@@ -9757,10 +11932,16 @@ function applyEnemyAbilityToPlayer(enemy, p, aid) {
     }
 
     // Text
-    addLog(
-        enemy.name + ' uses ' + ab.name + ' for ' + dmg + ' damage.',
-        'danger'
-    )
+    if (dmg > 0) {
+        addLog(enemy.name + ' uses ' + ab.name + ' on you for ' + dmg + ' damage.', 'danger')
+    } else if (healDone > 0) {
+        addLog(enemy.name + ' uses ' + ab.name + ' and heals ' + healDone + ' HP.', 'danger')
+    } else {
+        addLog(enemy.name + ' uses ' + ab.name + '.', 'danger')
+    }
+
+    // Enemy mini-affixes (vampiric, frozen, hexed, etc.)
+    applyEnemyAffixesOnEnemyHit(enemy, p, { hpDamage: hpDamage, damageTotal: dmg, isMagic: isMagic, abilityId: aid })
 
     return { damageDealt: dmg, healDone, shieldShattered }
 }
@@ -9781,135 +11962,141 @@ function updateEnemyLearning(enemy, aid, reward) {
     )
 }
 
-function enemyTurn() {
-    if (!state.inCombat || !state.currentEnemy) return
+function enemyAct(enemy) {
+    if (!state.inCombat || !enemy) return
     const p = state.player
-    const enemy = state.currentEnemy
     if (!p) return
 
-    ensureEnemyRuntime(enemy)
+    // Keep currentEnemy pointing at the acting enemy for any helper code that relies on it.
+    const prev = state.currentEnemy
+    state.currentEnemy = enemy
 
-    // DoT on enemy (from player/companion), then early-out if it dies
-    applyEndOfTurnEffectsEnemy(enemy)
-    if (enemy.hp <= 0) {
-        handleEnemyDefeat()
-        return
-    }
+    try {
+        ensureEnemyRuntime(enemy)
 
-    // Tick enemy timed states (guard/enrage/chill, debuffs, broken/stun)
-    const skipped = tickEnemyStartOfTurn(enemy)
-    if (skipped) {
-        postEnemyTurn()
-        return
-    }
-
-    // --- Intent (telegraphed attacks) ---
-    if (enemy.intent && enemy.intent.aid) {
-        enemy.intent.turnsLeft = (enemy.intent.turnsLeft || 0) - 1
-        if (enemy.intent.turnsLeft <= 0) {
-            const aid = enemy.intent.aid
-            enemy.intent = null
-
-            const beforeHp = p.hp
-            const beforeEnemyHp = enemy.hp
-            const beforeShield = p.status && p.status.shield ? p.status.shield : 0
-
-            applyEnemyAbilityToPlayer(enemy, p, aid)
-
-            // Simple reward shaping for learning
-            const dmgDealt = Math.max(0, beforeHp - p.hp)
-            const healDone = Math.max(0, enemy.hp - beforeEnemyHp)
-            const shieldDelta = Math.max(
-                0,
-                beforeShield - (p.status && p.status.shield ? p.status.shield : 0)
-            )
-
-            const reward = dmgDealt + healDone * 0.8 + shieldDelta * 0.35
-            updateEnemyLearning(enemy, aid, reward)
-
-            // Fury gain when hit (existing behavior)
-            if (p.resourceKey === 'fury') {
-                p.resource = Math.min(p.maxResource, p.resource + 10)
-            }
-
-            updateHUD()
-
-            if (p.hp <= 0 && !state.flags.godMode) {
-                handlePlayerDefeat()
-                return
-            }
-            if (p.hp <= 0 && state.flags.godMode) {
-                p.hp = 1
-                updateHUD()
-            }
-
-            postEnemyTurn()
-            return
-        } else {
-            addLog(enemy.name + ' continues to ready a powerful attack...', 'system')
-            postEnemyTurn()
+        // DoT on enemy (from player/companion), then early-out if it dies
+        applyEndOfTurnEffectsEnemy(enemy)
+        if (enemy.hp <= 0) {
+            handleEnemyDefeat(enemy)
             return
         }
-    }
 
-    // Choose + use an ability
-    const aid = chooseEnemyAbility(enemy, p)
-    const ab = ENEMY_ABILITIES[aid] || ENEMY_ABILITIES.enemyStrike
+        // Tick enemy timed states (guard/enrage/chill, debuffs, broken/stun)
+        const skipped = tickEnemyStartOfTurn(enemy)
+        if (skipped) {
+            return
+        }
 
-    // Telegraph certain big moves for counterplay.
-    if (ab.telegraphTurns && ab.telegraphTurns > 0) {
-        enemy.intent = { aid: aid, turnsLeft: ab.telegraphTurns }
+        // --- Intent (telegraphed attacks) ---
+        if (enemy.intent && enemy.intent.aid) {
+            enemy.intent.turnsLeft = (enemy.intent.turnsLeft || 0) - 1
+            if (enemy.intent.turnsLeft <= 0) {
+                const aid = enemy.intent.aid
+                enemy.intent = null
 
-        // Commit cooldown on declare (so interrupts are meaningful and don't allow infinite rerolls).
+                const beforeHp = p.hp
+                const beforeEnemyHp = enemy.hp
+                const beforeShield = p.status && p.status.shield ? p.status.shield : 0
+
+                applyEnemyAbilityToPlayer(enemy, p, aid)
+
+                const dmgDealt = Math.max(0, beforeHp - p.hp)
+                const healDone = Math.max(0, enemy.hp - beforeEnemyHp)
+                const shieldDelta = Math.max(
+                    0,
+                    beforeShield - (p.status && p.status.shield ? p.status.shield : 0)
+                )
+
+                const reward = dmgDealt + healDone * 0.8 + shieldDelta * 0.35
+                updateEnemyLearning(enemy, aid, reward)
+
+                if (p.resourceKey === 'fury') {
+                    p.resource = Math.min(p.maxResource, (p.resource || 0) + 10)
+                }
+
+                updateHUD()
+
+                if (p.hp <= 0 && !state.flags.godMode) {
+                    handlePlayerDefeat()
+                    return
+                }
+                if (p.hp <= 0 && state.flags.godMode) {
+                    p.hp = 1
+                    updateHUD()
+                }
+
+                return
+            } else {
+                addLog(enemy.name + ' continues to ready a powerful attack...', 'system')
+                return
+            }
+        }
+
+        // Choose + use an ability
+        const aid = chooseEnemyAbility(enemy, p)
+        const ab = ENEMY_ABILITIES[aid] || ENEMY_ABILITIES.enemyStrike
+
+        // Telegraph certain big moves for counterplay.
+        if (ab.telegraphTurns && ab.telegraphTurns > 0) {
+            enemy.intent = { aid: aid, turnsLeft: ab.telegraphTurns }
+
+            // Commit cooldown on declare
+            const cd = ab.cooldown || 0
+            if (cd > 0) enemy.abilityCooldowns[aid] = cd
+
+            const msg = ab.telegraphText
+                ? enemy.name + ' ' + ab.telegraphText
+                : enemy.name + ' prepares ' + ab.name + '!'
+            addLog(msg, 'danger')
+            return
+        }
+
         const cd = ab.cooldown || 0
         if (cd > 0) enemy.abilityCooldowns[aid] = cd
 
-        const msg = ab.telegraphText
-            ? enemy.name + ' ' + ab.telegraphText
-            : enemy.name + ' prepares ' + ab.name + '!'
-        addLog(msg, 'danger')
-        postEnemyTurn()
-        return
-    }
+        const beforeHp = p.hp
+        const beforeEnemyHp = enemy.hp
+        const beforeShield = p.status && p.status.shield ? p.status.shield : 0
 
-    // Put it on cooldown
-    const cd = ab.cooldown || 0
-    if (cd > 0) enemy.abilityCooldowns[aid] = cd
+        applyEnemyAbilityToPlayer(enemy, p, aid)
 
-    const beforeHp = p.hp
-    const beforeEnemyHp = enemy.hp
-    const beforeShield = p.status && p.status.shield ? p.status.shield : 0
+        const dmgDealt = Math.max(0, beforeHp - p.hp)
+        const healDone = Math.max(0, enemy.hp - beforeEnemyHp)
+        const shieldDelta = Math.max(
+            0,
+            beforeShield - (p.status && p.status.shield ? p.status.shield : 0)
+        )
 
-    applyEnemyAbilityToPlayer(enemy, p, aid)
+        const reward = dmgDealt + healDone * 0.8 + shieldDelta * 0.35
+        updateEnemyLearning(enemy, aid, reward)
 
-    // Simple reward shaping for learning
-    const dmgDealt = Math.max(0, beforeHp - p.hp)
-    const healDone = Math.max(0, enemy.hp - beforeEnemyHp)
-    const shieldDelta = Math.max(
-        0,
-        beforeShield - (p.status && p.status.shield ? p.status.shield : 0)
-    )
+        if (p.resourceKey === 'fury') {
+            p.resource = Math.min(p.maxResource, (p.resource || 0) + 10)
+        }
 
-    const reward = dmgDealt + healDone * 0.8 + shieldDelta * 0.35
-    updateEnemyLearning(enemy, aid, reward)
-
-    // Fury gain when hit (existing behavior)
-    if (p.resourceKey === 'fury') {
-        p.resource = Math.min(p.maxResource, p.resource + 10)
-    }
-
-    updateHUD()
-
-    if (p.hp <= 0 && !state.flags.godMode) {
-        handlePlayerDefeat()
-        return
-    }
-    if (p.hp <= 0 && state.flags.godMode) {
-        p.hp = 1
         updateHUD()
-    }
 
-    postEnemyTurn()
+        if (p.hp <= 0 && !state.flags.godMode) {
+            handlePlayerDefeat()
+            return
+        }
+        if (p.hp <= 0 && state.flags.godMode) {
+            p.hp = 1
+            updateHUD()
+        }
+    } finally {
+        // Restore previous target (UI) after acting.
+        state.currentEnemy = prev
+    }
+}
+
+function enemyTurn() {
+    if (!state.inCombat || !state.currentEnemy) return
+    const acting = state.currentEnemy
+    enemyAct(acting)
+    if (state.inCombat) {
+        postEnemyTurn()
+    }
 }
 
 function applyEndOfTurnEffectsEnemy(enemy) {
@@ -9936,6 +12123,18 @@ if (enemy.eliteRegenPct && enemy.eliteRegenPct > 0 && enemy.hp > 0) {
         addLog(enemy.name + ' regenerates ' + gained + ' HP.', 'system')
     }
 }
+
+// Mini-affix regen (separate from Elite regen; stacks if both exist)
+if (enemy.affixRegenPct && enemy.affixRegenPct > 0 && enemy.hp > 0) {
+    const before = enemy.hp
+    const heal = Math.max(1, Math.round(enemy.maxHp * enemy.affixRegenPct))
+    enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal)
+    const gained = enemy.hp - before
+    if (gained > 0) {
+        addLog(enemy.name + ' regenerates ' + gained + ' HP.', 'system')
+    }
+}
+
 }
 
 function decideEnemyAction(enemy, player) {
@@ -10020,7 +12219,14 @@ function decideEnemyAction(enemy, player) {
 function applyEndOfTurnEffectsPlayer(p) {
     if (!p || !p.status) return
 
-    // Bleed/poison ticking (used by enemy abilities)
+    // Reserved for end-of-round effects (non-bleed). In Patch 1.1.9, bleed damage now
+    // ticks at the start of the affected actor's turn to match true turn order.
+}
+
+function applyStartOfTurnEffectsPlayer(p) {
+    if (!p || !p.status) return
+
+    // Bleed ticking (used by enemy abilities)
     if (
         p.status.bleedTurns &&
         p.status.bleedTurns > 0 &&
@@ -10038,6 +12244,34 @@ function applyEndOfTurnEffectsPlayer(p) {
             p.status.bleedDamage = 0
         }
     }
+}
+
+// Called once when the player's turn begins (Patch 1.1.9 true turn order).
+// This is where player bleed is applied. We guard against double-application
+// by stamping the current combat round.
+function beginPlayerTurn() {
+    if (!state || !state.inCombat) return
+    const c = ensureCombatTurnState()
+    if (!c || c.busy) return
+
+    const round = Number.isFinite(c.round) ? c.round : 1
+    if (c._lastPlayerTurnRoundApplied === round) return
+    c._lastPlayerTurnRoundApplied = round
+
+    const p = state.player
+    applyStartOfTurnEffectsPlayer(p)
+
+    // If bleed kills you, resolve defeat before returning control.
+    if (p && p.hp <= 0 && !state.flags.godMode) {
+        handlePlayerDefeat()
+        return
+    }
+    if (p && p.hp <= 0 && state.flags.godMode) {
+        p.hp = 1
+    }
+
+    updateHUD()
+    updateEnemyPanel()
 }
 
 function tickPlayerTimedStatuses() {
@@ -10076,6 +12310,15 @@ function tickPlayerTimedStatuses() {
         if (st.magicResDownTurns <= 0) {
             st.magicResDown = 0
             addLog('Arcane resistance returns.', 'system')
+        }
+    }
+
+    // chilled: reduced outgoing damage (affix / frost)
+    if (st.chilledTurns && st.chilledTurns > 0) {
+        st.chilledTurns -= 1
+        if (st.chilledTurns <= 0) {
+            st.chilledTurns = 0
+            addLog('Warmth returns to your limbs.', 'system')
         }
     }
 
@@ -10130,32 +12373,53 @@ function tickPlayerTimedStatuses() {
             addLog('You stop moving so evasively.', 'system')
         }
     }
+
+
+    // Patch 1.1.7: necromancer lich form
+    if (st.lichTurns > 0) {
+        st.lichTurns -= 1
+        if (st.lichTurns <= 0) {
+            addLog('Lich Form fades.', 'system')
+        }
+    }
+
+    // Patch 1.1.7: shaman totems
+    if (st.totemTurns > 0) {
+        st.totemTurns -= 1
+        if (st.totemTurns <= 0) {
+            st.totemType = ''
+            addLog('Your totem crumbles to dust.', 'system')
+        }
+    }
+
+    // Patch 1.1.7: rogue vanish
+    if (st.vanishTurns > 0) {
+        st.vanishTurns -= 1
+        if (st.vanishTurns <= 0) {
+            addLog('You step back into the light.', 'system')
+        }
+    }
 }
 
 function postEnemyTurn() {
     const p = state.player
     if (!p) return
 
+    const _hasteMult = getPlayerHasteMultiplier(p, 120)
+
     // Passive resource regen at end of round
     if (p.resourceKey === 'mana') {
-        p.resource = Math.min(p.maxResource, p.resource + 6)
+        p.resource = Math.min(p.maxResource, p.resource + Math.max(1, Math.round(6 * _hasteMult)))
     } else if (p.resourceKey === 'essence') {
-        p.resource = Math.min(p.maxResource, p.resource + 5)
+        p.resource = Math.min(p.maxResource, p.resource + Math.max(1, Math.round(5 * _hasteMult)))
     } else if (p.resourceKey === 'blood') {
-        p.resource = Math.min(p.maxResource, p.resource + 4)
+        p.resource = Math.min(p.maxResource, p.resource + Math.max(1, Math.round(4 * _hasteMult)))
     }
 
-    // Player DoTs / timed states tick here, so they matter.
+    // End-of-round effects (resource regen + HP regen + timed statuses).
     applyEndOfTurnEffectsPlayer(p)
-
-    // If bleed kills you, resolve defeat before returning control.
-    if (p.hp <= 0 && !state.flags.godMode) {
-        handlePlayerDefeat()
-        return
-    }
-    if (p.hp <= 0 && state.flags.godMode) {
-        p.hp = 1
-    }
+    // HP Regen affix ticks on round boundaries.
+    applyPlayerRegenTick()
 
     tickPlayerTimedStatuses()
 
@@ -10232,23 +12496,68 @@ function recordBattleResult(outcome) {
     }
 }
 
-function handleEnemyDefeat() {
-    const enemy = state.currentEnemy
-    state.inCombat = false
-    addLog('You defeated the ' + enemy.name + (enemy.isElite ? ' [Elite]' : '') + '!', 'good')
+function handleEnemyDefeat(enemyArg) {
+    const enemy = enemyArg || state.currentEnemy
+    if (!enemy) return
+
+    // Mark dead
+    enemy.hp = 0
+
+    const rarityTag =
+        enemy.rarityLabel && Number.isFinite(enemy.rarityTier) && enemy.rarityTier >= 3
+            ? ' [' + enemy.rarityLabel + ']'
+            : ''
+
+    const all = getAllEnemies()
+    const alive = getAliveEnemies()
+
+
+    // IMPORTANT: grantExperience() triggers a save/invariant scan.
+    // If this defeat ends the battle, clear combat state BEFORE granting XP so
+    // we never save with inCombat=true and no currentEnemy.
+    if (!alive.length) {
+        state.inCombat = false
+        state.currentEnemy = null
+        state.enemies = []
+        state.targetEnemyIndex = 0
+        if (state.combat) {
+            state.combat.busy = false
+            state.combat.phase = 'player'
+        }
+    } else {
+        // Mid-battle saves require a valid living target.
+        try { syncCurrentEnemyToTarget() } catch (_) {}
+    }
+
+    addLog(
+        'You defeated ' + enemy.name + (enemy.isElite ? ' [Elite]' : '') + rarityTag + '!',
+        'good'
+    )
 
     const xp = enemy.xp
     const gold =
         enemy.goldMin +
         randInt(0, enemy.goldMax - enemy.goldMin, 'loot.gold')
+
     addLog('You gain ' + xp + ' XP and ' + gold + ' gold.', 'good')
 
     state.player.gold += gold
     grantExperience(xp)
 
-    // Loot drops: dynamically generated, leveled, with rarities (potions + gear).
-    const dropChance = enemy.isBoss ? 1.0 : enemy.isElite ? 0.9 : 0.7
-    if (rand('loot.drop') < dropChance) {
+    // Loot drops (cap drops in multi-enemy battles to reduce spam)
+    const c = ensureCombatTurnState()
+    const dropsSoFar = c ? (c.battleDrops || 0) : 0
+
+    let dropChance = enemy.isBoss ? 1.0 : enemy.isElite ? 0.9 : 0.7
+    if (all.length > 1 && !enemy.isBoss) dropChance *= 0.85
+
+    if (typeof enemy.rarityDropMult === 'number' && Number.isFinite(enemy.rarityDropMult)) {
+        dropChance = Math.max(0, Math.min(1.0, dropChance * enemy.rarityDropMult))
+    }
+
+    const dropCap = all.length > 1 ? 2 : 99
+
+    if (dropsSoFar < dropCap && rand('loot.drop') < dropChance) {
         const drops = generateLootDrop({
             area: state.area,
             playerLevel: state.player.level,
@@ -10257,9 +12566,7 @@ function handleEnemyDefeat() {
         })
 
         if (drops && drops.length) {
-            drops.forEach((d) =>
-                addGeneratedItemToInventory(d, d.quantity || 1)
-            )
+            drops.forEach((d) => addGeneratedItemToInventory(d, d.quantity || 1))
 
             const names = drops
                 .map(
@@ -10271,19 +12578,38 @@ function handleEnemyDefeat() {
                 )
                 .join(', ')
 
-            addLog('You loot ' + names + ' from the corpse.', 'good')
+            addLog('You loot ' + names + '.', 'good')
+
+            if (c) c.battleDrops = (c.battleDrops || 0) + 1
         }
     }
-    // Main/side quest progression triggered by boss defeats
+
+    // Quest progression triggered by boss defeats
     quests.applyQuestProgressOnEnemyDefeat(enemy)
 
-    // NEW: village economy reacts to monsters you clear near trade routes
+    // If any enemies remain, keep fighting.
+    if (alive.length > 0) {
+        // Ensure target is valid.
+        syncCurrentEnemyToTarget()
+        updateHUD()
+        updateEnemyPanel()
+        renderActions()
+        saveGame()
+        return
+    }
+
+    // Battle ends.
+    state.inCombat = false
+
+    // Economy reacts once per battle
     handleEconomyAfterBattle(state, enemy, state.area)
 
-    // tell dynamic difficulty we won a fight
+    // dynamic difficulty: one result per battle
     recordBattleResult('win')
 
     state.currentEnemy = null
+    state.enemies = []
+
     updateHUD()
     updateEnemyPanel()
     renderActions()
@@ -10293,11 +12619,29 @@ function handleEnemyDefeat() {
 function handlePlayerDefeat() {
     // inform dynamic difficulty system of the loss
     recordBattleResult('loss')
+
+    // Mark as defeated so exploration/actions can't proceed behind the defeat screen.
+    if (!state.flags) state.flags = {}
+    state.flags.playerDefeated = true
+
+    // Clamp to dead state
+    if (state.player && !state.flags.godMode) state.player.hp = 0
+
     addLog('You fall to the ground, defeated.', 'danger')
+
+    // Clear combat state completely (multi-enemy aware)
     state.inCombat = false
     state.currentEnemy = null
+    state.enemies = []
+    state.targetEnemyIndex = 0
+    if (state.combat) {
+        state.combat.busy = false
+        state.combat.phase = 'player'
+    }
+
     resetPlayerCombatStatus(state.player)
     updateHUD()
+
     openModal('Defeat', (body) => {
         const p = document.createElement('p')
         p.className = 'modal-subtitle'
@@ -10312,6 +12656,7 @@ function handlePlayerDefeat() {
         btnLoad.className = 'btn outline'
         btnLoad.textContent = 'Load Last Save'
         btnLoad.addEventListener('click', () => {
+            try { if (modalEl) modalEl.dataset.lock = '0' } catch (_) {}
             closeModal()
             loadGame(true)
         })
@@ -10320,6 +12665,7 @@ function handlePlayerDefeat() {
         btnMenu.className = 'btn outline'
         btnMenu.textContent = 'Main Menu'
         btnMenu.addEventListener('click', () => {
+            try { if (modalEl) modalEl.dataset.lock = '0' } catch (_) {}
             closeModal()
             switchScreen('mainMenu')
         })
@@ -10328,15 +12674,28 @@ function handlePlayerDefeat() {
         row.appendChild(btnMenu)
         body.appendChild(row)
     })
+
+    // Make defeat modal non-dismissable by clicking outside / pressing ESC.
+    try {
+        if (modalEl) {
+            modalEl.dataset.lock = '1'
+            modalEl.dataset.owner = 'defeat'
+        }
+        const closeBtn = document.getElementById('modalClose')
+        if (closeBtn) closeBtn.style.display = 'none'
+    } catch (_) {}
 }
 
 function tryFlee() {
-    if (!state.inCombat || !state.currentEnemy) return
+    if (!state.inCombat) return
+    if (!guardPlayerTurn()) return
+
     const chance = 0.45
     if (rand('encounter.pick') < chance) {
         addLog('You slip away from the fight.', 'system')
         state.inCombat = false
         state.currentEnemy = null
+        state.enemies = []
         resetPlayerCombatStatus(state.player)
         setScene(
             'On the Path',
@@ -10348,7 +12707,7 @@ function tryFlee() {
         saveGame()
     } else {
         addLog('You fail to escape!', 'danger')
-        enemyTurn()
+        endPlayerTurn({ source: 'fleeFail' })
     }
 }
 
@@ -10736,7 +13095,7 @@ function companionActIfPresent() {
         // Default to doing damage (most basic behavior)
         const dmg = Math.max(1, calcCompanionDamage(comp, false))
         enemy.hp -= dmg
-        addLog(comp.name + ' strikes for ' + dmg + ' damage.', 'good')
+        addLog(comp.name + ' strikes ' + enemy.name + ' for ' + dmg + ' damage.', 'good')
 
         // small learning update: reward "attack" as a pseudo-ability so AI can learn if plain attacks are often best
         const pseudo = '_plainAttack'
@@ -10751,7 +13110,7 @@ function companionActIfPresent() {
 
         // After dealing damage, check defeat
         if (enemy.hp <= 0) {
-            handleEnemyDefeat()
+            handleEnemyDefeat(enemy)
             return
         }
         return
@@ -11045,163 +13404,224 @@ function tickCompanionCooldowns() {
     }
 }
 
-const ELITE_AFFIXES = [
-    {
-        id: 'enraged',
-        label: 'Enraged',
-        hpMult: 1.15,
-        atkMult: 1.25,
-        magMult: 1.25,
-        armorMult: 1.05,
-        resMult: 1.05,
-        xpMult: 1.45,
-        goldMult: 1.35
-    },
-    {
-        id: 'bulwark',
-        label: 'Bulwark',
-        hpMult: 1.35,
-        atkMult: 1.10,
-        magMult: 1.10,
-        armorMult: 1.30,
-        resMult: 1.30,
-        xpMult: 1.55,
-        goldMult: 1.45
-    },
-    {
-        id: 'regenerating',
-        label: 'Regenerating',
-        hpMult: 1.25,
-        atkMult: 1.10,
-        magMult: 1.10,
-        armorMult: 1.10,
-        resMult: 1.10,
-        xpMult: 1.55,
-        goldMult: 1.45,
-        regenPct: 0.04 // heals 4% max HP at end of its turn
+// Enemy elite/rarity/affix logic lives in Systems/Enemy.
+function applyEnemyAffixes(enemy, opts = {}) {
+    const areaId = (typeof state !== 'undefined' && state && state.area) ? state.area : 'village'
+    return applyEnemyAffixesImpl(enemy, opts, { diffCfg: getActiveDifficultyConfig(), areaId, rand, randInt })
+}
+
+function getEnemyAffixLabels(enemy) {
+    return getEnemyAffixLabelsImpl(enemy)
+}
+
+function rebuildEnemyDisplayName(enemy) {
+    return rebuildEnemyDisplayNameImpl(enemy)
+}
+
+function applyEnemyAffixesOnEnemyHit(enemy, p, info) {
+    return applyEnemyAffixesOnEnemyHitImpl(enemy, p, info || {}, { rand, addLog })
+}
+
+// Apply direct damage to the player, respecting shields and God Mode.
+// Used by enemy mini-affixes (ex: Thorns reflect) and referenced by smoke tests.
+// Returns the actual HP damage dealt (after shield absorption).
+function applyDirectDamageToPlayer(player, amount, opts = {}) {
+    if (!player) return 0
+    const st = player.status || (player.status = {})
+    let dmg = Math.max(0, Math.round(Number(amount || 0)))
+    if (!Number.isFinite(dmg) || dmg <= 0) return 0
+
+    let remaining = dmg
+    // Shield absorption (same semantics as enemy ability damage).
+    if (st.shield && st.shield > 0) {
+        const absorbed = Math.min(remaining, st.shield)
+        st.shield -= absorbed
+        remaining -= absorbed
+        if (absorbed > 0 && !opts.silentShieldLog) {
+            try {
+                addLog('Your shield absorbs ' + absorbed + ' damage.', 'system')
+            } catch (_) {}
+        }
     }
-]
+
+    const god = !!(state && state.flags && state.flags.godMode)
+    const hpDamage = god ? 0 : Math.max(0, remaining)
+    if (remaining > 0) {
+        if (god) {
+            try {
+                addLog('God Mode: You ignore ' + remaining + ' damage.', 'system')
+            } catch (_) {}
+        } else {
+            player.hp = Number.isFinite(player.hp) ? player.hp - remaining : 0
+        }
+    }
+
+    // Optional message (affixes typically pass a source).
+    if (opts && opts.source) {
+        try {
+            addLog(opts.source + ' deals ' + dmg + ' damage.', 'danger')
+        } catch (_) {}
+    }
+
+    // Clamp + defeat handling (keeps combat stable if reflect kills the player).
+    if (!god) {
+        if (!Number.isFinite(player.hp)) player.hp = 0
+        if (player.hp < 0) player.hp = 0
+        if (player.hp <= 0 && state && state.inCombat) {
+            try {
+                handlePlayerDefeat()
+            } catch (_) {}
+        }
+    } else {
+        if (state && state.inCombat && player.hp <= 0) player.hp = 1
+    }
+
+    try {
+        if (state && state.inCombat) updateHUD()
+    } catch (_) {}
+
+    return hpDamage
+}
+
+function applyEnemyAffixesOnPlayerHit(enemy, damageDealt) {
+    const player = (typeof state !== 'undefined' && state && state.player) ? state.player : null
+    return applyEnemyAffixesOnPlayerHitImpl(enemy, player, damageDealt, { applyDirectDamageToPlayer })
+}
+
 
 function applyEliteModifiers(enemy, diff) {
-    if (!enemy || enemy.isBoss) return
-
-    // Avoid elites in the village/tutorial area
-    if ((state.area || 'village') === 'village') return
-
-    // Difficulty-based tuning
-    const diffId = state.difficulty || 'normal'
-    const chance =
-        diffId === 'easy'
-            ? ELITE_BASE_CHANCE * 0.7
-            : diffId === 'hard'
-            ? ELITE_BASE_CHANCE * 1.35
-            : ELITE_BASE_CHANCE
-
-    if (rand('elite.affixChance') >= chance) return
-
-    const affix = ELITE_AFFIXES[randInt(0, ELITE_AFFIXES.length - 1, 'elite.affixPick')]
-    enemy.isElite = true
-    enemy.eliteAffix = affix.id
-    enemy.eliteLabel = affix.label
-    enemy.eliteRegenPct = affix.regenPct || 0
-
-    // Prefix name for readability
-    enemy.name = affix.label + ' ' + enemy.name
-
-    // Stat bumps (done after base scaling)
-    enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * (affix.hpMult || 1)))
-    enemy.hp = enemy.maxHp
-    enemy.attack = Math.max(0, Math.round((enemy.attack || 0) * (affix.atkMult || 1)))
-    enemy.magic = Math.max(0, Math.round((enemy.magic || 0) * (affix.magMult || 1)))
-    enemy.armor = Math.max(0, Math.round((enemy.armor || 0) * (affix.armorMult || 1)))
-    enemy.magicRes = Math.max(0, Math.round((enemy.magicRes || 0) * (affix.resMult || 1)))
-
-    enemy.xp = Math.max(1, Math.round((enemy.xp || 1) * (affix.xpMult || 1)))
-    enemy.goldMin = Math.max(0, Math.round((enemy.goldMin || 0) * (affix.goldMult || 1)))
-    enemy.goldMax = Math.max(enemy.goldMin, Math.round((enemy.goldMax || enemy.goldMin || 0) * (affix.goldMult || 1)))
+    const areaId = (typeof state !== 'undefined' && state && state.area) ? state.area : 'village'
+    return applyEliteModifiersImpl(enemy, diff, { areaId, rand, randInt })
 }
 
 function startBattleWith(templateId) {
     const template = ENEMY_TEMPLATES[templateId]
     if (!template) return
 
-    recordInput('combat.start', { templateId, area: state && state.area ? state.area : null })
+    // Guard: do not start a new battle if we're already in combat.
+    // This prevents re-entrant explore clicks or modal flows from corrupting combat state.
+    if (state && state.inCombat) {
+        try { ensureCombatPointers() } catch (_) {}
+        return
+    }
+
+    recordInput('combat.start', {
+        templateId,
+        area: state && state.area ? state.area : null
+    })
 
     const diff = getActiveDifficultyConfig()
 
-    // --- Zone-based enemy level scaling ---------------------------------------
+    // Zone-based enemy level scaling
     const areaId = state.area || 'village'
     const zone = ZONE_DEFS[areaId] || { minLevel: 1, maxLevel: 1 }
 
-    const minL = Math.max(1, Number(zone.minLevel || 1))
-    const maxL = Math.max(minL, Number(zone.maxLevel || minL))
+    // Multi-enemy encounter sizing (Patch 1.1.9)
+    // Patch 1.1.92: encounter sizing is now difficulty-weighted.
+    //  - Easy:   almost always 1 enemy; rarely 2; never 3.
+    //  - Normal: mostly 1 enemy; noticeably higher chance for 2; rare 3.
+    //  - Hard:   mostly 2 enemies; sometimes 3; rarely 1.
+    let groupSize = 1
+    if (!template.isBoss) {
+        const r = rand('encounter.groupSize')
 
-    const chosenLevel = template.isBoss
-        ? maxL
-        : randInt(minL, maxL, 'loot.levelRoll')
+        // Use closestId so Dynamic difficulty also maps cleanly.
+        // Use closestId so Dynamic difficulty also maps cleanly.
+        // NOTE: getActiveDifficultyConfig() returns { id:'dynamic', closestId:'easy'|'normal'|'hard' } for Dynamic.
+        // For fixed difficulties, closestId is undefined so we fall back to diff.id.
+        let diffId = 'normal'
+        if (diff && typeof diff.id === 'string') {
+            if (diff.id === 'dynamic') diffId = (diff.closestId || 'normal')
+            else diffId = diff.id
+        }
+        diffId = String(diffId).toLowerCase()
 
-    const baseLevel = Math.max(1, Number(template.baseLevel || minL))
-    const delta = chosenLevel - baseLevel
+        if (diffId === 'easy') {
+            // ~95%:1, ~5%:2, 0%:3
+            if (r < 0.05) groupSize = 2
+        } else if (diffId === 'hard') {
+            // ~10%:1, ~65%:2, ~25%:3
+            if (r < 0.25) groupSize = 3
+            else if (r < 0.90) groupSize = 2
+        } else {
+            // Normal (default): ~70%:1, ~28%:2, ~2%:3
+            if (r < 0.02) groupSize = 3
+            else if (r < 0.30) groupSize = 2
+        }
+    }
 
-    // Exponential growth curve keeps early scaling gentle, late scaling meaningful.
-    // Patch 1.1.1: slightly gentler zone scaling to reduce late-fight slog.
-    const hpFactor = Math.pow(1.14, delta)
-    const atkFactor = Math.pow(1.11, delta)
-    const magFactor = Math.pow(1.11, delta)
-    const armorFactor = Math.pow(1.05, delta)
-    const resFactor = Math.pow(1.05, delta)
-    const xpFactor = Math.pow(1.16, delta)
-    const goldFactor = Math.pow(1.13, delta)
+    const enemies = []
+    for (let i = 0; i < groupSize; i++) {
+        const enemy = buildEnemyForBattle(template, {
+            zone,
+            diffCfg: diff,
+            areaId,
+            rand,
+            randInt,
+            pickEnemyAbilitySet
+        })
+        if (!enemy) continue
 
-    const enemy = JSON.parse(JSON.stringify(template))
-    enemy.level = chosenLevel
+        // Runtime combat state
+        enemy.armorBuff = 0
+        enemy.guardTurns = 0
+        enemy.bleedTurns = 0
+        enemy.bleedDamage = 0
 
-    // HP is difficulty-scaled here.
-    enemy.maxHp = Math.max(
-        1,
-        Math.round(enemy.maxHp * hpFactor * diff.enemyHpMod)
-    )
-    enemy.hp = enemy.maxHp
+        // Group tuning: slightly squish per-enemy durability.
+        if (groupSize === 2) {
+            enemy.maxHp = Math.max(1, Math.floor(enemy.maxHp * 0.78))
+            enemy.attack = Math.max(1, Math.floor(enemy.attack * 0.92))
+            enemy.magic = Math.max(0, Math.floor(enemy.magic * 0.92))
+        } else if (groupSize === 3) {
+            enemy.maxHp = Math.max(1, Math.floor(enemy.maxHp * 0.66))
+            enemy.attack = Math.max(1, Math.floor(enemy.attack * 0.88))
+            enemy.magic = Math.max(0, Math.floor(enemy.magic * 0.88))
+        }
+        enemy.hp = enemy.maxHp
 
-    // Build runtime fields (abilities, cooldowns, AI memory, etc.)
-    ensureEnemyRuntime(enemy)
+        if (groupSize > 1) {
+            enemy.name = enemy.name + ' #' + (i + 1)
+        }
 
-    // IMPORTANT: Enemy damage is difficulty-scaled inside calcEnemyDamage().
-    enemy.attack = Math.max(0, Math.round((enemy.attack || 0) * atkFactor))
-    enemy.magic = Math.max(0, Math.round((enemy.magic || 0) * magFactor))
-    enemy.armor = Math.max(0, Math.round((enemy.armor || 0) * armorFactor))
-    enemy.magicRes = Math.max(0, Math.round((enemy.magicRes || 0) * resFactor))
+        enemies.push(enemy)
+    }
 
-    enemy.xp = Math.max(1, Math.round((enemy.xp || 1) * xpFactor))
-    enemy.goldMin = Math.max(0, Math.round((enemy.goldMin || 0) * goldFactor))
-    enemy.goldMax = Math.max(
-        enemy.goldMin,
-        Math.round((enemy.goldMax || enemy.goldMin || 0) * goldFactor)
-    )
-
-    
-
-    // Optional: roll a non-boss Elite variant (harder fight, better rewards)
-    applyEliteModifiers(enemy, diff)
-// Runtime combat state
-    enemy.armorBuff = 0
-    enemy.guardTurns = 0
-    enemy.bleedTurns = 0
-    enemy.bleedDamage = 0
+    if (!enemies.length) return
 
     resetPlayerCombatStatus(state.player)
-    state.currentEnemy = enemy
+
+    state.enemies = enemies
+    state.targetEnemyIndex = 0
+    state.currentEnemy = enemies[0]
     state.inCombat = true
 
-    const tags = enemy.isBoss ? ' [Boss]' : ''
-    setScene(
-        'Battle – ' + enemy.name,
-        enemy.name + tags + ' stands in your way.'
-    )
-    addLog('A ' + enemy.name + ' appears!', enemy.isBoss ? 'danger' : 'system')
+    // Initialize the turn engine.
+    ensureCombatTurnState()
+    state.combat.phase = 'player'
+    state.combat.busy = false
+    state.combat.round = 1
+    state.combat.battleDrops = 0
 
-    renderActions()
+    const tags = enemies.some((e) => e.isBoss) ? ' [Boss]' : ''
+    const titleName = groupSize === 1 ? enemies[0].name : 'Enemies (' + groupSize + ')'
+
+    setScene('Battle - ' + titleName, titleName + tags + ' stands in your way.')
+
+    if (groupSize === 1) {
+        addLog('A ' + enemies[0].name + ' appears!', enemies[0].isBoss ? 'danger' : 'system')
+    } else {
+        addLog('Enemies appear: ' + enemies.map((e) => e.name).join(', ') + '!', 'danger')
+    }
+
+    // Start-of-turn effects for the player (e.g., bleed) should apply as soon as
+    // the player is given control for the first turn.
+    beginPlayerTurn()
+
+    // Ensure HUD + class meters update as soon as the enemies spawn.
+    updateHUD()
     updateEnemyPanel()
+    renderActions()
     saveGame()
 }
 // --- AREA / EXPLORATION UI ----------------------------------------------------
@@ -11297,6 +13717,14 @@ function getAreaDisplayName(areaId) {
 // 🔸 Explore should NEVER open the area picker – it just explores the current area.
 function handleExploreClick() {
     recordInput('explore.click', { area: state && state.area ? state.area : null })
+
+    // Never allow exploration clicks during combat.
+    if (state && state.inCombat) {
+        try { ensureCombatPointers() } catch (_) {}
+        addLog('You cannot explore while in combat.', 'danger')
+        return
+    }
+
     exploreArea()
 }
 
@@ -11386,6 +13814,14 @@ function openExploreModal() {
 
             if (unlocked) {
                 btn.addEventListener('click', () => {
+                    // Guard: do not allow travel/explore selection while in combat.
+                    // This prevents mid-combat modal navigation from desyncing combat state.
+                    if (state && state.inCombat) {
+                        try { ensureCombatPointers() } catch (_) {}
+                        addLog('You cannot travel while in combat.', 'danger')
+                        return
+                    }
+
                     // Lock in this choice for repeated exploring
                     recordInput('travel', { to: info.id })
                     state.area = info.id
@@ -11422,6 +13858,24 @@ function openExploreModal() {
 // --- EXPLORATION & QUESTS -----------------------------------------------------
 
 function exploreArea() {
+    const p = state.player
+    if (p && finiteNumber(p.hp, 0) <= 0) {
+        if (state.flags && state.flags.godMode) {
+            p.hp = 1
+        } else {
+            // If the player is defeated, keep them on the defeat screen.
+            handlePlayerDefeat()
+            return
+        }
+    }
+
+    // Guard: never run exploration logic while in combat (prevents state corruption).
+    if (state && state.inCombat) {
+        try { ensureCombatPointers() } catch (_) {}
+        addLog('You cannot explore while in combat.', 'danger')
+        return
+    }
+
     const area = state.area
     recordInput('explore', { area })
 
@@ -11880,18 +14334,15 @@ function openInGameSettingsModal() {
         // Safety: if state doesn't exist yet, just show a simple message
         if (typeof state === 'undefined' || !state) {
             const msg = document.createElement('p')
-            msg.textContent =
-                'Settings are unavailable until a game is running.'
+            msg.textContent = 'Settings are unavailable until a game is running.'
             body.appendChild(msg)
 
             const actions = document.createElement('div')
             actions.className = 'modal-actions'
             const btnBack = document.createElement('button')
-            btnBack.className = 'btn'
+            btnBack.className = 'btn outline'
             btnBack.textContent = 'Back'
-            btnBack.addEventListener('click', () => {
-                closeModal()
-            })
+            btnBack.addEventListener('click', () => closeModal())
             actions.appendChild(btnBack)
             body.appendChild(actions)
             return
@@ -11899,207 +14350,255 @@ function openInGameSettingsModal() {
 
         const intro = document.createElement('p')
         intro.className = 'modal-subtitle'
-        intro.textContent =
-            'Adjust your in-game options. Changes apply immediately.'
+        intro.textContent = 'Changes apply immediately.'
         body.appendChild(intro)
 
         const container = document.createElement('div')
-        container.className = 'settings-modal-body'
+        // Compact settings layout so it fits better on mobile while keeping sections.
+        container.className = 'settings-modal-body settings-sections settings-compact'
 
-        // --- Volume ---------------------------------------------------------------
-        const volRow = document.createElement('div')
-        volRow.className = 'settings-row'
+        const addSection = (title) => {
+            const sec = document.createElement('div')
+            sec.className = 'settings-section'
+            const h = document.createElement('div')
+            h.className = 'settings-section-title'
+            h.textContent = title
+            sec.appendChild(h)
+            container.appendChild(sec)
+            return sec
+        }
 
-        const volLabel = document.createElement('label')
-        volLabel.className = 'settings-label'
-        volLabel.textContent = 'Master volume'
+        const makeRow = (labelText, descText) => {
+            const row = document.createElement('div')
+            row.className = 'settings-row'
 
-        const volSlider = document.createElement('input')
-        volSlider.type = 'range'
-        volSlider.min = '0'
-        volSlider.max = '100'
-        volSlider.step = '5'
-        volSlider.value =
-            typeof state.settingsVolume === 'number'
-                ? state.settingsVolume
-                : 100
+            const left = document.createElement('div')
+            left.className = 'settings-left'
 
-        const volValue = document.createElement('span')
-        volValue.className = 'settings-value'
-        volValue.textContent = volSlider.value + '%'
+            const label = document.createElement('div')
+            label.className = 'settings-label'
+            label.textContent = labelText
+            left.appendChild(label)
 
-        // Apply saved master volume immediately
-        setMasterVolumePercent(volSlider.value)
-
-        volSlider.addEventListener('input', () => {
-            const v = Number(volSlider.value) || 0
-            state.settingsVolume = v
-            try {
-                safeStorageSet('pq-master-volume', String(v), { action: 'write volume' })
-            } catch (e) {}
-            volValue.textContent = v + '%'
-            setMasterVolumePercent(v)
-        })
-
-        volRow.appendChild(volLabel)
-        volRow.appendChild(volSlider)
-        volRow.appendChild(volValue)
-        container.appendChild(volRow)
-
-        // --- Text Speed -----------------------------------------------------------
-        const textRow = document.createElement('div')
-        textRow.className = 'settings-row'
-
-        const textLabel = document.createElement('label')
-        textLabel.className = 'settings-label'
-        textLabel.textContent = 'Text speed'
-
-        const textSlider = document.createElement('input')
-        textSlider.type = 'range'
-        textSlider.min = '30'
-        textSlider.max = '200'
-        textSlider.step = '10'
-        textSlider.value =
-            typeof state.settingsTextSpeed === 'number'
-                ? state.settingsTextSpeed
-                : 100
-
-        const textValue = document.createElement('span')
-        textValue.className = 'settings-value'
-        textValue.textContent = textSlider.value
-
-        textSlider.addEventListener('input', () => {
-            const v = Number(textSlider.value) || 100
-            state.settingsTextSpeed = v
-            textValue.textContent = v
-        })
-
-        textRow.appendChild(textLabel)
-        textRow.appendChild(textSlider)
-        textRow.appendChild(textValue)
-        container.appendChild(textRow)
-
-        // --- Difficulty (same config as main Settings) ---------------------------
-        const diffRow = document.createElement('div')
-        diffRow.className = 'settings-row'
-
-        const diffLabel = document.createElement('label')
-        diffLabel.className = 'settings-label'
-        diffLabel.textContent = 'Difficulty'
-
-        const diffSelect = document.createElement('select')
-        diffSelect.className = 'settings-select' // hook this to your "UI select" styling
-
-        Object.values(DIFFICULTY_CONFIG).forEach((cfg) => {
-            const opt = document.createElement('option')
-            opt.value = cfg.id
-            opt.textContent = cfg.name
-            diffSelect.appendChild(opt)
-        })
-
-        diffSelect.value = state.difficulty || 'normal'
-
-        diffSelect.addEventListener('change', () => {
-            const newDiff = diffSelect.value
-            if (DIFFICULTY_CONFIG[newDiff]) {
-                state.difficulty = newDiff
-                updateHUD()
-                saveGame()
+            if (descText) {
+                const desc = document.createElement('div')
+                desc.className = 'settings-desc'
+                desc.textContent = descText
+                left.appendChild(desc)
             }
-        })
 
-        diffRow.appendChild(diffLabel)
-        diffRow.appendChild(diffSelect)
-        container.appendChild(diffRow)
+            row.appendChild(left)
+            return row
+        }
 
-        // --- UI Theme selector (same behaviour as main Settings) ------------------
-        const themeRow = document.createElement('div')
-        themeRow.className = 'settings-row'
+        const makeSwitch = (id, initialChecked, onChange, ariaLabel) => {
+            const wrap = document.createElement('label')
+            wrap.className = 'switch'
+            if (ariaLabel) wrap.setAttribute('aria-label', ariaLabel)
 
-        const themeLabel = document.createElement('label')
-        themeLabel.className = 'settings-label'
-        themeLabel.textContent = 'UI theme'
+            const input = document.createElement('input')
+            input.type = 'checkbox'
+            if (id) input.id = id
+            input.checked = !!initialChecked
+            input.addEventListener('change', () => onChange(!!input.checked))
 
-        const themeSelectInline = document.createElement('select')
-        themeSelectInline.className = 'settings-select'
+            const track = document.createElement('span')
+            track.className = 'switch-track'
+            track.setAttribute('aria-hidden', 'true')
 
-        const themeOptions = [
-            { value: 'default', label: 'Default' },
-            { value: 'arcane', label: 'Arcane' },
-            { value: 'inferno', label: 'Inferno' },
-            { value: 'forest', label: 'Forest' },
-            { value: 'holy', label: 'Holy' },
-            { value: 'shadow', label: 'Shadow' }
-        ]
+            wrap.appendChild(input)
+            wrap.appendChild(track)
+            return wrap
+        }
 
-        themeOptions.forEach((t) => {
-            const opt = document.createElement('option')
-            opt.value = t.value
-            opt.textContent = t.label
-            themeSelectInline.appendChild(opt)
-        })
+        // --- Audio ------------------------------------------------------------
+        const secAudio = addSection('Audio')
 
-        const savedTheme = safeStorageGet('pq-theme') || 'default'
-        themeSelectInline.value = savedTheme
+        // Master volume
+        {
+            const row = makeRow('Master volume', 'Overall volume level.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
 
-        themeSelectInline.addEventListener('change', () => {
-            setTheme(themeSelectInline.value)
-        })
+            const slider = document.createElement('input')
+            slider.type = 'range'
+            slider.min = '0'
+            slider.max = '100'
+            slider.step = '5'
+            slider.value = typeof state.settingsVolume === 'number' ? state.settingsVolume : 100
 
-        themeRow.appendChild(themeLabel)
-        themeRow.appendChild(themeSelectInline)
-        container.appendChild(themeRow)
+            const value = document.createElement('span')
+            value.className = 'settings-value'
+            value.textContent = slider.value + '%'
 
-        // --- Audio toggles --------------------------------------------------------
-        const musicRow = document.createElement('div')
-        musicRow.className = 'settings-row'
+            setMasterVolumePercent(slider.value)
 
-        const musicLabel = document.createElement('label')
-        musicLabel.className = 'settings-label'
-        musicLabel.textContent = 'Music'
+            slider.addEventListener('input', () => {
+                const v = Number(slider.value) || 0
+                state.settingsVolume = v
+                try {
+                    safeStorageSet('pq-master-volume', String(v), { action: 'write volume' })
+                } catch (e) {}
+                value.textContent = v + '%'
+                setMasterVolumePercent(v)
+            })
 
-        const musicControl = document.createElement('div')
-        musicControl.className = 'settings-control'
+            control.appendChild(slider)
+            row.appendChild(control)
+            row.appendChild(value)
+            secAudio.appendChild(row)
+        }
 
-        const musicToggle = document.createElement('input')
-        musicToggle.type = 'checkbox'
-        musicToggle.checked = state.musicEnabled !== false
-        musicToggle.addEventListener('change', () => {
-            setMusicEnabled(musicToggle.checked)
-            saveGame()
-        })
+        // Music toggle
+        {
+            const row = makeRow('Music', 'Background music during play.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
 
-        musicControl.appendChild(musicToggle)
-        musicRow.appendChild(musicLabel)
-        musicRow.appendChild(musicControl)
-        container.appendChild(musicRow)
+            const sw = makeSwitch(null, state.musicEnabled !== false, (on) => {
+                setMusicEnabled(on)
+                saveGame()
+            }, 'Toggle music')
+            control.appendChild(sw)
+            row.appendChild(control)
+            secAudio.appendChild(row)
+        }
 
-        const sfxRow = document.createElement('div')
-        sfxRow.className = 'settings-row'
+        // SFX toggle
+        {
+            const row = makeRow('SFX', 'Combat and UI sound effects.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
 
-        const sfxLabel = document.createElement('label')
-        sfxLabel.className = 'settings-label'
-        sfxLabel.textContent = 'SFX'
+            const sw = makeSwitch(null, state.sfxEnabled !== false, (on) => {
+                setSfxEnabled(on)
+                saveGame()
+            }, 'Toggle sound effects')
+            control.appendChild(sw)
+            row.appendChild(control)
+            secAudio.appendChild(row)
+        }
 
-        const sfxControl = document.createElement('div')
-        sfxControl.className = 'settings-control'
+        // --- Display ----------------------------------------------------------
+        const secDisplay = addSection('Display')
 
-        const sfxToggle = document.createElement('input')
-        sfxToggle.type = 'checkbox'
-        sfxToggle.checked = state.sfxEnabled !== false
-        sfxToggle.addEventListener('change', () => {
-            setSfxEnabled(sfxToggle.checked)
-            saveGame()
-        })
+        // UI theme
+        {
+            const row = makeRow('Theme', 'Changes the overall UI palette.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
 
-        sfxControl.appendChild(sfxToggle)
-        sfxRow.appendChild(sfxLabel)
-        sfxRow.appendChild(sfxControl)
-        container.appendChild(sfxRow)
+            const themeSelectInline = document.createElement('select')
+            themeSelectInline.className = 'settings-select'
+
+            const themeOptions = [
+                { value: 'default', label: 'Default' },
+                { value: 'arcane', label: 'Arcane' },
+                { value: 'inferno', label: 'Inferno' },
+                { value: 'forest', label: 'Forest' },
+                { value: 'holy', label: 'Holy' },
+                { value: 'shadow', label: 'Shadow' }
+            ]
+
+            themeOptions.forEach((t) => {
+                const opt = document.createElement('option')
+                opt.value = t.value
+                opt.textContent = t.label
+                themeSelectInline.appendChild(opt)
+            })
+
+            themeSelectInline.value = safeStorageGet('pq-theme') || 'default'
+            themeSelectInline.addEventListener('change', () => setTheme(themeSelectInline.value))
+
+            control.appendChild(themeSelectInline)
+            row.appendChild(control)
+            secDisplay.appendChild(row)
+        }
+
+        // Text speed
+        {
+            const row = makeRow('Text speed', 'How quickly story text advances.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const slider = document.createElement('input')
+            slider.type = 'range'
+            slider.min = '30'
+            slider.max = '200'
+            slider.step = '10'
+            slider.value = typeof state.settingsTextSpeed === 'number' ? state.settingsTextSpeed : 100
+
+            const value = document.createElement('span')
+            value.className = 'settings-value'
+            value.textContent = String(slider.value)
+
+            slider.addEventListener('input', () => {
+                const v = Number(slider.value) || 100
+                state.settingsTextSpeed = v
+                value.textContent = String(v)
+                try {
+                    safeStorageSet('pq-text-speed', String(v), { action: 'write text speed' })
+                } catch (e) {}
+            })
+
+            control.appendChild(slider)
+            row.appendChild(control)
+            row.appendChild(value)
+            secDisplay.appendChild(row)
+        }
+
+        // --- Gameplay ---------------------------------------------------------
+        const secGameplay = addSection('Gameplay')
+
+        // Difficulty
+        {
+            const row = makeRow('Difficulty', 'Adjust challenge and enemy scaling.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const diffSelect = document.createElement('select')
+            diffSelect.className = 'settings-select'
+            Object.values(DIFFICULTY_CONFIG).forEach((cfg) => {
+                const opt = document.createElement('option')
+                opt.value = cfg.id
+                opt.textContent = cfg.name
+                diffSelect.appendChild(opt)
+            })
+            diffSelect.value = state.difficulty || 'normal'
+            diffSelect.addEventListener('change', () => {
+                const newDiff = diffSelect.value
+                if (DIFFICULTY_CONFIG[newDiff]) {
+                    state.difficulty = newDiff
+                    updateHUD()
+                    saveGame()
+                }
+            })
+
+            control.appendChild(diffSelect)
+            row.appendChild(control)
+            secGameplay.appendChild(row)
+        }
+
+        // --- Accessibility ----------------------------------------------------
+        const secAccess = addSection('Accessibility')
+        {
+            const row = makeRow('Reduce motion', 'Turns off animated HUD effects.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sw = makeSwitch(null, !!state.settingsReduceMotion, (on) => {
+                setReduceMotionEnabled(on)
+                saveGame()
+            }, 'Toggle reduce motion')
+
+            control.appendChild(sw)
+            row.appendChild(control)
+            secAccess.appendChild(row)
+        }
 
         body.appendChild(container)
 
-        // --- Footer actions -------------------------------------------------------
+        // --- Footer actions ---------------------------------------------------
         const actions = document.createElement('div')
         actions.className = 'modal-actions'
 
@@ -12107,7 +14606,6 @@ function openInGameSettingsModal() {
         btnBack.className = 'btn outline'
         btnBack.textContent = 'Back'
         btnBack.addEventListener('click', () => {
-            // Values are already live-updated into state; just save and close.
             saveGame()
             closeModal()
         })
@@ -12302,7 +14800,15 @@ function migrateSaveData(data) {
                 data.merchantStock = null
 
             data.inCombat = !!data.inCombat
-            if (data.inCombat && !data.currentEnemy) data.inCombat = false
+            // Multi-enemy forward-compat: allow saves that store `enemies` without `currentEnemy`.
+            if (data.inCombat) {
+                const hasEnemies = Array.isArray(data.enemies) && data.enemies.length
+                if (!data.currentEnemy && hasEnemies) {
+                    data.currentEnemy = data.enemies.find((e) => e && typeof e === 'object' && typeof e.hp === 'number' && e.hp > 0) || data.enemies[0] || null
+                    if (typeof data.targetEnemyIndex !== 'number' || !Number.isFinite(data.targetEnemyIndex)) data.targetEnemyIndex = 0
+                }
+                if (!data.currentEnemy) data.inCombat = false
+            }
 
             data.flags = data.flags && typeof data.flags === 'object' ? data.flags : {}
             data.quests = data.quests && typeof data.quests === 'object' ? data.quests : {}
@@ -12427,6 +14933,40 @@ function migrateSaveData(data) {
             continue
         }
 
+
+
+        if (data.meta.schema === 6) {
+            // v7 (PATCH 1.1.7): new class unlock tiers + new combat status fields
+            if (!data.flags || typeof data.flags !== 'object') data.flags = {}
+
+            if (data.player && typeof data.player === 'object') {
+                ensurePlayerSpellSystems(data.player)
+
+                // Grant any newly-added class unlock spells up to the current level.
+                const unlocks = CLASS_LEVEL_UNLOCKS[data.player.classId] || []
+                unlocks.forEach((u) => {
+                    if (u && u.spell && u.level <= (data.player.level || 1) && !data.player.spells.includes(u.spell)) {
+                        data.player.spells.push(u.spell)
+                        if (Array.isArray(data.player.equippedSpells) && data.player.equippedSpells.length < MAX_EQUIPPED_SPELLS) {
+                            data.player.equippedSpells.push(u.spell)
+                        }
+                    }
+                })
+
+                // Backfill new per-fight status fields
+                const st = data.player.status || (data.player.status = {})
+                if (typeof st.comboPoints !== 'number' || !Number.isFinite(st.comboPoints)) st.comboPoints = 0
+                if (typeof st.soulShards !== 'number' || !Number.isFinite(st.soulShards)) st.soulShards = 0
+                if (typeof st.lichTurns !== 'number' || !Number.isFinite(st.lichTurns)) st.lichTurns = 0
+                if (typeof st.totemType !== 'string') st.totemType = ''
+                if (typeof st.totemTurns !== 'number' || !Number.isFinite(st.totemTurns)) st.totemTurns = 0
+                if (typeof st.vanishTurns !== 'number' || !Number.isFinite(st.vanishTurns)) st.vanishTurns = 0
+            }
+
+            data.meta.schema = 7
+            continue
+        }
+
         // If we ever get an unknown schema, stop safely.
         break
     }
@@ -12503,9 +15043,17 @@ function _buildSaveBlob() {
         log: state.log || [],
         logFilter: state.logFilter || 'all',
 
-        // Combat snapshot
-        inCombat: state.inCombat,
-        currentEnemy: state.inCombat && state.currentEnemy ? state.currentEnemy : null
+        // Combat snapshot (multi-enemy aware; Patch 1.1.9+)
+        inCombat: !!state.inCombat,
+        enemies: (state.inCombat && Array.isArray(state.enemies) && state.enemies.length)
+            ? state.enemies
+            : (state.inCombat && state.currentEnemy ? [state.currentEnemy] : null),
+        targetEnemyIndex: (state.inCombat && Number.isFinite(state.targetEnemyIndex))
+            ? Math.max(0, Math.floor(state.targetEnemyIndex))
+            : 0,
+        currentEnemy: (state.inCombat && Array.isArray(state.enemies) && state.enemies.length)
+            ? (state.enemies[(Number.isFinite(state.targetEnemyIndex) ? Math.max(0, Math.floor(state.targetEnemyIndex)) : 0)] || state.enemies[0] || null)
+            : (state.inCombat && state.currentEnemy ? state.currentEnemy : null)
     }
 }
 
@@ -12517,7 +15065,10 @@ function _performSave() {
             return
         }
 
-        // Invariant check: catch NaN/corrupt state before writing it back to storage.
+        
+        // Repair common combat pointer desyncs before invariant scans/saves.
+        try { ensureCombatPointers() } catch (_) {}
+// Invariant check: catch NaN/corrupt state before writing it back to storage.
         try {
             const audit = validateState(state)
             if (audit && !audit.ok) {
@@ -12658,9 +15209,52 @@ function loadGame(fromDefeat) {
         } catch (_) {
             // ignore
         }
-        // NEW: restore combat state
-        state.inCombat = !!(data.inCombat && data.currentEnemy)
+        // NEW: restore combat state (multi-enemy aware)
+        state.inCombat = !!data.inCombat
+        state.enemies = Array.isArray(data.enemies) && data.enemies.length ? data.enemies : null
+        state.targetEnemyIndex = (typeof data.targetEnemyIndex === 'number' && Number.isFinite(data.targetEnemyIndex))
+            ? Math.max(0, Math.floor(data.targetEnemyIndex))
+            : 0
         state.currentEnemy = data.currentEnemy || null
+
+        if (state.inCombat) {
+            if (state.enemies && state.enemies.length) {
+                // Ensure runtime fields on all enemies
+                for (let i = 0; i < state.enemies.length; i++) {
+                    const e = state.enemies[i]
+                    if (e && typeof e === 'object') ensureEnemyRuntime(e)
+                }
+
+                // Pick a valid target (prefer saved index if alive)
+                let pick = null
+                const idx = state.targetEnemyIndex
+                if (state.enemies[idx] && typeof state.enemies[idx].hp === 'number' && state.enemies[idx].hp > 0) {
+                    pick = state.enemies[idx]
+                } else {
+                    pick = state.enemies.find((e) => e && typeof e.hp === 'number' && e.hp > 0) || state.enemies[0] || null
+                }
+
+                state.currentEnemy = pick
+                state.targetEnemyIndex = Math.max(0, state.enemies.indexOf(pick))
+                state.inCombat = !!(state.currentEnemy && typeof state.currentEnemy.hp === 'number' ? state.currentEnemy.hp > 0 : state.currentEnemy)
+            } else if (state.currentEnemy) {
+                // Legacy single-enemy save: materialize enemies[]
+                ensureEnemyRuntime(state.currentEnemy)
+                state.enemies = [state.currentEnemy]
+                state.targetEnemyIndex = 0
+                state.inCombat = !!(state.currentEnemy && typeof state.currentEnemy.hp === 'number' ? state.currentEnemy.hp > 0 : state.currentEnemy)
+            } else {
+                state.inCombat = false
+            }
+
+            // Initialize turn runtime and repair pointers
+            try { ensureCombatTurnState() } catch (_) {}
+            try { ensureCombatPointers() } catch (_) {}
+        } else {
+            state.currentEnemy = null
+            state.enemies = null
+            state.targetEnemyIndex = 0
+        }
 
         // 🛒 NEW: restore merchant state (safe if missing on old saves)
         state.villageMerchantNames = data.villageMerchantNames || null
@@ -12694,8 +15288,15 @@ function loadGame(fromDefeat) {
         rescaleActiveCompanion({ noHeal: true })
 
         // Patch older saves missing enemy runtime fields
-        if (state.inCombat && state.currentEnemy) {
-            ensureEnemyRuntime(state.currentEnemy)
+        if (state.inCombat) {
+            if (Array.isArray(state.enemies) && state.enemies.length) {
+                for (let i = 0; i < state.enemies.length; i++) {
+                    const e = state.enemies[i]
+                    if (e && typeof e === 'object') ensureEnemyRuntime(e)
+                }
+            } else if (state.currentEnemy) {
+                ensureEnemyRuntime(state.currentEnemy)
+            }
         }
 
         // Post-load invariant audit (non-fatal, but recorded for bug reports).
@@ -13087,9 +15688,16 @@ function initSettingsFromState() {
     }
 
     const sfxToggleEl = document.getElementById('settingsSfxToggle')
+
     if (sfxToggleEl && !sfxToggleEl.dataset.pqWired) {
         sfxToggleEl.dataset.pqWired = '1'
         sfxToggleEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    const motionToggleEl = document.getElementById('settingsReduceMotionToggle')
+    if (motionToggleEl && !motionToggleEl.dataset.pqWired) {
+        motionToggleEl.dataset.pqWired = '1'
+        motionToggleEl.addEventListener('change', () => applySettingsChanges())
     }
 
     // Text speed should apply live (and avoid stacked listeners)
@@ -13108,6 +15716,8 @@ function initSettingsFromState() {
 
     if (musicToggleEl) musicToggleEl.checked = state.musicEnabled !== false
     if (sfxToggleEl) sfxToggleEl.checked = state.sfxEnabled !== false
+
+    if (motionToggleEl) motionToggleEl.checked = !!state.settingsReduceMotion
 
     if (settingsDifficulty && state.difficulty) {
         settingsDifficulty.value = state.difficulty
@@ -13167,6 +15777,12 @@ function applySettingsChanges() {
         audioState.sfxEnabled = state.sfxEnabled
     }
 
+
+    const motionToggle = document.getElementById('settingsReduceMotionToggle')
+    if (motionToggle) {
+        setReduceMotionEnabled(!!motionToggle.checked)
+    }
+
     // Apply audio settings immediately
     setMasterVolumePercent(state.settingsVolume)
     updateAreaMusic()
@@ -13182,6 +15798,34 @@ function applySettingsChanges() {
             saveGame()
         }
     }
+}
+
+
+// --- MOTION / ANIMATION ACCESSIBILITY ----------------------------------------
+
+function prefersReducedMotion() {
+    try {
+        return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    } catch (e) {
+        return false
+    }
+}
+
+function applyMotionPreference() {
+    // If the OS requests reduced motion, always honor it.
+    const reduce = (state && state.settingsReduceMotion) || prefersReducedMotion()
+    document.body.classList.toggle('no-motion', !!reduce)
+}
+
+function setReduceMotionEnabled(enabled) {
+    if (typeof state === 'undefined' || !state) return
+    state.settingsReduceMotion = !!enabled
+    try {
+        safeStorageSet('pq-reduce-motion', state.settingsReduceMotion ? '1' : '0', {
+            action: 'write reduce motion'
+        })
+    } catch (e) {}
+    applyMotionPreference()
 }
 function setTheme(themeName) {
     document.body.classList.remove(
@@ -13400,36 +16044,383 @@ function copyBugReportBundleToClipboard() {
     return copyFeedbackToClipboard(json)
 }
 
+// Human-readable bug report formatter (keeps the raw JSON available separately).
+// Goal: highlight the *signal* (issues + minimal context) while keeping the full JSON
+// one click away for deep debugging.
+function formatBugReportBundle(bundle) {
+    const b = bundle || {}
+    const s = (b.summary || {})
+    const g = (b.game || {})
+    const p = (g.player || {})
+    const d = (b.debug || {})
+    const diag = (b.diagnostics || {})
+
+    const lines = []
+
+    const patchLine = 'Patch ' + String(s.patch || GAME_PATCH || '') + (s.patchName ? ' — ' + String(s.patchName) : '')
+    lines.push(patchLine)
+    if (s.timeUtc) lines.push('Time (UTC): ' + String(s.timeUtc))
+    if (s.saveSchema !== undefined) lines.push('Save schema: ' + String(s.saveSchema))
+    if (s.userAgent) lines.push('UA: ' + String(s.userAgent))
+    if (s.locale) lines.push('Locale: ' + String(s.locale))
+    lines.push('')
+
+    // Snapshot
+    const inCombat = !!g.inCombat
+    const enemyName = (g.enemy && g.enemy.name) ? g.enemy.name : null
+    const area = g.area ? String(g.area) : '(unknown)'
+    lines.push('Snapshot')
+    lines.push('  Area: ' + area)
+    lines.push('  In combat: ' + (inCombat ? 'YES' : 'no'))
+    if (enemyName) lines.push('  Current enemy: ' + enemyName)
+    lines.push('  Player: ' + String(p.name || 'Player') + ' • ' + String(p.classId || '?') + ' • Lv ' + String(p.level || '?'))
+    if (p.maxHp) lines.push('  HP: ' + String(p.hp) + ' / ' + String(p.maxHp))
+    if (p.maxResource !== undefined) lines.push('  Resource: ' + String(p.resource) + ' / ' + String(p.maxResource))
+    if (p.gold !== undefined) lines.push('  Gold: ' + String(p.gold))
+    lines.push('')
+
+    // Issues
+    const issues = []
+    if (Array.isArray(d.invariantIssues) && d.invariantIssues.length) {
+        d.invariantIssues.forEach((x) => {
+            const code = x && x.code ? String(x.code) : 'invariant'
+            const detail = x && x.detail ? String(x.detail) : ''
+            issues.push(code + (detail ? ' — ' + detail : ''))
+        })
+    }
+    if (diag.lastCrashReport && diag.lastCrashReport.message) {
+        issues.push('crash: ' + String(diag.lastCrashReport.message))
+    }
+    if (diag.lastSaveError) {
+        issues.push('saveError: ' + String(diag.lastSaveError))
+    }
+
+    lines.push('Findings')
+    if (!issues.length) {
+        lines.push('  ✓ No issues detected by the bug report scanners.')
+    } else {
+        issues.slice(0, 12).forEach((x) => lines.push('  ⚠ ' + x))
+        if (issues.length > 12) lines.push('  … +' + String(issues.length - 12) + ' more')
+    }
+    lines.push('')
+
+    // Crash details (short)
+    if (diag.lastCrashReport) {
+        const cr = diag.lastCrashReport
+        lines.push('Last crash (summary)')
+        if (cr.kind) lines.push('  Kind: ' + String(cr.kind))
+        if (cr.time !== undefined && cr.time !== null) {
+            const tNum = Number(cr.time)
+            if (Number.isFinite(tNum) && tNum > 0) {
+                // cr.time is typically epoch ms
+                let iso = ''
+                try { iso = new Date(tNum).toISOString() } catch (_) { iso = '' }
+                lines.push('  Time (UTC): ' + (iso || String(cr.time)) + ' (' + String(cr.time) + ')')
+            } else {
+                lines.push('  Time: ' + String(cr.time))
+            }
+        }
+        lines.push('  Note: this is the most recent recorded crash and may be from a previous session.')
+        if (cr.message) lines.push('  Message: ' + String(cr.message))
+        if (cr.stack) {
+            const stackLines = String(cr.stack).split('\n').slice(0, 6)
+            lines.push('  Stack (top):')
+            stackLines.forEach((ln) => lines.push('    ' + ln))
+            if (String(cr.stack).split('\n').length > 6) lines.push('    …')
+        }
+        lines.push('')
+    }
+
+    // Recent input
+    if (Array.isArray(d.inputLogTail) && d.inputLogTail.length) {
+        lines.push('Recent input (tail)')
+        d.inputLogTail.slice(-12).forEach((x) => {
+            const a = x && x.action ? String(x.action) : '(action)'
+            const pl = x && x.payload ? safeJsonShort(x.payload, 120) : ''
+            lines.push('  - ' + a + (pl ? ' ' + pl : ''))
+        })
+        lines.push('')
+    }
+
+    // Recent log
+    if (Array.isArray(diag.logTail) && diag.logTail.length) {
+        lines.push('Recent game log (tail)')
+        diag.logTail.slice(-18).forEach((x) => {
+            const t = x && x.text ? String(x.text) : ''
+            if (!t) return
+            lines.push('  • ' + t)
+        })
+    }
+
+    return lines.join('\n')
+}
+
+function safeJsonShort(obj, maxLen) {
+    const lim = Math.max(20, Number(maxLen || 120))
+    try {
+        const s = JSON.stringify(obj)
+        if (typeof s !== 'string') return ''
+        if (s.length <= lim) return s
+        return s.slice(0, lim - 1) + '…'
+    } catch (_) {
+        try {
+            const s = String(obj)
+            if (s.length <= lim) return s
+            return s.slice(0, lim - 1) + '…'
+        } catch (_2) {
+            return ''
+        }
+    }
+}
+
 function openSmokeTestsModal() {
-    openModal('Smoke Tests', (b) => {
+    openModal('Smoke Tests & Bug Report', (b) => {
         const hint = document.createElement('div')
         hint.className = 'modal-subtitle'
-        hint.textContent = 'Runs an isolated QA suite in-memory (does not modify your save).'
+        hint.textContent = 'Runs an isolated QA suite in-memory (does not modify your save) and prints a Bug Report bundle for fast debugging.'
         b.appendChild(hint)
+
+        const summary = document.createElement('div')
+        summary.className = 'modal-subtitle'
+        summary.style.fontSize = '12px'
+        summary.style.opacity = '0.9'
+        summary.textContent = 'Ready. Click Run to start.'
+        b.appendChild(summary)
 
         const actions = document.createElement('div')
         actions.className = 'item-actions'
         b.appendChild(actions)
 
+        const btnRun = document.createElement('button')
+        btnRun.className = 'btn small'
+        btnRun.textContent = 'Run'
+
         const btnCopy = document.createElement('button')
         btnCopy.className = 'btn small outline'
         btnCopy.textContent = 'Copy results'
+        btnCopy.disabled = true
 
-        const pre = document.createElement('pre')
-        pre.style.whiteSpace = 'pre-wrap'
-        pre.style.fontSize = '12px'
-        pre.textContent = runSmokeTests()
+        const btnCopyFails = document.createElement('button')
+        btnCopyFails.className = 'btn small outline'
+        btnCopyFails.textContent = 'Copy failures'
+        btnCopyFails.disabled = true
 
-        btnCopy.addEventListener('click', () => {
-            copyFeedbackToClipboard(pre.textContent || '')
+        const btnCopyJson = document.createElement('button')
+        btnCopyJson.className = 'btn small outline'
+        btnCopyJson.textContent = 'Copy JSON'
+        btnCopyJson.disabled = true
+
+        actions.appendChild(btnRun)
+        actions.appendChild(btnCopy)
+        actions.appendChild(btnCopyFails)
+        actions.appendChild(btnCopyJson)
+
+        // Collapsible sections
+        const smokeDetails = document.createElement('details')
+        smokeDetails.className = 'qa-details'
+        smokeDetails.open = true
+
+        const smokeSummary = document.createElement('summary')
+        smokeSummary.className = 'qa-summary'
+        smokeSummary.textContent = 'Smoke Tests'
+        smokeDetails.appendChild(smokeSummary)
+
+        const smokePre = document.createElement('pre')
+        smokePre.className = 'qa-pre'
+        smokePre.style.whiteSpace = 'pre-wrap'
+        smokePre.style.fontSize = '12px'
+        smokePre.textContent = 'Ready.'
+        smokeDetails.appendChild(smokePre)
+
+        const bugDetails = document.createElement('details')
+        bugDetails.className = 'qa-details'
+        bugDetails.open = false
+
+        const bugSummary = document.createElement('summary')
+        bugSummary.className = 'qa-summary'
+        bugSummary.textContent = 'Bug Report'
+        bugDetails.appendChild(bugSummary)
+
+        const bugPre = document.createElement('pre')
+        bugPre.className = 'qa-pre'
+        bugPre.style.whiteSpace = 'pre-wrap'
+        bugPre.style.fontSize = '12px'
+        bugPre.textContent = 'Ready.'
+        bugDetails.appendChild(bugPre)
+
+        const bugJsonDetails = document.createElement('details')
+        bugJsonDetails.className = 'qa-subdetails'
+        bugJsonDetails.open = false
+        const bugJsonSummary = document.createElement('summary')
+        bugJsonSummary.className = 'qa-summary'
+        bugJsonSummary.textContent = 'Raw JSON'
+        bugJsonDetails.appendChild(bugJsonSummary)
+        const bugJsonPre = document.createElement('pre')
+        bugJsonPre.className = 'qa-pre'
+        bugJsonPre.style.whiteSpace = 'pre-wrap'
+        bugJsonPre.style.fontSize = '12px'
+        bugJsonPre.textContent = ''
+        bugJsonDetails.appendChild(bugJsonPre)
+        bugDetails.appendChild(bugJsonDetails)
+
+        b.appendChild(smokeDetails)
+        b.appendChild(bugDetails)
+
+        let last = null
+
+        const summarize = (r) => {
+            if (!r || typeof r !== 'object') return
+            const ms = typeof r.ms === 'number' ? r.ms : null
+            const pc = typeof r.passCount === 'number' ? r.passCount : null
+            const fc = typeof r.failCount === 'number' ? r.failCount : null
+            const parts = []
+            if (pc !== null && fc !== null) parts.push(`${pc} passed, ${fc} failed`)
+            if (ms !== null) parts.push(`${ms} ms`)
+            summary.textContent = parts.length ? parts.join(' • ') : 'Done.'
+        }
+
+        btnRun.addEventListener('click', () => {
+            btnRun.disabled = true
+            btnCopy.disabled = true
+            btnCopyFails.disabled = true
+            btnCopyJson.disabled = true
+            smokePre.textContent = 'Running smoke tests…'
+            bugPre.textContent = 'Building bug report…'
+            bugJsonPre.textContent = ''
+            summary.textContent = 'Running…'
+
+            // Yield one tick so the modal paints "Running…" before the suite blocks.
+            setTimeout(() => {
+                try {
+                    last = runSmokeTests({ returnObject: true })
+                    smokePre.textContent = last && last.smokeText ? last.smokeText : (last && last.text ? last.text : String(last || ''))
+                    bugPre.textContent = last && last.bugReportPretty ? last.bugReportPretty : 'Bug report unavailable.'
+                    try {
+                        bugJsonPre.textContent = JSON.stringify((last && last.bugReport) ? last.bugReport : buildBugReportBundle(), null, 2)
+                    } catch (_) {
+                        bugJsonPre.textContent = '{"error":"failed to stringify bug report"}'
+                    }
+
+                    // Auto-expand sections when they found issues.
+                    const smokeHasIssues = !!(last && (last.failCount > 0 || (last.console && ((last.console.errors || []).length > 0 || (last.console.asserts || []).length > 0))))
+                    const bugHasIssues = !!(last && last.bugHasIssues)
+                    if (smokeHasIssues) smokeDetails.open = true
+                    if (bugHasIssues) bugDetails.open = true
+
+                    summarize(last)
+                    btnCopy.disabled = false
+                    btnCopyFails.disabled = !(last && last.failCount > 0)
+                    btnCopyJson.disabled = false
+                } catch (e) {
+                    smokePre.textContent = 'Smoke tests failed to run: ' + (e && e.message ? e.message : String(e))
+                    summary.textContent = 'Failed to run'
+                } finally {
+                    btnRun.disabled = false
+                }
+            }, 0)
         })
 
-        actions.appendChild(btnCopy)
-        b.appendChild(pre)
+        btnCopy.addEventListener('click', () => {
+            try {
+                if (!last || typeof last !== 'object') return copyFeedbackToClipboard(smokePre.textContent || '')
+                const out = []
+                out.push('SMOKE TEST')
+                out.push('Patch ' + GAME_PATCH + (GAME_PATCH_NAME ? ' — ' + GAME_PATCH_NAME : ''))
+                out.push('')
+                out.push(last.smokeText || last.text || '')
+                out.push('')
+                out.push('BUG REPORT')
+                out.push(last.bugReportPretty || formatBugReportBundle(last.bugReport || buildBugReportBundle()))
+                out.push('')
+                out.push('BUG REPORT (JSON)')
+                out.push(JSON.stringify(last.bugReport || buildBugReportBundle(), null, 2))
+                copyFeedbackToClipboard(out.join('\n'))
+            } catch (_) {
+                copyFeedbackToClipboard((smokePre.textContent || '') + '\n\n' + (bugPre.textContent || ''))
+            }
+        })
+
+        btnCopyFails.addEventListener('click', () => {
+            try {
+                if (!last || typeof last !== 'object') return copyFeedbackToClipboard(smokePre.textContent || '')
+                const out = []
+                out.push('SMOKE TEST FAILURES & BUG REPORT')
+                out.push('Patch ' + GAME_PATCH + (GAME_PATCH_NAME ? ' — ' + GAME_PATCH_NAME : ''))
+                out.push('')
+                if (Array.isArray(last.failed) && last.failed.length) {
+                    last.failed.forEach((f, i) => {
+                        out.push(String(i + 1) + ') ' + String(f.label || '') + ': ' + String(f.msg || ''))
+                    })
+                }
+                const ce = last.console && Array.isArray(last.console.errors) ? last.console.errors : []
+                const ca = last.console && Array.isArray(last.console.asserts) ? last.console.asserts : []
+                if (ce.length) {
+                    out.push('')
+                    out.push('console.error (first 20):')
+                    ce.slice(0, 20).forEach((x) => out.push('  - ' + String(x)))
+                    if (ce.length > 20) out.push('  … +' + (ce.length - 20) + ' more')
+                }
+                if (ca.length) {
+                    out.push('')
+                    out.push('console.assert failures (first 20):')
+                    ca.slice(0, 20).forEach((x) => out.push('  - ' + String(x)))
+                    if (ca.length > 20) out.push('  … +' + (ca.length - 20) + ' more')
+                }
+
+                out.push('')
+                out.push('BUG REPORT (JSON)')
+                try {
+                    const bundle = (last && last.bugReport) ? last.bugReport : buildBugReportBundle()
+                    out.push(JSON.stringify(bundle, null, 2))
+                } catch (_) {
+                    out.push('{"error":"failed to stringify bug report"}')
+                }
+                return copyFeedbackToClipboard(out.join('\n'))
+            } catch (_) {
+                return copyFeedbackToClipboard(smokePre.textContent || '')
+            }
+        })
+
+        btnCopyJson.addEventListener('click', () => {
+            try {
+                const payload = JSON.stringify((last && last.bugReport) ? last.bugReport : buildBugReportBundle(), null, 2)
+                copyFeedbackToClipboard(payload)
+            } catch (_) {
+                copyFeedbackToClipboard(smokePre.textContent || '')
+            }
+        })
+
+        // Run once immediately so the modal always shows a current result without extra clicks
+        // when a tester is iterating quickly.
+        try {
+            last = runSmokeTests({ returnObject: true })
+            smokePre.textContent = last && last.smokeText ? last.smokeText : (last && last.text ? last.text : String(last || ''))
+            bugPre.textContent = last && last.bugReportPretty ? last.bugReportPretty : 'Bug report unavailable.'
+            try {
+                bugJsonPre.textContent = JSON.stringify((last && last.bugReport) ? last.bugReport : buildBugReportBundle(), null, 2)
+            } catch (_) {
+                bugJsonPre.textContent = '{"error":"failed to stringify bug report"}'
+            }
+
+            const smokeHasIssues = !!(last && (last.failCount > 0 || (last.console && ((last.console.errors || []).length > 0 || (last.console.asserts || []).length > 0))))
+            const bugHasIssues = !!(last && last.bugHasIssues)
+            smokeDetails.open = smokeHasIssues
+            bugDetails.open = bugHasIssues
+
+            summarize(last)
+            btnCopy.disabled = false
+            btnCopyFails.disabled = !(last && last.failCount > 0)
+            btnCopyJson.disabled = false
+        } catch (_) {
+            // If anything goes wrong, leave the modal in the "Ready" state.
+        }
     })
 }
 
-function runSmokeTests() {
+
+function runSmokeTests(opts = {}) {
+    const returnObject = !!(opts && opts.returnObject)
+
     const lines = []
     const started = Date.now()
     const QA_SEED = 123456789
@@ -13440,6 +16431,82 @@ function runSmokeTests() {
     lines.push('')
 
     const live = state
+
+    // Capture a live bug-report bundle up-front (before state is swapped into the smoke-test sandbox).
+    // This keeps the report tied to the player's real session rather than the suite's temporary state.
+    const _bugReportLive = (() => {
+        try {
+            const bundle = buildBugReportBundle()
+            // Ensure it's JSON-safe and stable even if the live state mutates during the suite.
+            return JSON.parse(JSON.stringify(bundle))
+        } catch (_) {
+            try {
+                return { summary: { patch: GAME_PATCH, patchName: GAME_PATCH_NAME, saveSchema: SAVE_SCHEMA, timeUtc: new Date().toISOString() }, error: 'buildBugReportBundle failed' }
+            } catch (_2) {
+                return { error: 'buildBugReportBundle failed' }
+            }
+        }
+    })()
+
+    // Flag used to disable combat timers/async turn resolution during the smoke suite.
+    const _prevSmoke = (() => {
+        try { return !!(state && state.debug && state.debug.smokeTestRunning) } catch (_) { return false }
+    })()
+    try {
+        if (state) {
+            if (!state.debug || typeof state.debug !== 'object') state.debug = {}
+            state.debug.smokeTestRunning = true
+        }
+    } catch (_) {}
+
+    // Smoke tests must never alter the player's visible log.
+    // We snapshot the live log DOM + incremental renderer bookkeeping so that even
+    // accidental render calls during the suite can't clear/append/scroll the live log.
+    const _liveLogEl = (typeof document !== 'undefined') ? document.getElementById('log') : null
+    const _liveLogHTML = _liveLogEl ? _liveLogEl.innerHTML : null
+    const _liveLogScrollTop = _liveLogEl ? _liveLogEl.scrollTop : 0
+    const _liveLogSeqSnap = (typeof _logSeq === 'number') ? _logSeq : null
+    const _liveLogUiSnap = (() => {
+        try {
+            return JSON.parse(JSON.stringify(_logUi))
+        } catch (_) {
+            try {
+                return {
+                    filter: _logUi && _logUi.filter,
+                    lastFirstId: _logUi && _logUi.lastFirstId,
+                    renderedUpToId: _logUi && _logUi.renderedUpToId
+                }
+            } catch (_2) {
+                return null
+            }
+        }
+    })()
+
+    // Capture console errors/asserts during smoke tests so silent issues become failures.
+    const _liveConsoleError = typeof console !== 'undefined' ? console.error : null
+    const _liveConsoleAssert = typeof console !== 'undefined' ? console.assert : null
+    const consoleErrorLog = []
+    const consoleAssertLog = []
+    const _stringifyConsoleArg = (x) => {
+        try {
+            if (typeof x === 'string') return x
+            return JSON.stringify(x)
+        } catch (_) {
+            return String(x)
+        }
+    }
+    try {
+        if (typeof console !== 'undefined') {
+            console.error = (...args) => {
+                consoleErrorLog.push(args.map(_stringifyConsoleArg).join(' '))
+                try { if (_liveConsoleError) _liveConsoleError(...args) } catch (_) {}
+            }
+            console.assert = (cond, ...args) => {
+                if (!cond) consoleAssertLog.push(args.length ? args.map(_stringifyConsoleArg).join(' ') : 'console.assert failed')
+                try { if (_liveConsoleAssert) _liveConsoleAssert(cond, ...args) } catch (_) {}
+            }
+        }
+    } catch (_) {}
 
     let passCount = 0
     let failCount = 0
@@ -13458,6 +16525,23 @@ function runSmokeTests() {
     // Helper: run a test and record pass/fail without aborting the full suite.
     const test = (label, fn) => {
         try {
+            // Keep tests isolated from one another: combat turn state can be left in
+            // a resolving/busy phase by earlier tests.
+            try {
+                if (state) {
+                    state.enemies = []
+                    state.targetEnemyIndex = 0
+                    if (!state.combat || typeof state.combat !== 'object') {
+                        state.combat = { phase: 'player', busy: false, round: 1, battleDrops: 0 }
+                    } else {
+                        state.combat.phase = 'player'
+                        state.combat.busy = false
+                        if (typeof state.combat.round !== 'number' || !Number.isFinite(state.combat.round)) state.combat.round = 1
+                        if (typeof state.combat.battleDrops !== 'number' || !Number.isFinite(state.combat.battleDrops)) state.combat.battleDrops = 0
+                    }
+                }
+            } catch (_) {}
+
             fn()
             passCount += 1
             if (currentSection) currentSection.pass += 1
@@ -13474,6 +16558,154 @@ function runSmokeTests() {
         if (!cond) throw new Error(msg || 'assertion failed')
     }
     const isFiniteNum = (n) => typeof n === 'number' && Number.isFinite(n)
+
+    // Smoke-test helper: create a minimal player object without relying on DOM.
+    // Used by class mechanics tests (unlocks, combo points, marks).
+    const createPlayer = (name, classId, diffId) => {
+        const cid = String(classId || 'warrior')
+        const classDef = PLAYER_CLASSES[cid] || PLAYER_CLASSES['warrior']
+        const base = classDef.baseStats
+        const startingSkills = CLASS_STARTING_SKILLS[cid] || CLASS_STARTING_SKILLS.default
+
+        const p = {
+            name: String(name || 'Tester'),
+            classId: cid,
+            level: 1,
+            xp: 0,
+            nextLevelXp: 100,
+
+            maxHp: base.maxHp,
+            hp: base.maxHp,
+
+            resourceKey: classDef.resourceKey,
+            resourceName: classDef.resourceName,
+            maxResource:
+                classDef.resourceKey === 'mana'
+                    ? 100
+                    : classDef.resourceKey === 'essence'
+                    ? 90
+                    : 60,
+            resource:
+                classDef.resourceKey === 'mana'
+                    ? 80
+                    : classDef.resourceKey === 'essence'
+                    ? 45
+                    : 0,
+
+            stats: {
+                attack: base.attack,
+                magic: base.magic,
+                armor: base.armor,
+                speed: base.speed
+            },
+
+            skills: {
+                strength: startingSkills.strength,
+                endurance: startingSkills.endurance,
+                willpower: startingSkills.willpower
+            },
+            skillPoints: 0,
+
+            equipment: {
+                weapon: null,
+                armor: null,
+                head: null,
+                hands: null,
+                feet: null,
+                belt: null,
+                neck: null,
+                ring: null
+            },
+            inventory: [],
+            spells: [...classDef.startingSpells],
+            equippedSpells: [...classDef.startingSpells],
+            abilityUpgrades: {},
+            abilityUpgradeTokens: 0,
+            gold: 0,
+            status: {}
+        }
+
+        // Ensure all expected subsystems exist.
+        ensurePlayerSpellSystems(p)
+        resetPlayerCombatStatus(p)
+        return p
+    }
+
+
+    const isDomNode = (x) => {
+        try {
+            return typeof Node !== 'undefined' && x instanceof Node
+        } catch (_) {
+            return false
+        }
+    }
+
+    // Bug-catcher: deep scan for NaN/Infinity in the test state.
+    const scanForNonFiniteNumbers = (rootObj) => {
+        const issues = []
+        const seen = new WeakSet()
+        const walk = (x, path) => {
+            if (typeof x === 'number') {
+                if (!Number.isFinite(x)) issues.push(path + ' = ' + String(x))
+                return
+            }
+            if (x === null || typeof x !== 'object') return
+            if (isDomNode(x)) return
+            if (seen.has(x)) return
+            seen.add(x)
+
+            if (Array.isArray(x)) {
+                for (let i = 0; i < x.length; i++) walk(x[i], path + '[' + i + ']')
+                return
+            }
+
+            for (const k in x) {
+                if (!Object.prototype.hasOwnProperty.call(x, k)) continue
+                if (k === '__proto__' || k === 'prototype' || k === 'constructor') continue
+                walk(x[k], path + '.' + k)
+            }
+        }
+        walk(rootObj, 'state')
+        return issues
+    }
+
+    // Bug-catcher: check for negative quantities / counters in the most common gameplay containers.
+    const scanForNegativeCounters = (s) => {
+        const issues = []
+        try {
+            const p = s && s.player
+            if (p && typeof p.gold === 'number' && p.gold < 0) issues.push('player.gold < 0 (' + p.gold + ')')
+            if (p && typeof p.hp === 'number' && p.hp < 0) issues.push('player.hp < 0 (' + p.hp + ')')
+            if (p && Array.isArray(p.inventory)) {
+                p.inventory.forEach((it, i) => {
+                    if (!it) return
+                    if (typeof it.quantity === 'number' && it.quantity < 0) issues.push('player.inventory[' + i + '].quantity < 0 (' + it.quantity + ')')
+                })
+            }
+
+            const bank = s && s.bank
+            if (bank && typeof bank.balance === 'number' && bank.balance < 0) issues.push('bank.balance < 0 (' + bank.balance + ')')
+            if (bank && typeof bank.investments === 'number' && bank.investments < 0) issues.push('bank.investments < 0 (' + bank.investments + ')')
+            if (bank && bank.loan && typeof bank.loan.balance === 'number' && bank.loan.balance < 0) issues.push('bank.loan.balance < 0 (' + bank.loan.balance + ')')
+
+            const stock = s && s.merchantStock
+            if (stock && typeof stock === 'object') {
+                for (const region in stock) {
+                    const regionObj = stock[region]
+                    if (!regionObj || typeof regionObj !== 'object') continue
+                    for (const merchant in regionObj) {
+                        const bucket = regionObj[merchant]
+                        if (!bucket || typeof bucket !== 'object') continue
+                        for (const key in bucket) {
+                            const v = bucket[key]
+                            if (typeof v === 'number' && v < 0) issues.push('merchantStock.' + region + '.' + merchant + '.' + key + ' < 0 (' + v + ')')
+                        }
+                    }
+                }
+            }
+        } catch (_) {}
+        return issues
+    }
 
     // Stable JSON stringify for save round-trip comparisons.
     const stableStringify = (obj) => {
@@ -13500,6 +16732,7 @@ function runSmokeTests() {
     const _liveUpdateHUD = typeof updateHUD === 'function' ? updateHUD : null
     const _liveUpdateEnemyPanel = typeof updateEnemyPanel === 'function' ? updateEnemyPanel : null
     const _liveAddLog = typeof addLog === 'function' ? addLog : null
+    const _liveRenderLog = typeof renderLog === 'function' ? renderLog : null
     const _liveRecordInput = typeof recordInput === 'function' ? recordInput : null
 
     try {
@@ -13551,6 +16784,12 @@ function runSmokeTests() {
         state = t
         syncGlobalStateRef()
 
+        // Mark test state so combat waits/turn sequencing can run synchronously.
+        try {
+            if (!state.debug || typeof state.debug !== 'object') state.debug = {}
+            state.debug.smokeTestRunning = true
+        } catch (_) {}
+
         // Disable persistence + UI side-effects while tests run.
         // Smoke tests intentionally run against a fresh in-memory state and must never
         // mutate the active save OR repaint the live UI with test values.
@@ -13559,6 +16798,7 @@ function runSmokeTests() {
         if (_liveUpdateHUD) updateHUD = () => {}
         if (_liveUpdateEnemyPanel) updateEnemyPanel = () => {}
         if (_liveAddLog) addLog = () => {}
+        if (_liveRenderLog) renderLog = () => {}
         if (_liveRecordInput) recordInput = () => {}
 
         section('Player & Inventory')
@@ -13580,6 +16820,18 @@ function runSmokeTests() {
             const stacks = p.inventory.filter((it) => it && it.id === 'potionSmall' && it.type === 'potion')
             assert(stacks.length === 1, 'expected 1 stack, got ' + stacks.length)
             assert((stacks[0].quantity || 0) === 2, 'expected quantity 2, got ' + (stacks[0].quantity || 0))
+        })
+
+        // 2b) inventory quantity normalization (0/negative/NaN should not corrupt state)
+        test('inventory quantity normalization', () => {
+            const p = state.player
+            p.inventory = []
+            addItemToInventory('potionSmall', 0)
+            addItemToInventory('potionSmall', -5)
+            addItemToInventory('potionSmall', NaN)
+            const it = p.inventory.find((x) => x && x.id === 'potionSmall')
+            assert(it && it.type === 'potion', 'potionSmall missing after adds')
+            assert(it.quantity === 3, 'expected quantity 3 after normalized adds, got ' + String(it.quantity))
         })
 
         // 3) consume decrements + removes at 0
@@ -13690,6 +16942,110 @@ function runSmokeTests() {
             recalcPlayerStats()
             const snap2 = JSON.stringify({ maxHp: p.maxHp, stats: p.stats })
             assert(snap1 === snap2, 'stats changed on extra recalc after swap')
+        })
+
+        section('Classes & Abilities (1.1.7)')
+
+        test('class unlock tables include 3/6/9/12', () => {
+            const required = [3, 6, 9, 12]
+            Object.keys(CLASS_LEVEL_UNLOCKS).forEach((cid) => {
+                const levels = (CLASS_LEVEL_UNLOCKS[cid] || []).map((u) => u.level).sort((a,b)=>a-b)
+                required.forEach((lvl) => {
+                    assert(levels.includes(lvl), cid + ' missing unlock level ' + lvl)
+                })
+            })
+        })
+
+        test('class unlock spells exist in ABILITIES + effects', () => {
+            Object.keys(CLASS_LEVEL_UNLOCKS).forEach((cid) => {
+                (CLASS_LEVEL_UNLOCKS[cid] || []).forEach((u) => {
+                    assert(u && u.spell, 'bad unlock for ' + cid)
+                    assert(!!ABILITIES[u.spell], 'ABILITIES missing: ' + u.spell)
+                    assert(typeof ABILITY_EFFECTS[u.spell] === 'function', 'ABILITY_EFFECTS missing: ' + u.spell)
+                })
+            })
+        })
+
+        test('level 12 unlock grants all class unlock spells', () => {
+            const classes = Object.keys(CLASS_LEVEL_UNLOCKS)
+            classes.forEach((cid) => {
+                const p = createPlayer('Tester', cid, 'normal')
+                p.level = 12
+                ensurePlayerSpellSystems(p)
+                // grant everything up to level
+                const unlocks = CLASS_LEVEL_UNLOCKS[cid] || []
+                unlocks.forEach((u) => {
+                    if (u.level <= p.level && !p.spells.includes(u.spell)) p.spells.push(u.spell)
+                })
+                unlocks.forEach((u) => assert(p.spells.includes(u.spell), cid + ' did not receive ' + u.spell))
+            })
+        })
+
+        test('rogue combo points build and spend (backstab→eviscerate)', () => {
+            const p = createPlayer('Rogue', 'rogue', 'normal')
+            ensurePlayerSpellSystems(p)
+            const enemy = { name: 'Combo Dummy', hp: 500, maxHp: 500, armor: 0, magicRes: 0, level: 1, tier: 1 }
+            const ctx1 = buildAbilityContext(p, 'backstab', enemy)
+            ABILITY_EFFECTS.backstab(p, enemy, ctx1)
+            assert((p.status.comboPoints || 0) === 1, 'expected 1 combo point')
+            const ctx2 = buildAbilityContext(p, 'eviscerate', enemy)
+            ABILITY_EFFECTS.eviscerate(p, enemy, ctx2)
+            assert((p.status.comboPoints || 0) === 0, 'combo points not spent')
+        })
+
+        test('ranger marks tick down and clear when expired', () => {
+            const p = createPlayer('Ranger', 'ranger', 'normal')
+            ensurePlayerSpellSystems(p)
+            const enemy = { name: 'Mark Dummy', hp: 500, maxHp: 500, armor: 0, magicRes: 0, level: 1, tier: 1 }
+            const ctx = buildAbilityContext(p, 'markedPrey', enemy)
+            ABILITY_EFFECTS.markedPrey(p, enemy, ctx)
+            assert((enemy.markedStacks || 0) > 0, 'marks not applied')
+            assert((enemy.markedTurns || 0) > 0, 'mark turns missing')
+            // tick until clear
+            for (let i = 0; i < 5; i++) tickEnemyStartOfTurn(enemy)
+            assert((enemy.markedTurns || 0) === 0, 'mark turns did not expire')
+            assert((enemy.markedStacks || 0) === 0, 'mark stacks did not clear')
+        })
+
+        test('combat HUD class meter renders (all classes)', () => {
+            if (typeof document === 'undefined') return
+            let el = document.getElementById('hudClassMeter')
+            if (!el) {
+                el = document.createElement('div')
+                el.id = 'hudClassMeter'
+                document.body.appendChild(el)
+            }
+
+            state.inCombat = true
+
+            const cases = [
+                { cid: 'mage', label: 'Rhythm', setup: (p, e) => { p.status.spellCastCount = 2 } },
+                { cid: 'warrior', label: 'Bulwark', setup: (p, e) => { p.resource = 40 } },
+                { cid: 'blood', label: 'Blood', setup: (p, e) => { p.resource = Math.floor(p.maxResource * 0.6) } },
+                { cid: 'ranger', label: 'Marks', setup: (p, e) => { e.markedStacks = 2; e.markedTurns = 4 } },
+                { cid: 'paladin', label: 'Sanctuary', setup: (p, e) => { p.status.shield = 25 } },
+                { cid: 'rogue', label: 'Combo', setup: (p, e) => { p.status.comboPoints = 3 } },
+                { cid: 'cleric', label: 'Ward', setup: (p, e) => { p.status.shield = 18 } },
+                { cid: 'necromancer', label: 'Shards', setup: (p, e) => { p.status.soulShards = 4 } },
+                { cid: 'shaman', label: 'Totem', setup: (p, e) => { p.status.totemType = ''; p.status.totemTurns = 0 } },
+                { cid: 'berserker', label: 'Frenzy', setup: (p, e) => { p.hp = Math.max(1, Math.floor(p.maxHp * 0.4)) } },
+                { cid: 'vampire', label: 'Hunger', setup: (p, e) => { p.resource = Math.floor(p.maxResource * 0.6) } }
+            ]
+
+            cases.forEach((c) => {
+                state.player = createPlayer('T', c.cid, 'normal')
+                ensurePlayerSpellSystems(state.player)
+                state.currentEnemy = { name: 'Dummy', hp: 50, maxHp: 50 }
+                c.setup(state.player, state.currentEnemy)
+                updateClassMeterHUD()
+                assert(!el.classList.contains('hidden'), 'meter should be visible for ' + c.cid)
+                assert(el.innerHTML.includes(c.label), c.cid + ' meter label missing')
+            })
+
+            // Not in combat -> hidden
+            state.inCombat = false
+            updateClassMeterHUD()
+            assert(el.classList.contains('hidden'), 'meter should be hidden out of combat')
         })
 
         section('Save & Migration')
@@ -13828,6 +17184,60 @@ function runSmokeTests() {
             assert(migrated.currentEnemy.abilityCooldowns && typeof migrated.currentEnemy.abilityCooldowns === 'object', 'abilityCooldowns not initialized')
         })
 
+        section('Time & RNG')
+
+        // 9a) time normalization guards (corrupt saves / dev tools)
+        test('time normalization clamps day/part', () => {
+            state.time = { dayIndex: -5, partIndex: 999 }
+            const info = getTimeInfo(state)
+            assert(info.absoluteDay === 0, 'expected dayIndex clamped to 0, got ' + info.absoluteDay)
+            assert(info.partIndex === 2, 'expected partIndex clamped to 2, got ' + info.partIndex)
+        })
+
+        // 9b) time advance wraps correctly across day boundaries
+        test('advanceTime wraps to next day', () => {
+            state.time = { dayIndex: 0, partIndex: 0 }
+            advanceTime(state, 3)
+            assert(state.time.dayIndex === 1, 'expected dayIndex 1, got ' + state.time.dayIndex)
+            assert(state.time.partIndex === 0, 'expected partIndex 0, got ' + state.time.partIndex)
+        })
+
+        // 9c) deterministic RNG repeatability under fixed seed
+        test('deterministic RNG sequence is repeatable', () => {
+            setDeterministicRngEnabled(state, true)
+            setRngLoggingEnabled(state, false)
+
+            const roll = () => {
+                setRngSeed(state, 424242)
+                state.debug.rngIndex = 0
+                return [
+                    rngFloat(state, 'smoke.rngFloat'),
+                    rngInt(state, 1, 10, 'smoke.rngInt'),
+                    rngPick(state, ['a', 'b', 'c'], 'smoke.rngPick')
+                ]
+            }
+
+            const a = roll()
+            const b = roll()
+            assert(JSON.stringify(a) === JSON.stringify(b), 'expected repeatable sequence, got ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b))
+        })
+
+        // 9d) RNG log ring-buffer guard
+        test('RNG log caps at 200 entries', () => {
+            setDeterministicRngEnabled(state, true)
+            setRngSeed(state, 1337)
+            state.debug.rngIndex = 0
+            setRngLoggingEnabled(state, true)
+
+            for (let i = 0; i < 250; i++) rngFloat(state, 'smoke.cap')
+            assert(Array.isArray(state.debug.rngLog), 'rngLog missing')
+            assert(state.debug.rngLog.length === 200, 'expected rngLog length 200, got ' + state.debug.rngLog.length)
+            const last = state.debug.rngLog[state.debug.rngLog.length - 1]
+            assert(last && last.i === 249, 'expected last rngLog index 249, got ' + (last ? last.i : 'null'))
+
+            setRngLoggingEnabled(state, false)
+        })
+
         section('Economy & Daily Ticks')
 
         // 10) daily ticks x3 (basic regression)
@@ -13870,6 +17280,210 @@ function runSmokeTests() {
 
             assert(afterD0 === 1, 'expected restock +1 on day D')
             assert(afterD1 === 2, 'expected restock +1 on day D+1')
+        })
+
+        section('Bank')
+
+        // 12a) weekly interest applies after 7 days
+        test('bank: weekly interest applies after 7 days', () => {
+            initVillageEconomyState(state)
+            initGovernmentState(state, 0)
+            initTimeState(state)
+
+            const today = Math.floor(Number(state.time.dayIndex) || 0)
+            state.bank = {
+                balance: 1000,
+                investments: 1000,
+                loan: { balance: 1000, baseRate: 0 },
+                visits: 0,
+                lastInterestDay: today - 7
+            }
+
+            const openModalStub = (_title, builder) => {
+                const body = document.createElement('div')
+                builder(body)
+            }
+
+            openBankModalImpl({
+                state,
+                openModal: openModalStub,
+                addLog: () => {},
+                recordInput: () => {},
+                updateHUD: () => {},
+                saveGame: () => {}
+            })
+
+            assert(state.bank.balance > 1000, 'expected savings interest to increase balance')
+            assert(state.bank.investments > 1000, 'expected investment returns to increase investments')
+            assert(state.bank.loan && state.bank.loan.balance > 1000, 'expected loan interest to increase loan balance')
+            assert(state.bank.lastInterestDay === today, 'expected lastInterestDay to advance to today')
+        })
+
+        // 12b) guard: calendar rollback / future lastInterestDay should recalibrate without applying interest
+        test('bank: future lastInterestDay recalibrates safely', () => {
+            initTimeState(state)
+            const today = Math.floor(Number(state.time.dayIndex) || 0)
+            state.bank = {
+                balance: 1000,
+                investments: 0,
+                loan: null,
+                visits: 0,
+                lastInterestDay: today + 999
+            }
+
+            const openModalStub = (_title, builder) => {
+                const body = document.createElement('div')
+                builder(body)
+            }
+
+            openBankModalImpl({
+                state,
+                openModal: openModalStub,
+                addLog: () => {},
+                recordInput: () => {},
+                updateHUD: () => {},
+                saveGame: () => {}
+            })
+
+            assert(state.bank.balance === 1000, 'expected no interest when recalibrating')
+            assert(state.bank.lastInterestDay === today, 'expected lastInterestDay reset to today')
+        })
+
+        section('Town Hall & Decrees')
+
+        test('town hall: cleanup removes expired effects', () => {
+            initTimeState(state)
+            initGovernmentState(state, 0)
+            const today = Math.floor(Number(state.time.dayIndex) || 0)
+
+            state.government = state.government || {}
+            state.government.townHallEffects = {
+                petitionId: 'smoke',
+                title: 'Smoke Decree',
+                expiresOnDay: today - 1,
+                depositRateMultiplier: 2
+            }
+
+            cleanupTownHallEffects(state)
+            assert(!state.government.townHallEffects, 'expected expired townHallEffects to be removed')
+
+            // Active decree should remain
+            state.government.townHallEffects = {
+                petitionId: 'smoke2',
+                title: 'Active Decree',
+                expiresOnDay: today,
+                depositRateMultiplier: 2
+            }
+            cleanupTownHallEffects(state)
+            assert(!!state.government.townHallEffects, 'expected active townHallEffects to remain')
+        })
+
+        test('town hall modal builds (sandboxed)', () => {
+            const openModalStub = (_title, builder) => {
+                const body = document.createElement('div')
+                builder(body)
+                assert(body.textContent && body.textContent.length > 0, 'expected some UI content')
+            }
+
+            openTownHallModalImpl({
+                state,
+                openModal: openModalStub,
+                addLog: () => {},
+                handleGovernmentDayTick,
+                handleEconomyDayTick,
+                updateHUD: () => {},
+                saveGame: () => {}
+            })
+        })
+
+        section('Tavern & Gambling')
+
+        test('tavern modal builds (sandboxed)', () => {
+            const openModalStub = (_title, builder) => {
+                const body = document.createElement('div')
+                builder(body)
+                assert(body.querySelectorAll('button').length >= 1, 'expected at least one tavern action button')
+            }
+
+            openTavernModalImpl({
+                state,
+                openModal: openModalStub,
+                addLog: () => {},
+                recordInput: () => {},
+                getVillageEconomySummary,
+                getRestCost,
+                handleEconomyAfterPurchase,
+                jumpToNextMorning,
+                updateHUD: () => {},
+                updateTimeDisplay: () => {},
+                saveGame: () => {},
+                closeModal: () => {},
+                openGambleModal: () => {},
+                questDefs: QUEST_DEFS,
+                ensureQuestStructures: quests.ensureQuestStructures,
+                startSideQuest: quests.startSideQuest,
+                advanceSideQuest: quests.advanceSideQuest,
+                completeSideQuest: quests.completeSideQuest,
+                updateQuestBox: quests.updateQuestBox,
+                setScene: () => {}
+            })
+        })
+
+        test('gamble modal builds (sandboxed)', () => {
+            const openModalStub = (_title, builder) => {
+                const body = document.createElement('div')
+                builder(body)
+                assert(body.querySelectorAll('button').length >= 1, 'expected at least one gambling action button')
+            }
+
+            openGambleModalImpl({
+                state,
+                openModal: openModalStub,
+                addLog: () => {},
+                updateHUD: () => {},
+                saveGame: () => {},
+                closeModal: () => {},
+                openTavernModal: () => {}
+            })
+        })
+
+        section('Quests & Progression')
+
+        test('quest lifecycle: ensure/init/start/advance/complete', () => {
+            state.quests = null
+            state.flags = null
+            quests.ensureQuestStructures()
+            assert(state.quests && typeof state.quests === 'object', 'quests missing after ensure')
+            assert(state.flags && typeof state.flags === 'object', 'flags missing after ensure')
+
+            quests.initMainQuest()
+            assert(state.quests.main && state.quests.main.id === 'main', 'main quest not initialized')
+
+            quests.startSideQuest('grainWhispers')
+            assert(state.quests.side.grainWhispers && state.quests.side.grainWhispers.status === 'active', 'side quest not started')
+
+            quests.advanceSideQuest('grainWhispers', 1)
+            assert(state.quests.side.grainWhispers.step === 1, 'side quest did not advance to step 1')
+
+            quests.completeSideQuest('grainWhispers', null)
+            assert(state.quests.side.grainWhispers.status === 'completed', 'side quest did not complete')
+        })
+
+        test('progression audit report includes patch + schema', () => {
+            const report = quests.buildProgressionAuditReport()
+            assert(typeof report === 'string' && report.length > 20, 'audit report missing')
+            assert(report.includes('Patch: ' + GAME_PATCH), 'audit report missing patch')
+            assert(report.includes('schema ' + SAVE_SCHEMA), 'audit report missing schema')
+        })
+
+        section('Bug Report Bundle')
+
+        test('bug report bundle serializes and includes patch info', () => {
+            const bundle = buildBugReportBundle()
+            const json = JSON.stringify(bundle)
+            assert(typeof json === 'string' && json.length > 0, 'bundle did not serialize')
+            assert(bundle && bundle.summary && bundle.summary.patch === GAME_PATCH, 'bundle patch mismatch')
+            assert(bundle.summary.saveSchema === SAVE_SCHEMA, 'bundle schema mismatch')
         })
 
         section('Merchants')
@@ -14148,6 +17762,58 @@ function runSmokeTests() {
             }
         })
 
+
+
+        // UI: enemy panel opens an Enemy Sheet modal (sandboxed)
+        test('UI: enemy sheet modal builds (enemy panel click)', () => {
+            const enemyPanel = document.getElementById('enemyPanel')
+            const modal = document.getElementById('enemyModal')
+            const modalTitle = document.getElementById('enemyModalTitle')
+
+            assert(!!enemyPanel, 'enemyPanel missing from DOM')
+            assert(!!modal, 'enemyModal missing from DOM')
+            assert(!!modalTitle, 'enemyModalTitle missing from DOM')
+
+            const snap = {
+                inCombat: !!state.inCombat,
+                currentEnemy: state.currentEnemy ? JSON.parse(JSON.stringify(state.currentEnemy)) : null
+            }
+
+            try {
+                state.inCombat = true
+                state.currentEnemy = {
+                    name: 'Sheet Dummy',
+                    level: 12,
+                    hp: 120,
+                    maxHp: 120,
+                    attack: 16,
+                    magic: 8,
+                    armor: 2,
+                    magicRes: 2,
+                    xp: 12,
+                    goldMin: 6,
+                    goldMax: 9,
+                    abilities: ['enemyStrike']
+                }
+                ensureEnemyRuntime(state.currentEnemy)
+                applyEnemyRarity(state.currentEnemy)
+                updateEnemyPanel()
+
+                // Click should open a real modal in the live DOM.
+                enemyPanel.click()
+
+                assert(!modal.classList.contains('hidden'), 'expected modal to be visible')
+                assert(modalTitle.textContent.includes('Enemy Sheet'), 'unexpected modal title: ' + modalTitle.textContent)
+
+                // Close to avoid leaking UI state into later tests
+                closeEnemyModal()
+            } finally {
+                state.inCombat = snap.inCombat
+                state.currentEnemy = snap.currentEnemy
+                updateEnemyPanel()
+                try { closeEnemyModal() } catch (_) {}
+            }
+        })
         section('Combat')
 
         // 20) combat sanity: damage/heal never NaN and HP clamped
@@ -14226,6 +17892,11 @@ function runSmokeTests() {
                 state.inCombat = snap.inCombat
                 state.currentEnemy = snap.currentEnemy
                 p.hp = snap.playerHp
+                if (p.status) {
+                    p.status.shield = snap.playerShield
+                    p.status.evasionTurns = snap.playerEvasionTurns
+                }
+                if (p.stats) p.stats.dodgeChance = snap.playerDodgeChance
                 p.maxHp = snap.playerMaxHp
                 p.classId = snap.playerClassId
                 p.resourceKey = snap.playerResourceKey
@@ -14237,7 +17908,450 @@ function runSmokeTests() {
             }
         })
 
-        // 21) deep combat: enemy intent telegraph + interrupt
+        // 20a) AoE abilities: multi-enemy damage should affect more than the primary target.
+        test('combat: AoE (Cleave) damages multiple enemies', () => {
+            const p = state.player
+
+            // Set up a warrior with Cleave.
+            p.classId = 'warrior'
+            p.resourceKey = 'fury'
+            p.resourceName = 'Fury'
+            p.maxResource = 60
+            p.resource = 60
+            p.spells = ['powerStrike', 'battleCry', 'shieldWall', 'cleave']
+            p.equippedSpells = ['cleave']
+            ensurePlayerSpellSystems(p)
+            recalcPlayerStats()
+
+            // Disable crit variance for deterministic assertions.
+            if (p.stats) {
+                p.stats.critChance = 0
+                p.stats.critDamage = 0
+            }
+
+            // Multi-enemy encounter.
+            const e1 = { name: 'E1', hp: 120, maxHp: 120, armor: 0, magicRes: 0, tier: 1 }
+            const e2 = { name: 'E2', hp: 120, maxHp: 120, armor: 0, magicRes: 0, tier: 1 }
+            const e3 = { name: 'E3', hp: 120, maxHp: 120, armor: 0, magicRes: 0, tier: 1 }
+            state.inCombat = true
+            state.enemies = [e1, e2, e3]
+            state.currentEnemy = e1
+            state.targetEnemyIndex = 0
+
+            const ctx = buildAbilityContext(p, 'cleave')
+            _setPlayerAbilityContext(ctx)
+            ABILITY_EFFECTS.cleave(p, e1, ctx)
+            _setPlayerAbilityContext(null)
+
+            assert(e1.hp < e1.maxHp, 'primary target did not take damage')
+            assert(e2.hp < e2.maxHp && e3.hp < e3.maxHp, 'expected splash damage to hit other enemies')
+        })
+
+        test('combat: AoE (Blood Nova) damages and bleeds the group', () => {
+            const p = state.player
+
+            p.classId = 'blood'
+            p.resourceKey = 'blood'
+            p.resourceName = 'Blood'
+            p.maxResource = 80
+            p.resource = 80
+            p.stats.magic = Math.max(10, p.stats.magic)
+            p.spells = ['bloodSlash', 'leech', 'hemorrhage', 'bloodNova']
+            p.equippedSpells = ['bloodNova']
+            ensurePlayerSpellSystems(p)
+            recalcPlayerStats()
+
+            if (p.stats) {
+                p.stats.critChance = 0
+                p.stats.critDamage = 0
+            }
+
+            const e1 = { name: 'E1', hp: 140, maxHp: 140, armor: 0, magicRes: 0, tier: 1 }
+            const e2 = { name: 'E2', hp: 140, maxHp: 140, armor: 0, magicRes: 0, tier: 1 }
+            state.inCombat = true
+            state.enemies = [e1, e2]
+            state.currentEnemy = e1
+            state.targetEnemyIndex = 0
+
+            const ctx = buildAbilityContext(p, 'bloodNova')
+            _setPlayerAbilityContext(ctx)
+            ABILITY_EFFECTS.bloodNova(p, e1, ctx)
+            _setPlayerAbilityContext(null)
+
+            assert(e1.hp < e1.maxHp && e2.hp < e2.maxHp, 'expected both enemies to take damage')
+            assert((e1.bleedTurns || 0) > 0 && (e2.bleedTurns || 0) > 0, 'expected bleed on both enemies')
+        })
+
+        test('combat: AoE (Meteor Sigil) splashes when multiple enemies present', () => {
+            const p = state.player
+
+            p.classId = 'mage'
+            p.resourceKey = 'mana'
+            p.resourceName = 'Mana'
+            p.maxResource = 100
+            p.resource = 100
+            p.stats.magic = Math.max(12, p.stats.magic)
+            p.spells = ['fireball', 'iceShard', 'arcaneShield', 'meteorSigil']
+            p.equippedSpells = ['meteorSigil']
+            ensurePlayerSpellSystems(p)
+            recalcPlayerStats()
+
+            if (p.stats) {
+                p.stats.critChance = 0
+                p.stats.critDamage = 0
+            }
+
+            const e1 = { name: 'E1', hp: 160, maxHp: 160, armor: 0, magicRes: 0, tier: 1 }
+            const e2 = { name: 'E2', hp: 160, maxHp: 160, armor: 0, magicRes: 0, tier: 1 }
+            const e3 = { name: 'E3', hp: 160, maxHp: 160, armor: 0, magicRes: 0, tier: 1 }
+            state.inCombat = true
+            state.enemies = [e1, e2, e3]
+            state.currentEnemy = e2
+            state.targetEnemyIndex = 1
+
+            const ctx = buildAbilityContext(p, 'meteorSigil')
+            _setPlayerAbilityContext(ctx)
+            ABILITY_EFFECTS.meteorSigil(p, e2, ctx)
+            _setPlayerAbilityContext(null)
+
+            assert(e2.hp < e2.maxHp, 'target did not take damage')
+            assert(e1.hp < e1.maxHp && e3.hp < e3.maxHp, 'expected splash damage to hit non-targets')
+        })
+
+        
+        // 20b) combat: enemy mini-affixes (thorns / vampiric / regen / frozen)
+        test('combat: enemy affix thorns reflects (and respects shield)', () => {
+            const p = state.player
+
+            const snap = {
+                inCombat: !!state.inCombat,
+                currentEnemy: state.currentEnemy ? JSON.parse(JSON.stringify(state.currentEnemy)) : null,
+                playerHp: p.hp,
+                playerShield: p.status ? (p.status.shield || 0) : 0
+            }
+
+            const _enemyTurn = typeof enemyTurn === 'function' ? enemyTurn : null
+            const _handlePlayerDefeat = typeof handlePlayerDefeat === 'function' ? handlePlayerDefeat : null
+
+            try {
+                if (_enemyTurn) enemyTurn = () => {}
+                if (_handlePlayerDefeat) handlePlayerDefeat = () => {}
+
+                state.inCombat = true
+                state.currentEnemy = { name: 'Thorns Dummy', hp: 120, maxHp: 120, level: 10, attack: 12, magic: 0, armor: 0, magicRes: 0, xp: 10, goldMin: 0, goldMax: 0 }
+                ensureEnemyRuntime(state.currentEnemy)
+
+                applyEnemyAffixes(state.currentEnemy, { forceAffixes: ['thorns'] })
+                rebuildEnemyDisplayName(state.currentEnemy)
+
+                // No shield: HP should drop
+                p.status.shield = 0
+                const beforeHp = p.hp
+                playerBasicAttack()
+                assert(p.hp < beforeHp, 'expected thorns to damage player')
+
+                // Shield: should absorb first
+                p.hp = beforeHp
+                p.status.shield = 999
+                const beforeShield = p.status.shield
+                playerBasicAttack()
+                assert(p.hp === beforeHp, 'expected shield to absorb thorns')
+                assert(p.status.shield < beforeShield, 'expected shield to be reduced by thorns')
+            } finally {
+                if (_enemyTurn) enemyTurn = _enemyTurn
+                if (_handlePlayerDefeat) handlePlayerDefeat = _handlePlayerDefeat
+
+                state.inCombat = snap.inCombat
+                state.currentEnemy = snap.currentEnemy
+                p.hp = snap.playerHp
+                if (p.status) p.status.shield = snap.playerShield
+            }
+        })
+
+        test('combat: enemy affix vampiric heals on hit', () => {
+            const p = state.player
+
+            const snap = {
+                inCombat: !!state.inCombat,
+                currentEnemy: state.currentEnemy ? JSON.parse(JSON.stringify(state.currentEnemy)) : null,
+                playerHp: p.hp,
+                playerShield: p.status ? (p.status.shield || 0) : 0,
+                strikeUndodgeable: ENEMY_ABILITIES && ENEMY_ABILITIES.enemyStrike
+                    ? !!ENEMY_ABILITIES.enemyStrike.undodgeable
+                    : false
+            }
+
+            try {
+                state.inCombat = true
+                const enemy = { name: 'Vamp Dummy', hp: 140, maxHp: 160, level: 10, attack: 18, magic: 0, armor: 0, magicRes: 0, xp: 10, goldMin: 0, goldMax: 0 }
+                state.currentEnemy = enemy
+                ensureEnemyRuntime(enemy)
+
+                applyEnemyAffixes(enemy, { forceAffixes: ['vampiric'] })
+                rebuildEnemyDisplayName(enemy)
+
+                // Ensure the test doesn't accidentally pass/fail due to dodge or heal-cap.
+                if (ENEMY_ABILITIES && ENEMY_ABILITIES.enemyStrike) ENEMY_ABILITIES.enemyStrike.undodgeable = true
+                if (p.status) p.status.shield = 0
+                enemy.hp = Math.max(1, enemy.maxHp - 30)
+
+                const before = enemy.hp
+                applyEnemyAbilityToPlayer(enemy, p, 'enemyStrike')
+                assert(enemy.hp > before, 'expected vampiric to heal enemy')
+                assert(enemy.hp <= enemy.maxHp, 'enemy hp exceeded max after vampiric')
+            } finally {
+                if (ENEMY_ABILITIES && ENEMY_ABILITIES.enemyStrike) ENEMY_ABILITIES.enemyStrike.undodgeable = snap.strikeUndodgeable
+                state.inCombat = snap.inCombat
+                state.currentEnemy = snap.currentEnemy
+                p.hp = snap.playerHp
+                if (p.status) p.status.shield = snap.playerShield
+            }
+        })
+
+        test('combat: enemy affix regenerating heals at end of turn', () => {
+            const snap = {
+                inCombat: !!state.inCombat,
+                currentEnemy: state.currentEnemy ? JSON.parse(JSON.stringify(state.currentEnemy)) : null
+            }
+
+            try {
+                state.inCombat = true
+                const enemy = { name: 'Regen Dummy', hp: 50, maxHp: 200, level: 12, attack: 10, magic: 0, armor: 0, magicRes: 0, xp: 10, goldMin: 0, goldMax: 0 }
+                state.currentEnemy = enemy
+                ensureEnemyRuntime(enemy)
+
+                applyEnemyAffixes(enemy, { forceAffixes: ['regenerating'] })
+                rebuildEnemyDisplayName(enemy)
+
+                enemy.hp = 50
+                const before = enemy.hp
+                applyEndOfTurnEffectsEnemy(enemy)
+                assert(enemy.hp > before, 'expected regenerating to heal enemy')
+            } finally {
+                state.inCombat = snap.inCombat
+                state.currentEnemy = snap.currentEnemy
+            }
+        })
+
+        test('combat: enemy affix frozen applies chilled (reduces player damage)', () => {
+            const p = state.player
+            const snap = {
+                inCombat: !!state.inCombat,
+                currentEnemy: state.currentEnemy ? JSON.parse(JSON.stringify(state.currentEnemy)) : null,
+                playerChilled: p.status ? (p.status.chilledTurns || 0) : 0,
+                playerShield: p.status ? (p.status.shield || 0) : 0,
+                strikeUndodgeable: ENEMY_ABILITIES && ENEMY_ABILITIES.enemyStrike
+                    ? !!ENEMY_ABILITIES.enemyStrike.undodgeable
+                    : false
+            }
+
+            try {
+                state.inCombat = true
+                const enemy = { name: 'Frozen Dummy', hp: 200, maxHp: 200, level: 12, attack: 14, magic: 0, armor: 0, magicRes: 0, xp: 10, goldMin: 0, goldMax: 0 }
+                state.currentEnemy = enemy
+                ensureEnemyRuntime(enemy)
+
+                applyEnemyAffixes(enemy, { forceAffixes: ['frozen'] })
+                // Force proc so the test doesn't depend on RNG.
+                enemy.affixChillChance = 1
+                enemy.affixChillTurns = 2
+                rebuildEnemyDisplayName(enemy)
+
+                // Ensure hit lands (avoid dodge) and chill isn't masked by old shields.
+                if (ENEMY_ABILITIES && ENEMY_ABILITIES.enemyStrike) ENEMY_ABILITIES.enemyStrike.undodgeable = true
+                if (p.status) p.status.shield = 0
+
+                // Apply a hit; should chill the player.
+                applyEnemyAbilityToPlayer(enemy, p, 'enemyStrike')
+                assert((p.status.chilledTurns || 0) >= 2, 'expected frozen affix to apply chilled')
+
+                // Set crit chance to 0 for deterministic damage comparison.
+                p.stats.critChance = 0
+                p.stats.critDamage = 0
+
+                const base = p.stats.attack
+
+                p.status.chilledTurns = 0
+                const dmgWarm = calcPhysicalDamage(base)
+
+                p.status.chilledTurns = 2
+                const dmgCold = calcPhysicalDamage(base)
+
+                assert(dmgCold <= dmgWarm, 'expected chilled to reduce outgoing damage')
+            } finally {
+                if (ENEMY_ABILITIES && ENEMY_ABILITIES.enemyStrike) ENEMY_ABILITIES.enemyStrike.undodgeable = snap.strikeUndodgeable
+                state.inCombat = snap.inCombat
+                state.currentEnemy = snap.currentEnemy
+                if (p.status) {
+                    p.status.chilledTurns = snap.playerChilled
+                    p.status.shield = snap.playerShield
+                }
+            }
+        })
+        // 20c) combat: enemy rarity (Common→Epic; Boss is always Legendary)
+        test('combat: boss rarity is legendary', () => {
+            const enemy = { name: 'Boss Dummy', isBoss: true, hp: 300, maxHp: 300, level: 12, attack: 20, magic: 20, armor: 4, magicRes: 4, xp: 50, goldMin: 30, goldMax: 40 }
+            ensureEnemyRuntime(enemy)
+            applyEnemyRarity(enemy)
+            assert(enemy.rarity === 'legendary', 'expected boss rarity to be legendary')
+            assert(enemy.rarityTier === 5, 'expected legendary tier 5')
+            assert(enemy.rarityLabel === 'Legendary', 'expected legendary label')
+        })
+
+        test('combat: elite rarity is uncommon-or-rare', () => {
+            const oldDiff = state.difficulty
+            const rngSnap = (() => { try { return JSON.parse(JSON.stringify(state.rng)) } catch (_) { return null } })()
+            try {
+                state.difficulty = 'normal'
+                setRngSeed(state, QA_SEED)
+
+                const enemy = { name: 'Elite Dummy', isElite: true, level: 12, hp: 120, maxHp: 120, attack: 16, magic: 8, armor: 2, magicRes: 2, xp: 30, goldMin: 20, goldMax: 25 }
+                ensureEnemyRuntime(enemy)
+                applyEnemyRarity(enemy)
+                assert(enemy.rarity === 'uncommon' || enemy.rarity === 'rare', 'expected elite rarity uncommon/rare, got ' + enemy.rarity)
+            } finally {
+                state.difficulty = oldDiff
+                if (rngSnap) state.rng = rngSnap
+            }
+        })
+
+        test('combat: rare rarity increases rewards vs baseline', () => {
+            const base = { name: 'Baseline Dummy', level: 12, hp: 200, maxHp: 200, attack: 16, magic: 8, armor: 2, magicRes: 2, xp: 30, goldMin: 20, goldMax: 25 }
+            const enemy = JSON.parse(JSON.stringify(base))
+            enemy.rarity = 'rare'
+
+            ensureEnemyRuntime(base)
+            ensureEnemyRuntime(enemy)
+
+            // Apply rarity scaling (no re-roll because rarity is explicit)
+            applyEnemyRarity(enemy)
+
+            assert(enemy.xp > base.xp, 'expected rare xp to be higher')
+            assert(enemy.goldMin > base.goldMin, 'expected rare goldMin to be higher')
+            assert(enemy.goldMax > base.goldMax, 'expected rare goldMax to be higher')
+        })
+
+        // 20d) difficulty linkage: enemy rarity + mini-affixes follow difficulty intent
+        test('difficulty: easy/normal/hard rarity distributions match design', () => {
+            const oldDiff = state.difficulty
+            const oldArea = state.area
+            const oldDyn = state.dynamicDifficulty ? JSON.parse(JSON.stringify(state.dynamicDifficulty)) : null
+            const rngSnap = (() => { try { return JSON.parse(JSON.stringify(state.rng)) } catch (_) { return null } })()
+
+            function sample(difficulty, band) {
+                state.area = 'forest'
+                state.difficulty = difficulty
+                if (difficulty === 'dynamic') {
+                    getActiveDifficultyConfig()
+                    if (!state.dynamicDifficulty) state.dynamicDifficulty = {}
+                    state.dynamicDifficulty.band = finiteNumber(band, 0)
+                }
+
+                setRngSeed(state, QA_SEED)
+                const N = 260
+
+                const counts = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 }
+                let tierSum = 0
+                let affixSum = 0
+
+                for (let i = 0; i < N; i++) {
+                    const enemy = { name: 'Dummy', level: 12, hp: 120, maxHp: 120, attack: 16, magic: 8, armor: 2, magicRes: 2, xp: 12, goldMin: 6, goldMax: 9 }
+                    ensureEnemyRuntime(enemy)
+                    applyEnemyRarity(enemy)
+
+                    const cap = 2 + finiteNumber(enemy.rarityAffixCapBonus, 0)
+                    applyEnemyAffixes(enemy, { maxAffixes: cap })
+
+                    counts[enemy.rarity] = (counts[enemy.rarity] || 0) + 1
+                    tierSum += finiteNumber(enemy.rarityTier, 1)
+                    affixSum += Array.isArray(enemy.affixes) ? enemy.affixes.length : 0
+                }
+
+                const rate = (id) => (counts[id] || 0) / N
+                return { N, counts, rate, avgTier: tierSum / N, avgAffixes: affixSum / N }
+            }
+
+            try {
+                const easy = sample('easy', 0)
+                assert(easy.rate('common') === 1, 'expected easy to be 100% common')
+                assert(easy.avgTier === 1, 'expected easy avgTier to be 1.0')
+                assert(easy.avgAffixes === 0, 'expected easy to roll no mini-affixes')
+
+                const normal = sample('normal', 0)
+                assert(normal.rate('common') <= 0.12, 'expected normal to have very little common')
+                assert(normal.rate('uncommon') >= 0.70, 'expected normal to be mostly uncommon')
+                assert(normal.rate('rare') >= 0.03 && normal.rate('rare') <= 0.22, 'expected normal to have a few rares')
+                assert(normal.rate('epic') === 0, 'expected normal to have no epic')
+                assert(normal.rate('epic') === 0, 'expected normal to have no non-boss epic')
+                assert(normal.rate('legendary') === 0, 'expected normal to have no non-boss legendary')
+                assert(normal.rate('mythic') === 0, 'expected normal to have no non-boss mythic')
+                assert(normal.rate('mythic') === 0, 'expected normal to have no mythic')
+
+                const hard = sample('hard', 0)
+                assert(hard.rate('common') === 0, 'expected hard to have no common')
+                assert(hard.rate('uncommon') <= 0.25, 'expected hard to have very little uncommon')
+                assert(hard.rate('rare') >= 0.55, 'expected hard to be mostly rare')
+                assert(hard.rate('epic') >= 0.05 && hard.rate('epic') <= 0.30, 'expected hard to have a few epics')
+                assert(hard.rate('legendary') >= 0.005 && hard.rate('legendary') <= 0.12, 'expected hard to have a few legendary')
+                assert(hard.rate('mythic') <= 0.02, 'expected mythic to be extremely rare')
+            } finally {
+                state.difficulty = oldDiff
+                state.area = oldArea
+                state.dynamicDifficulty = oldDyn
+                if (rngSnap) state.rng = rngSnap
+            }
+        })
+
+        test('difficulty: dynamic spawns match its effective difficulty label', () => {
+            const oldDiff = state.difficulty
+            const oldArea = state.area
+            const oldDyn = state.dynamicDifficulty ? JSON.parse(JSON.stringify(state.dynamicDifficulty)) : null
+            const rngSnap = (() => { try { return JSON.parse(JSON.stringify(state.rng)) } catch (_) { return null } })()
+
+            function sampleAtBand(band) {
+                state.area = 'forest'
+                state.difficulty = 'dynamic'
+                getActiveDifficultyConfig()
+                if (!state.dynamicDifficulty) state.dynamicDifficulty = {}
+                state.dynamicDifficulty.band = band
+
+                const cfg = getActiveDifficultyConfig()
+                setRngSeed(state, QA_SEED)
+
+                const N = 220
+                const counts = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 }
+                for (let i = 0; i < N; i++) {
+                    const enemy = { name: 'Dummy', level: 12, hp: 120, maxHp: 120, attack: 16, magic: 8, armor: 2, magicRes: 2, xp: 12, goldMin: 6, goldMax: 9 }
+                    ensureEnemyRuntime(enemy)
+                    applyEnemyRarity(enemy)
+                    counts[enemy.rarity] = (counts[enemy.rarity] || 0) + 1
+                }
+                const rate = (id) => (counts[id] || 0) / N
+                return { cfg, counts, rate }
+            }
+
+            try {
+                const low = sampleAtBand(-2)
+                assert(low.cfg.closestId === 'easy', 'expected dynamic band -2 to be closest to easy')
+                assert(low.rate('common') === 1, 'expected dynamic (easy) to be 100% common')
+
+                const mid = sampleAtBand(0)
+                assert(mid.cfg.closestId === 'normal', 'expected dynamic band 0 to be closest to normal')
+                assert(mid.rate('uncommon') >= 0.70, 'expected dynamic (normal) to be mostly uncommon')
+
+                const high = sampleAtBand(2)
+                assert(high.cfg.closestId === 'hard', 'expected dynamic band +2 to be closest to hard')
+                assert(high.rate('common') === 0, 'expected dynamic (hard) to have no common')
+                assert(high.rate('legendary') >= 0.005, 'expected dynamic (hard) to have some legendary')
+                assert(high.rate('mythic') <= 0.02, 'expected dynamic (hard) mythic to be extremely rare')
+            } finally {
+                state.difficulty = oldDiff
+                state.area = oldArea
+                state.dynamicDifficulty = oldDyn
+                if (rngSnap) state.rng = rngSnap
+            }
+        })
+
         test('combat: enemy intent telegraph + interrupt', () => {
             const p = state.player
 
@@ -14631,14 +18745,82 @@ function runSmokeTests() {
             assert(st.armorDownTurns === 0, 'armorDownTurns did not tick to 0')
             assert(st.armorDown === 0, 'armorDown did not clear at expiry')
 
-            // Bleed ticks on end-of-turn and clears bleedDamage at expiry
+            // Bleed ticks at the start of the player's turn and clears bleedDamage at expiry
             st.bleedDamage = 5
             st.bleedTurns = 1
             const hp0 = p.hp
-            applyEndOfTurnEffectsPlayer(p)
+            applyStartOfTurnEffectsPlayer(p)
+            // HP Regen affix can still tick on round boundaries.
+            applyPlayerRegenTick()
             assert(st.bleedTurns === 0, 'bleedTurns did not tick to 0')
             assert(st.bleedDamage === 0, 'bleedDamage did not clear at expiry')
             assert(p.hp <= hp0, 'bleed tick increased HP unexpectedly')
+        })
+
+        // 24d2) combat: bleed only ticks at the start of the player's turn (beginPlayerTurn)
+        test('combat: bleed ticks on player turn start only (no double tick)', () => {
+            const p = state.player
+            const st = p.status || (p.status = {})
+            // Ensure regen doesn't mask HP comparisons
+            p.affixes = []
+
+            state.inCombat = true
+            state.enemies = [{ name: 'Bleed Dummy', hp: 10, maxHp: 10 }]
+            state.targetEnemyIndex = 0
+            state.currentEnemy = state.enemies[0]
+            ensureCombatTurnState()
+            state.combat.round = 1
+            state.combat.busy = false
+
+            st.bleedDamage = 5
+            st.bleedTurns = 2
+            const hp0 = p.hp
+
+            beginPlayerTurn()
+            assert(p.hp === hp0 - 5, 'expected bleed to apply once at player turn start')
+            // Calling again within the same round should not double-apply
+            beginPlayerTurn()
+            assert(p.hp === hp0 - 5, 'bleed applied twice in the same round')
+
+            // End-of-round should NOT apply bleed anymore
+            const hp1 = p.hp
+            postEnemyTurn()
+            assert(p.hp === hp1, 'bleed ticked during postEnemyTurn (should wait for player turn)')
+
+            // Next round: bleed should tick again
+            state.combat.round = 2
+            beginPlayerTurn()
+            assert(p.hp === hp1 - 5, 'expected bleed to tick at start of next player turn')
+        })
+
+        // 24d3) combat: ensureCombatPointers repairs missing currentEnemy and clamps target index
+        test('combat: ensureCombatPointers repairs missing enemy pointers', () => {
+            state.inCombat = true
+            state.enemies = [
+                { name: 'Dead #1', hp: 0, maxHp: 10 },
+                { name: 'Alive #2', hp: 7, maxHp: 10 }
+            ]
+            state.targetEnemyIndex = 0
+            state.currentEnemy = null
+
+            ensureCombatPointers()
+            assert(!!state.currentEnemy, 'expected currentEnemy to be repaired')
+            assert(state.currentEnemy.name === 'Alive #2', 'expected to target the first living enemy')
+            assert(state.targetEnemyIndex === 1, 'expected targetEnemyIndex to advance to living enemy')
+        })
+
+        // 24d4) combat: exploreArea is blocked during combat to prevent desync
+        test('combat: exploreArea is blocked while inCombat', () => {
+            state.inCombat = true
+            state.enemies = [{ name: 'Dummy', hp: 10, maxHp: 10 }]
+            state.currentEnemy = state.enemies[0]
+            ensureCombatTurnState()
+
+            const t0 = JSON.stringify(state.time)
+            exploreArea()
+            const t1 = JSON.stringify(state.time)
+            assert(t1 === t0, 'exploreArea advanced time during combat')
+            assert(state.inCombat === true, 'exploreArea incorrectly ended combat')
         })
 
         // 24e) combat: companion act is safe even with an empty ability kit
@@ -14864,7 +19046,120 @@ function runSmokeTests() {
             assert(enemy.atkDownFlat === 0, 'expected atkDownFlat to clear at expiry')
         })
 
-        section('State Invariants')
+        
+        section('Bug Catchers')
+
+        // B) deep scan: ensure the state contains no NaN/Infinity after the heavy tests above ran
+        test('deep state scan: no NaN/Infinity', () => {
+            const issues = scanForNonFiniteNumbers(state)
+            assert(issues.length === 0, 'non-finite numbers found:\n' + issues.slice(0, 20).join('\n') + (issues.length > 20 ? '\n… (' + issues.length + ' total)' : ''))
+        })
+
+        // C) quick structural sanity: negative counters should never exist
+        test('no negative counters in common containers', () => {
+            const issues = scanForNegativeCounters(state)
+            assert(issues.length === 0, issues.join('\n'))
+        })
+
+        // D) fuzz: run a small deterministic action sequence and assert invariants never break
+        test('fuzz: 120 random actions preserve invariants', () => {
+            setDeterministicRngEnabled(state, true)
+            setRngLoggingEnabled(state, false)
+            setRngSeed(state, QA_SEED + 4242)
+
+            const equipIds = ['swordIron', 'armorLeather', 'staffOak', 'robeApprentice']
+            const actionCount = 120
+
+            for (let step = 0; step < actionCount; step++) {
+                const r = rngInt(state, 0, 7, 'smoke.fuzz.action')
+
+                // 0) add potions (including intentionally weird quantities)
+                if (r === 0) {
+                    const qty = rngInt(state, -3, 5, 'smoke.fuzz.qty')
+                    addItemToInventory('potionSmall', qty)
+                }
+                // 1) add a random equipable item
+                else if (r === 1) {
+                    const id = equipIds[rngInt(state, 0, equipIds.length - 1, 'smoke.fuzz.equipId')]
+                    addItemToInventory(id, 1)
+                }
+                // 2) attempt to equip a random inventory index (should never throw)
+                else if (r === 2) {
+                    const inv = state.player && Array.isArray(state.player.inventory) ? state.player.inventory : []
+                    if (inv.length) {
+                        const idx = rngInt(state, 0, inv.length - 1, 'smoke.fuzz.equipIdx')
+                        equipItemFromInventory(idx, { stayOpen: true })
+                    }
+                }
+                // 3) sell a random inventory item
+                else if (r === 3) {
+                    const inv = state.player && Array.isArray(state.player.inventory) ? state.player.inventory : []
+                    if (inv.length) {
+                        const idx = rngInt(state, 0, inv.length - 1, 'smoke.fuzz.sellIdx')
+                        sellItemFromInventory(idx, 'village')
+                    }
+                }
+                // 4) consume a potion if present
+                else if (r === 4) {
+                    const p = state.player
+                    const inv = p && Array.isArray(p.inventory) ? p.inventory : []
+                    const idx = inv.findIndex((it) => it && it.id === 'potionSmall')
+                    if (idx >= 0) {
+                        p.hp = Math.max(1, p.maxHp - 50)
+                        usePotionFromInventory(idx, false, { stayOpen: true })
+                    }
+                }
+                // 5) advance time (and occasionally run daily tick)
+                else if (r === 5) {
+                    advanceTime(state, rngInt(state, 1, 3, 'smoke.fuzz.timeSteps'))
+                    if (rngInt(state, 0, 5, 'smoke.fuzz.tickChance') === 0) {
+                        jumpToNextMorning(state)
+                        const day = state.time && typeof state.time.dayIndex === 'number' ? Math.floor(Number(state.time.dayIndex)) : 0
+                        runDailyTicks(state, day, { silent: true })
+                    }
+                }
+                // 6) town hall: create an expired decree and ensure cleanup removes it
+                else if (r === 6) {
+                    initGovernmentState(state, 0)
+                    const today = state.time && typeof state.time.dayIndex === 'number' ? Math.floor(Number(state.time.dayIndex)) : 0
+                    state.government.townHallEffects = {
+                        petitionId: 'fuzz',
+                        title: 'Fuzz Decree',
+                        expiresOnDay: today - 1,
+                        depositRateMultiplier: 2
+                    }
+                    cleanupTownHallEffects(state)
+                    assert(!state.government.townHallEffects, 'expired townHallEffects survived cleanup')
+                }
+                // 7) open the bank (applies interest) with DOM-safe stubs
+                else {
+                    const openModalStub = (title, builder) => {
+                        const body = document.createElement('div')
+                        builder(body)
+                    }
+                    openBankModalImpl({
+                        state,
+                        openModal: openModalStub,
+                        addLog: () => {},
+                        recordInput: () => {},
+                        updateHUD: () => {},
+                        saveGame: () => {}
+                    })
+                }
+
+                // Every 20 steps, run extra bug-catcher scans
+                if (step % 20 === 19) {
+                    const audit = validateState(state)
+                    assert(!audit || audit.ok, 'invariant issues at step ' + step + ':\n' + (audit ? formatIssues(audit.issues) : 'unknown'))
+                    const n1 = scanForNonFiniteNumbers(state)
+                    assert(n1.length === 0, 'non-finite numbers at step ' + step + ':\n' + n1.slice(0, 10).join('\n'))
+                    const n2 = scanForNegativeCounters(state)
+                    assert(n2.length === 0, 'negative counters at step ' + step + ':\n' + n2.slice(0, 10).join('\n'))
+                }
+            }
+        })
+
+section('State Invariants')
 
         // 28) invariants
         test('invariants', () => {
@@ -14874,6 +19169,17 @@ function runSmokeTests() {
             }
         })
 
+
+        // Final QA: console noise should fail the suite so issues don't hide behind a "green" run.
+        section('Console & Assertions')
+        test('no console.error during suite', () => {
+            assert(consoleErrorLog.length === 0, 'console.error called ' + consoleErrorLog.length + ' time(s)')
+        })
+        test('no console.assert failures during suite', () => {
+            assert(consoleAssertLog.length === 0, 'console.assert failed ' + consoleAssertLog.length + ' time(s)')
+        })
+
+        // Ensure the final section is included in the per-section summary.
         if (currentSection) sectionStats.push(currentSection)
 
         lines.push('')
@@ -14892,28 +19198,96 @@ function runSmokeTests() {
             failed.forEach((f, i) => {
                 lines.push('  ' + (i + 1) + ') ' + f.label + ': ' + f.msg)
             })
+
+            if (consoleErrorLog.length) {
+                lines.push('')
+                lines.push('console.error (first 20):')
+                consoleErrorLog.slice(0, 20).forEach((x) => lines.push('  - ' + x))
+                if (consoleErrorLog.length > 20) lines.push('  … +' + (consoleErrorLog.length - 20) + ' more')
+            }
+            if (consoleAssertLog.length) {
+                lines.push('')
+                lines.push('console.assert failures (first 20):')
+                consoleAssertLog.slice(0, 20).forEach((x) => lines.push('  - ' + x))
+                if (consoleAssertLog.length > 20) lines.push('  … +' + (consoleAssertLog.length - 20) + ' more')
+            }
         }
-        lines.push('')
-        lines.push('Done in ' + (Date.now() - started) + ' ms')
-        return lines.join('\n')
+        const ms = Date.now() - started
+        lines.push('Done in ' + ms + ' ms')
+        const smokeText = lines.join('\n')
+
+        const bugReportPretty = formatBugReportBundle(_bugReportLive)
+        const bugHasIssues = !!(
+            (_bugReportLive && _bugReportLive.debug && Array.isArray(_bugReportLive.debug.invariantIssues) && _bugReportLive.debug.invariantIssues.length) ||
+            (_bugReportLive && _bugReportLive.diagnostics && (_bugReportLive.diagnostics.lastCrashReport || _bugReportLive.diagnostics.lastSaveError))
+        )
+        return returnObject
+            ? {
+                ok: failCount === 0,
+                // Back-compat: keep .text but make it the smoke test output only.
+                text: smokeText,
+                smokeText,
+                passCount,
+                failCount,
+                failed,
+                sectionStats,
+                console: { errors: consoleErrorLog, asserts: consoleAssertLog },
+                bugReport: _bugReportLive,
+                bugReportPretty,
+                bugHasIssues,
+                ms
+            }
+            : smokeText
     } catch (e) {
         lines.push('')
         lines.push('FAILED: ' + (e && e.message ? e.message : String(e)))
         try {
             if (e && e.stack) lines.push(e.stack)
         } catch (_) {}
-        lines.push('')
-        lines.push('Done in ' + (Date.now() - started) + ' ms')
-        return lines.join('\n')
+        const ms = Date.now() - started
+        lines.push('Done in ' + ms + ' ms')
+        const smokeText = lines.join('\n')
+
+        const bugReportPretty = formatBugReportBundle(_bugReportLive)
+        const bugHasIssues = !!(
+            (_bugReportLive && _bugReportLive.debug && Array.isArray(_bugReportLive.debug.invariantIssues) && _bugReportLive.debug.invariantIssues.length) ||
+            (_bugReportLive && _bugReportLive.diagnostics && (_bugReportLive.diagnostics.lastCrashReport || _bugReportLive.diagnostics.lastSaveError))
+        )
+        return returnObject
+            ? {
+                ok: failCount === 0,
+                text: smokeText,
+                smokeText,
+                passCount,
+                failCount,
+                failed,
+                sectionStats,
+                console: { errors: consoleErrorLog, asserts: consoleAssertLog },
+                bugReport: _bugReportLive,
+                bugReportPretty,
+                bugHasIssues,
+                ms
+            }
+            : smokeText
     } finally {
+        // Restore console hooks.
+        try {
+            if (typeof console !== 'undefined') {
+                if (_liveConsoleError) console.error = _liveConsoleError
+                if (_liveConsoleAssert) console.assert = _liveConsoleAssert
+            }
+        } catch (_) {}
+
         // Restore global functions first.
         if (_liveSaveGame) saveGame = _liveSaveGame
         if (_liveCloseModal) closeModal = _liveCloseModal
         if (_liveUpdateHUD) updateHUD = _liveUpdateHUD
         if (_liveUpdateEnemyPanel) updateEnemyPanel = _liveUpdateEnemyPanel
         if (_liveAddLog) addLog = _liveAddLog
+        if (_liveRenderLog) renderLog = _liveRenderLog
         if (_liveRecordInput) recordInput = _liveRecordInput
 
+        // Restore the live save and repaint.
         state = live
         syncGlobalStateRef()
 
@@ -14922,8 +19296,39 @@ function runSmokeTests() {
             if (_liveUpdateHUD) _liveUpdateHUD()
             if (_liveUpdateEnemyPanel) _liveUpdateEnemyPanel()
         } catch (_) {}
+
+        // Restore incremental log renderer bookkeeping + DOM exactly as the player left it.
+        // This prevents smoke tests from clearing/scrolling the live log even if a future
+        // regression accidentally calls renderLog while state is swapped.
+        try {
+            if (_liveLogSeqSnap !== null) _logSeq = _liveLogSeqSnap
+        } catch (_) {}
+        try {
+            if (_liveLogUiSnap && typeof _liveLogUiSnap === 'object') {
+                _logUi = {
+                    filter: _liveLogUiSnap.filter,
+                    lastFirstId: _liveLogUiSnap.lastFirstId,
+                    renderedUpToId: _liveLogUiSnap.renderedUpToId
+                }
+            }
+        } catch (_) {}
+        try {
+            if (_liveLogEl && _liveLogHTML !== null) {
+                _liveLogEl.innerHTML = _liveLogHTML
+                _liveLogEl.scrollTop = _liveLogScrollTop
+            }
+        } catch (_) {}
+
+	        // Restore smoke-test flag (used to disable async combat pacing during the suite).
+	        try {
+	            if (state) {
+	                if (!state.debug || typeof state.debug !== 'object') state.debug = {}
+	                state.debug.smokeTestRunning = _prevSmoke
+	            }
+	        } catch (_) {}
     }
 }
+
 function copyFeedbackToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         return navigator.clipboard.writeText(text)
@@ -15354,6 +19759,17 @@ onDocReady(() => {
         })
     }
 
+    // --- ENEMY SHEET MODAL CLOSE ---------------------------------------------
+    const enemyModalClose = document.getElementById('enemyModalClose')
+    if (enemyModalClose) {
+        enemyModalClose.addEventListener('click', closeEnemyModal)
+    }
+    if (enemyModalEl) {
+        enemyModalEl.addEventListener('click', (e) => {
+            if (e.target === enemyModalEl) closeEnemyModal()
+        })
+    }
+
     // --- IN-GAME MENU BUTTON ----------------------------------------------------
     const btnGameMenu = document.getElementById('btnGameMenu')
     if (btnGameMenu) {
@@ -15402,6 +19818,89 @@ onDocReady(() => {
     // Initialize settings UI from state
     initSettingsFromState()
     updateEnemyPanel() // ensure panel starts hidden/clean
+    // Enemy panel: tap/click to open an Enemy Sheet modal for quick inspection.
+    // Patch 1.1.9: swipe left/right on the enemy panel to switch targets in multi-enemy fights.
+    try {
+        const enemyPanel = document.getElementById('enemyPanel')
+        if (enemyPanel && !(enemyPanel.dataset && enemyPanel.dataset.enemySheetWired)) {
+            try { enemyPanel.dataset.enemySheetWired = '1' } catch (_) {}
+            enemyPanel.setAttribute('role', 'button')
+            enemyPanel.setAttribute('tabindex', '0')
+
+            let lastSwipeAt = 0
+            let touchStartX = 0
+            let touchStartY = 0
+            let touchMoved = false
+
+            const open = () => {
+                if (!state || !state.inCombat || !state.currentEnemy) return
+                openEnemySheet()
+            }
+
+            const shouldSuppressClick = () => {
+                return Date.now() - lastSwipeAt < 500
+            }
+
+            enemyPanel.addEventListener('click', (e) => {
+                if (shouldSuppressClick()) {
+                    try { enemyPanel.blur() } catch (_) {}
+                    return
+                }
+                open()
+                try { enemyPanel.blur() } catch (_) {}
+            })
+
+            enemyPanel.addEventListener('keydown', (e) => {
+                if (!e) return
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    open()
+                }
+            })
+
+            enemyPanel.addEventListener(
+                'touchstart',
+                (e) => {
+                    if (!e || !e.touches || !e.touches.length) return
+                    const t = e.touches[0]
+                    touchStartX = t.clientX
+                    touchStartY = t.clientY
+                    touchMoved = false
+                },
+                { passive: true }
+            )
+
+            enemyPanel.addEventListener(
+                'touchmove',
+                (e) => {
+                    if (!e || !e.touches || !e.touches.length) return
+                    const t = e.touches[0]
+                    const dx = t.clientX - touchStartX
+                    const dy = t.clientY - touchStartY
+                    if (Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy)) {
+                        touchMoved = true
+                    }
+                },
+                { passive: true }
+            )
+
+            enemyPanel.addEventListener(
+                'touchend',
+                (e) => {
+                    if (!touchMoved) return
+                    if (!state || !state.inCombat) return
+                    const dx = (e && e.changedTouches && e.changedTouches[0]) ? (e.changedTouches[0].clientX - touchStartX) : 0
+                    if (Math.abs(dx) < 40) return
+
+                    const dir = dx < 0 ? 1 : -1
+                    cycleTargetEnemy(dir, { silent: true })
+                    lastSwipeAt = Date.now()
+                },
+                { passive: true }
+            )
+        }
+    } catch (_) {}
+
     setupCollapsingPanels()
     initLogFilterChips()
 })
