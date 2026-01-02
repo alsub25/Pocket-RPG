@@ -2,7 +2,7 @@
 
 A single‑page, browser RPG + village simulation where **daily decisions** (resting, shopping, banking, local politics, and tavern games) ripple through a living settlement — and where combat, loot, and quests feed back into that world loop.
 
-> Current patch: **v1.1.52 — The Blackbark Oath**  
+> Current patch: **v1.1.92 — The Blackbark Oath**  
 > Changelog: open the in‑game **Changelog** modal.
 
 ---

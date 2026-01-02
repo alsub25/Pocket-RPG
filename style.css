@@ -80,6 +80,35 @@
   --btn-bg-primary: linear-gradient(135deg, #4fc3f7, #7c4dff);
   --btn-bg-danger: linear-gradient(135deg, #ff5252, #ff8a65);
 
+
+  /* --- Common state surfaces -------------------------------------------- */
+  --surface-focus: radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  --surface-selected: radial-gradient(circle at top, #18243c 0, #060815 70%);
+  --surface-selected-soft: radial-gradient(circle at top, var(--accent-soft), var(--surface-1));
+  --surface-hover: radial-gradient(circle at top, rgba(79,195,247,0.10), rgba(0,0,0,0.08));
+  --surface-hover-soft: radial-gradient(circle at top, var(--accent-soft), rgba(0,0,0,0.10));
+
+  /* --- Rarity text colors ------------------------------------------------ */
+  --rarity-common:#cfd6e6;
+  --rarity-uncommon:#6fe28a;
+  --rarity-rare:#6aa9ff;
+  --rarity-epic:#c78bff;
+  --rarity-legendary:#ffcc66;
+
+  /* --- Class meter accents (combat HUD) ---------------------------------- */
+  /* These are intentionally distinct so the class meter reads instantly. */
+  --cls-rogue:#57e3c7;
+  --cls-ranger:#7dff7a;
+  --cls-shaman:#63d7ff;
+  --cls-necromancer:#b18bff;
+  --cls-mage:#6aa9ff;
+  --cls-warrior:#ffb86b;
+  --cls-blood:#ff5c6b;
+  --cls-paladin:#ffcc66;
+  --cls-cleric:#bfe9ff;
+  --cls-berserker:#ff7a2f;
+  --cls-vampire:#ff7fd1;
+
   --theme-name:"default";
 }
 
@@ -217,7 +246,7 @@ h3{ font-size:0.95rem; }
    ============================================================================= */
 
 /* ---- Surfaces (panels/cards/modals) ------------------------------------- */
-:where(.card,#hud,#scene,#logBox,#actions,.enemy-panel,#modalPanel){
+:where(.card,#hud,#scene,#logBox,#actions,.enemy-panel,#modalPanel,#enemyModalPanel){
   border:1px solid var(--border);
   animation:panelDropIn 0.22s var(--ease);
 }
@@ -231,11 +260,11 @@ h3{ font-size:0.95rem; }
 .card + .card{ margin-top:8px; }
 
 /* ---- Scrollbars hidden (keep scrolling) --------------------------------- */
-:where(#classScrollContainer,#modalBody,.companion-actions,.log-filter-row,.char-tabs){
+:where(#classScrollContainer,#modalBody,#enemyModalBody,.companion-actions,.log-filter-row,.char-tabs){
   scrollbar-width:none;                 /* Firefox */
   -webkit-overflow-scrolling:touch;
 }
-:where(#classScrollContainer,#modalBody,.companion-actions,.log-filter-row,.char-tabs)::-webkit-scrollbar{
+:where(#classScrollContainer,#modalBody,#enemyModalBody,.companion-actions,.log-filter-row,.char-tabs)::-webkit-scrollbar{
   display:none;                         /* Chromium/WebKit */
 }
 
@@ -246,10 +275,8 @@ h3{ font-size:0.95rem; }
 }
 
 /* ---- Shared press feedback ---------------------------------------------- */
-:where(.btn,.icon-btn,.log-chip,.char-tab,.inv-tab):active{
-  transform:translateY(1px) scale(0.96);
-  box-shadow:var(--shadow-inset);
-}
+/* Click/tap animation removed per patch request (no press scaling/shift). */
+:where(.btn,.icon-btn,.log-chip,.char-tab,.inv-tab):active{ transform:none; box-shadow:none; }
 
 /* =============================================================================
    5) BUTTON SYSTEM
@@ -287,10 +314,12 @@ h3{ font-size:0.95rem; }
     filter var(--t-med) var(--ease);
 }
 
-.btn:hover{
-  transform:translateY(-1px);
-  box-shadow:var(--shadow-hover);
-  background-position:100% 0;
+@media (hover:hover) and (pointer:fine){
+  .btn:hover{
+    transform:translateY(-1px);
+    box-shadow:var(--shadow-hover);
+    background-position:100% 0;
+  }
 }
 
 .btn.primary{
@@ -325,6 +354,8 @@ h3{ font-size:0.95rem; }
    ============================================================================= */
 
 .icon-btn{
+  position:relative;
+  overflow:hidden;
   border-radius:var(--pill);
   border:1px solid var(--border);
   background:#060818;
@@ -346,11 +377,44 @@ h3{ font-size:0.95rem; }
     background var(--t-med) var(--ease);
 }
 
-.icon-btn:hover{
-  transform:translateY(-1px);
-  box-shadow:var(--shadow-hover);
-  border-color:var(--accent);
-  background:radial-gradient(circle at top, #151b33 0, #05070f 70%);
+/* Tap highlight (pills only): no movement, just a quick glow/flash */
+.icon-btn::after{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  border-radius:inherit;
+  pointer-events:none;
+  opacity:0;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(125,92,255,0.55), rgba(125,92,255,0.0) 60%);
+}
+
+@keyframes pillTapFlash{
+  0%   { opacity:0; }
+  18%  { opacity:0.75; }
+  100% { opacity:0; }
+}
+
+@keyframes pillTapGlow{
+  0%   { box-shadow:none; border-color:var(--border); }
+  18%  { box-shadow:0 0 0 2px rgba(125,92,255,0.22), 0 0 18px rgba(125,92,255,0.28); border-color:var(--accent); }
+  100% { box-shadow:none; border-color:var(--border); }
+}
+
+.icon-btn.pill-tap-anim{
+  animation:pillTapGlow 320ms ease-out 1;
+}
+.icon-btn.pill-tap-anim::after{
+  animation:pillTapFlash 320ms ease-out 1;
+}
+
+@media (hover:hover) and (pointer:fine){
+  .icon-btn:hover{
+    transform:translateY(-1px);
+    box-shadow:var(--shadow-hover);
+    border-color:var(--accent);
+    background:var(--surface-3);
+  }
 }
 
 /* =============================================================================
@@ -383,7 +447,7 @@ h3{ font-size:0.95rem; }
 }
 .field input[type="text"]:focus-visible{
   outline:1px solid var(--accent);
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
 }
 
 .field textarea{
@@ -396,7 +460,7 @@ h3{ font-size:0.95rem; }
 }
 .field textarea:focus-visible{
   outline:1px solid var(--accent);
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
 }
 
 .field select{
@@ -410,7 +474,7 @@ h3{ font-size:0.95rem; }
 }
 .field select:focus-visible{
   outline:1px solid var(--accent);
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
 }
 
 /* Name row */
@@ -458,7 +522,7 @@ h3{ font-size:0.95rem; }
   border-color:var(--accent);
   box-shadow:0 0 0 1px rgba(79,195,247,0.30);
   color:var(--text);
-  background:radial-gradient(circle at top, #18243c 0, #060815 70%);
+  background:var(--surface-selected);
 }
 
 /* Dev cheats pill internals */
@@ -496,7 +560,7 @@ h3{ font-size:0.95rem; }
 .tavern-game-pill.selected{
   border-color:var(--accent);
   box-shadow:0 0 0 1px rgba(79,195,247,0.30);
-  background:radial-gradient(circle at top, var(--accent-soft), var(--surface-1));
+  background:var(--surface-selected-soft);
   color:var(--text);
 }
 
@@ -664,7 +728,7 @@ h3{ font-size:0.95rem; }
 .cheat-modal :is(input.input, select.input):focus,
 .cheat-modal :is(input.input, select.input):focus-visible{
   outline:1px solid var(--accent);
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
 }
 
 
@@ -783,7 +847,7 @@ h3{ font-size:0.95rem; }
 }
 .class-card:hover{ background:#0b1122; border-color:var(--accent); }
 .class-card.selected{
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
   border-color:var(--accent);
   box-shadow:0 0 0 1px rgba(79,195,247,0.30);
 }
@@ -841,6 +905,138 @@ h3{ font-size:0.95rem; }
 #hud-class-diff{ color:var(--muted); font-size:0.72rem; }
 #hud-bars{ display:flex; flex-direction:column; gap:4px; }
 
+/* Class mechanics meter (combat only) */
+.hud-class-meter{
+  /* default accent if class mapping missing */
+  --meter-accent: var(--accent);
+  --meter-accent-soft: var(--accent-soft);
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:4px 0 2px;
+  font-size:0.62rem;
+  color:var(--muted);
+}
+
+/* Per-class tinting for the combat meter icons/fill */
+.hud-class-meter[data-meter-class="rogue"]{ --meter-accent:var(--cls-rogue); --meter-accent-soft:rgba(87,227,199,0.22); }
+.hud-class-meter[data-meter-class="ranger"]{ --meter-accent:var(--cls-ranger); --meter-accent-soft:rgba(125,255,122,0.20); }
+.hud-class-meter[data-meter-class="shaman"]{ --meter-accent:var(--cls-shaman); --meter-accent-soft:rgba(99,215,255,0.20); }
+.hud-class-meter[data-meter-class="necromancer"]{ --meter-accent:var(--cls-necromancer); --meter-accent-soft:rgba(177,139,255,0.22); }
+.hud-class-meter[data-meter-class="mage"]{ --meter-accent:var(--cls-mage); --meter-accent-soft:rgba(106,169,255,0.20); }
+.hud-class-meter[data-meter-class="warrior"]{ --meter-accent:var(--cls-warrior); --meter-accent-soft:rgba(255,184,107,0.20); }
+.hud-class-meter[data-meter-class="blood"]{ --meter-accent:var(--cls-blood); --meter-accent-soft:rgba(255,92,107,0.22); }
+.hud-class-meter[data-meter-class="paladin"]{ --meter-accent:var(--cls-paladin); --meter-accent-soft:rgba(255,204,102,0.20); }
+.hud-class-meter[data-meter-class="cleric"]{ --meter-accent:var(--cls-cleric); --meter-accent-soft:rgba(191,233,255,0.20); }
+.hud-class-meter[data-meter-class="berserker"]{ --meter-accent:var(--cls-berserker); --meter-accent-soft:rgba(255,122,47,0.22); }
+.hud-class-meter[data-meter-class="vampire"]{ --meter-accent:var(--cls-vampire); --meter-accent-soft:rgba(255,127,209,0.22); }
+.hud-class-meter .meter-label{
+  color:var(--text);
+  font-weight:600;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  font-size:0.58rem;
+}
+.hud-class-meter .meter-dots{ display:inline-flex; gap:4px; align-items:center; }
+.hud-class-meter .meter-dot{
+  width:14px;
+  height:14px;
+  border:1px solid rgba(255,255,255,0.16);
+  background:rgba(255,255,255,0.00);
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  opacity:0.32;
+  user-select:none;
+  color:rgba(255,255,255,0.62);
+}
+.hud-class-meter .meter-dot.filled{
+  opacity:1;
+  color:var(--meter-accent);
+  border-color:var(--meter-accent);
+  background:rgba(255,255,255,0.00);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.18) inset,
+    0 0 10px var(--meter-accent-soft);
+}
+
+/* "Ready" cue: once all ticks are active, pulse the meter area so it reads as charged/usable */
+.hud-class-meter .meter-dots{
+  position:relative;
+}
+.hud-class-meter.is-ready .meter-dots::after{
+  content:"";
+  position:absolute;
+  left:-4px;
+  right:-4px;
+  top:-4px;
+  bottom:-4px;
+  border-radius:10px;
+  pointer-events:none;
+  /* "Ready" cue: pulse (no side-to-side travel) so it reads as charged/usable */
+  background:radial-gradient(circle at 50% 50%,
+    rgba(255,255,255,0.12) 0%,
+    var(--meter-accent-soft) 36%,
+    rgba(255,255,255,0.00) 72%);
+  opacity:0.55;
+  mix-blend-mode:screen;
+  box-shadow:
+    0 0 10px var(--meter-accent-soft),
+    0 0 18px rgba(255,255,255,0.12);
+  filter:hue-rotate(0deg) saturate(1.55) brightness(1.10);
+  animation: meter-ready-pulse 0.92s ease-in-out infinite;
+}
+@keyframes meter-ready-pulse{
+  0%{
+    opacity:0.42;
+    filter:hue-rotate(0deg) saturate(1.45) brightness(1.00);
+    box-shadow:
+      0 0 8px var(--meter-accent-soft),
+      0 0 12px rgba(255,255,255,0.06);
+  }
+  50%{
+    opacity:0.98;
+    filter:hue-rotate(26deg) saturate(2.05) brightness(1.28);
+    box-shadow:
+      0 0 18px var(--meter-accent-soft),
+      0 0 30px rgba(255,255,255,0.12);
+  }
+  100%{
+    opacity:0.42;
+    filter:hue-rotate(0deg) saturate(1.45) brightness(1.00);
+    box-shadow:
+      0 0 8px var(--meter-accent-soft),
+      0 0 12px rgba(255,255,255,0.06);
+  }
+}
+.hud-class-meter .meter-icon{
+  width:13px;
+  height:13px;
+  display:block;
+}
+.hud-class-meter .meter-icon-fill{ display:none; }
+.hud-class-meter .meter-icon-stroke{
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2.25;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  opacity:0.9;
+}
+.hud-class-meter .meter-dot:not(.filled) .meter-icon-stroke{ opacity:0.75; }
+.hud-class-meter .meter-turns{ opacity:0.85; }
+.hud-class-meter .meter-chip{
+  padding:2px 6px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.18);
+  background:rgba(255,255,255,0.06);
+  color:var(--text);
+  font-weight:600;
+  font-size:0.58rem;
+}
+
 .bar{
   height:16px;
   border-radius:var(--pill);
@@ -850,7 +1046,7 @@ h3{ font-size:0.95rem; }
   position:relative;
   font-size:0.7rem;
 }
-.bar-fill{ height:100%; width:0; transition:width 0.25s ease-out; }
+.bar-fill{ height:100%; width:0; transition:width 0.25s ease-out; position:relative; overflow:hidden; }
 .bar-label{
   position:absolute;
   inset:0;
@@ -862,11 +1058,117 @@ h3{ font-size:0.95rem; }
   text-shadow:0 1px 3px rgba(0,0,0,0.7);
 }
 
-.hp-fill{ background:linear-gradient(90deg, #ff5252, #ffb74d); }
-.resource-fill.mana{ background:linear-gradient(90deg, #4fc3f7, #7c4dff); }
+.hp-fill{
+  background:linear-gradient(90deg,
+    #ff5252 0%,
+    #ffb74d 50%,
+    #ff5252 100%);
+}
+.resource-fill.mana{
+  background:linear-gradient(90deg,
+    #4fc3f7 0%,
+    #7c4dff 50%,
+    #4fc3f7 100%);
+}
 .resource-fill.fury{ background:linear-gradient(90deg, #ff8a65, #ff5722); }
 .resource-fill.blood{ background:linear-gradient(90deg, #f06292, #c62828); }
 .resource-fill.essence{ background:linear-gradient(90deg, #8e24aa, #ce93d8); }
+
+
+/* Live bar motion: layered drifting texture + sheen (transform-based for smooth iOS/Safari rendering).
+   The animation is intentionally subtle but clearly "moving" so HP/Mana feel alive. */
+.hp-fill::before,
+.resource-fill.mana::before,
+.resource-fill.fury::before,
+.resource-fill.blood::before,
+.resource-fill.essence::before{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:-140%;
+  width:280%;
+  pointer-events:none;
+  background:repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,0.00) 0,
+    rgba(255,255,255,0.00) 10px,
+    rgba(255,255,255,0.12) 14px,
+    rgba(255,255,255,0.00) 18px
+  );
+  opacity:0.14;
+  mix-blend-mode:overlay;
+  will-change:transform;
+  transform:translate3d(0,0,0);
+  animation:bar-drift 1.90s linear infinite;
+}
+
+.hp-fill::after,
+.resource-fill.mana::after,
+.resource-fill.fury::after,
+.resource-fill.blood::after,
+.resource-fill.essence::after{
+  content:"";
+  position:absolute;
+  top:-25%;
+  bottom:-25%;
+  left:-160%;
+  width:160%;
+  pointer-events:none;
+  background:linear-gradient(90deg,
+    rgba(255,255,255,0.00) 0%,
+    rgba(255,255,255,0.26) 42%,
+    rgba(255,255,255,0.00) 72%);
+  opacity:0.40;
+  mix-blend-mode:screen;
+  will-change:transform;
+  transform:translate3d(0,0,0) skewX(-16deg);
+  animation:bar-sheen 2.25s ease-in-out infinite;
+}
+
+/* Keep HP + all class resources on the exact same motion timing/opacity so they read as one unified system. */
+
+@keyframes bar-drift{
+  0%{ transform:translate3d(0,0,0); }
+  100%{ transform:translate3d(50%,0,0); }
+}
+
+@keyframes bar-sheen{
+  0%{ transform:translate3d(0,0,0) skewX(-16deg); opacity:0.16; }
+  45%{ opacity:0.58; }
+  100%{ transform:translate3d(260%,0,0) skewX(-16deg); opacity:0.16; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .hp-fill::before,
+  .hp-fill::after,
+  .resource-fill.mana::before,
+  .resource-fill.mana::after,
+  .resource-fill.fury::before,
+  .resource-fill.fury::after,
+  .resource-fill.blood::before,
+  .resource-fill.blood::after,
+  .resource-fill.essence::before,
+  .resource-fill.essence::after,
+  .hud-class-meter.is-ready .meter-dots::after{
+    animation:none !important;
+  }
+}
+
+/* In-game setting: Reduce motion (also honors OS setting above). */
+body.no-motion .hp-fill::before,
+body.no-motion .hp-fill::after,
+body.no-motion .resource-fill.mana::before,
+body.no-motion .resource-fill.mana::after,
+body.no-motion .resource-fill.fury::before,
+body.no-motion .resource-fill.fury::after,
+body.no-motion .resource-fill.blood::before,
+body.no-motion .resource-fill.blood::after,
+body.no-motion .resource-fill.essence::before,
+body.no-motion .resource-fill.essence::after,
+body.no-motion .hud-class-meter.is-ready .meter-dots::after{
+  animation:none !important;
+}
 
 #hud-bottom{
   display:flex;
@@ -882,34 +1184,41 @@ h3{ font-size:0.95rem; }
 
 /* Enemy panel */
 .enemy-panel{
+  /* Mirror the hero HUD card: same padding, lettering, and bar sizing (Patch 1.1.82) */
   margin:0;
-  padding:6px 8px;
-  border-radius:var(--radius-tight);
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:8px 10px;
+  border-radius:var(--radius);
   background:var(--surface-3);
-  font-size:0.7rem;
+  cursor:pointer;
+}
+.enemy-panel:focus{
+  outline:none;
+}
+.enemy-panel:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
 }
 
-.enemy-header-row{
+
+.enemy-top{
   display:flex;
   justify-content:space-between;
-  align-items:center;
-  margin-bottom:4px;
-  gap:6px;
+  align-items:flex-start;
+  gap:4px;
+  font-size:0.78rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
 }
 .enemy-name{ font-weight:600; }
-.enemy-tags{ font-size:0.65rem; opacity:0.8; }
-.enemy-hp-bar{ position:relative; height:14px; border-radius:var(--pill); overflow:hidden; margin-bottom:3px; }
-.enemy-hp-fill{ height:100%; }
-.enemy-hp-label{
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%);
-  font-size:0.62rem;
-  font-weight:600;
-  pointer-events:none;
-}
-.enemy-status-line{ min-height:0.8rem; font-size:0.65rem; opacity:0.85; }
+.enemy-tags{ color:var(--muted); font-size:0.72rem; }
+
+.enemy-target-hint{ color:var(--muted); font-size:0.68rem; opacity:0.85; margin-top:2px; }
+/* Match HUD bar height (16px) so enemy HP reads consistently */
+.enemy-hp-bar{ margin-bottom:2px; }
+.enemy-status-line{ min-height:0.85rem; font-size:0.65rem; opacity:0.85; }
 
 /* Game layout */
 #gameScreen{
@@ -1059,13 +1368,13 @@ h3{ font-size:0.95rem; }
     box-shadow var(--t-fast) var(--ease);
 }
 .log-chip-active{
-  background:radial-gradient(circle at top, var(--accent-soft), var(--surface-1));
+  background:var(--surface-selected-soft);
   color:var(--text);
   border-color:var(--accent);
 }
 .log-chip.log-chip-active:hover,
 .log-chip.log-chip-active:active{
-  background:radial-gradient(circle at top, var(--accent-soft), var(--surface-1));
+  background:var(--surface-selected-soft);
   color:var(--text);
   border-color:var(--accent);
 }
@@ -1133,7 +1442,8 @@ min-height: 0; /* instead of 60px */
    12) MODAL SYSTEM
    ============================================================================= */
 
-#modal{
+#modal,
+#enemyModal{
   position:fixed;
   inset:0;
   background:rgba(0,0,0,0.68);
@@ -1143,7 +1453,11 @@ min-height: 0; /* instead of 60px */
   z-index:20;
 }
 
-#modalPanel{
+/* Enemy Sheet sits just under the main modal so dev confirms (Smoke Tests) can stack above it. */
+#enemyModal{ z-index:19; }
+
+#modalPanel,
+#enemyModalPanel{
   width:calc(100% - 24px);
   max-width:460px;
   max-height:80vh;
@@ -1158,14 +1472,16 @@ min-height: 0; /* instead of 60px */
   animation:panelPopIn 0.22s var(--ease);
 }
 
-#modalHeader{
+#modalHeader,
+#enemyModalHeader{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:6px;
 }
 
-#modalBody{
+#modalBody,
+#enemyModalBody{
   flex:1;
   overflow-y:auto;
   padding:4px;
@@ -1176,6 +1492,67 @@ min-height: 0; /* instead of 60px */
   font-size:0.74rem;
   color:var(--muted);
   margin:2px 0 6px;
+}
+
+/* --- QA modal (Smoke Tests + Bug Report) ---------------------------------- */
+.qa-details{
+  margin:10px 0;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:var(--surface-1);
+  overflow:hidden;
+}
+
+.qa-subdetails{
+  margin:8px 0 0;
+  border:1px solid var(--border);
+  border-radius:var(--radius-tight);
+  background:var(--surface-0);
+  overflow:hidden;
+}
+
+.qa-summary{
+  padding:10px 10px;
+  font-weight:700;
+  font-size:0.82rem;
+  color:var(--text);
+  background:linear-gradient(to bottom, rgba(255,255,255,0.04), rgba(255,255,255,0));
+  user-select:none;
+}
+
+details > summary.qa-summary{
+  list-style:none;
+}
+details > summary.qa-summary::-webkit-details-marker{
+  display:none;
+}
+
+/* Custom disclosure arrow (we hide native markers above) */
+details > summary.qa-summary{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+}
+details > summary.qa-summary::before{
+  content:'▸';
+  display:inline-block;
+  transform:rotate(0deg);
+  transition:transform 120ms ease;
+  opacity:0.9;
+}
+details[open] > summary.qa-summary::before{
+  transform:rotate(90deg);
+}
+
+.qa-pre{
+  margin:0;
+  padding:10px 10px;
+  border-top:1px solid var(--border);
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12px;
+  line-height:1.35;
+  color:var(--text);
 }
 
 /* Item rows in modals */
@@ -1250,120 +1627,239 @@ min-height: 0; /* instead of 60px */
    14) SETTINGS (MENU + IN-GAME)
    ============================================================================= */
 
-.settings-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:6px 0;
-  border-bottom:1px solid rgba(255,255,255,0.03);
-  font-size:0.85rem;
+/* --- Main Settings screen -------------------------------------------------- */
+.settings-card{
+  max-width:560px;
+  margin:0 auto;
 }
-.settings-label{
-  color:var(--muted);
-  font-size:0.8rem;
-  text-transform:uppercase;
-  letter-spacing:0.09em;
-}
-.settings-control select,
-.settings-control input[type="range"]{
-  background:var(--surface-1);
-  border-radius:var(--pill);
-  border:1px solid var(--border);
-  color:var(--text);
-  font-size:0.78rem;
-  padding:4px 8px;
-}
-
-/* In-game settings modal */
-.settings-modal-body{
+.settings-header{
   display:flex;
   flex-direction:column;
-  gap:0.75rem;
+  gap:4px;
+  margin-bottom:10px;
 }
-.settings-modal-body .settings-row{
-  display:grid;
-  grid-template-columns:1.5fr 3fr 4ch;
-  align-items:center;
-  gap:0.75rem;
-}
-.settings-modal-body .settings-value{
-  width:4ch;
-  text-align:right;
-  font-variant-numeric:tabular-nums;
+.settings-header h2{ margin:0; }
+
+.settings-sections{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
 }
 
-/* Slider */
-.settings-modal-body input[type="range"]{
+.settings-section{
+  padding:8px 0;
+}
+.settings-section + .settings-section{
+  border-top:1px solid rgba(255,255,255,0.06);
+}
+
+.settings-section-title{
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.14em;
+  color:var(--muted);
+  margin:0 0 8px;
+}
+
+.settings-row{
+  display:grid;
+  grid-template-columns:1fr minmax(160px, 240px);
+  gap:12px;
+  align-items:center;
+  padding:10px 0;
+}
+.settings-section .settings-row + .settings-row{
+  border-top:1px solid rgba(255,255,255,0.04);
+}
+
+.settings-left{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.settings-label{
+  color:var(--text);
+  font-size:0.92rem;
+  font-weight:600;
+  letter-spacing:0.02em;
+  text-transform:none;
+}
+.settings-desc{
+  color:var(--muted);
+  font-size:0.78rem;
+  line-height:1.2;
+}
+
+.settings-control{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:10px;
+}
+
+.settings-select{
   width:100%;
+  padding:8px 12px;
+  border-radius:var(--pill);
+  border:1px solid rgba(255,255,255,0.10);
+  background:var(--surface-1);
+  color:var(--text);
+  font-size:0.82rem;
+  appearance:none;
+}
+
+/* Toggle switch (used in Settings + in-game Settings modal) */
+.switch{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-end;
+  cursor:pointer;
+}
+.switch input{
+  position:absolute;
+  opacity:0;
+  width:1px;
+  height:1px;
+}
+.switch-track{
+  width:44px;
+  height:24px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.14);
+  background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  position:relative;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,0.35);
+}
+.switch-track::after{
+  content:"";
+  position:absolute;
+  top:3px;
+  left:3px;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:radial-gradient(circle at 30% 20%, #ffffff, rgba(255,255,255,0.55));
+  box-shadow:0 2px 8px rgba(0,0,0,0.45);
+  transform:translateX(0);
+  transition:transform var(--t-med) var(--ease), background var(--t-med) var(--ease);
+}
+.switch input:checked + .switch-track{
+  border-color:rgba(79,195,247,0.45);
+  background:linear-gradient(180deg, rgba(79,195,247,0.30), rgba(79,195,247,0.12));
+}
+.switch input:checked + .switch-track::after{
+  transform:translateX(20px);
+  background:radial-gradient(circle at 30% 20%, #ffffff, rgba(79,195,247,0.90));
+}
+.switch input:focus-visible + .switch-track{
+  box-shadow:0 0 0 2px rgba(79,195,247,0.35), inset 0 0 0 1px rgba(0,0,0,0.35);
+}
+
+/* Range inputs (used in Settings + in-game Settings modal) */
+.settings-control input[type="range"]{
+  width:100%;
+  max-width:240px;
   -webkit-appearance:none;
   appearance:none;
   background:transparent;
   height:22px;
   cursor:pointer;
 }
-.settings-modal-body input[type="range"]::-webkit-slider-runnable-track,
-.settings-modal-body input[type="range"]::-moz-range-track{
+.settings-control input[type="range"]::-webkit-slider-runnable-track{
   height:8px;
-  border-radius:var(--pill);
-  border:1px solid var(--border);
-  background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.12);
+  background:linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
 }
-.settings-modal-body input[type="range"]::-webkit-slider-thumb{
+.settings-control input[type="range"]::-webkit-slider-thumb{
   -webkit-appearance:none;
-  width:16px; height:16px;
+  width:16px;
+  height:16px;
   border-radius:50%;
   margin-top:-4px;
   background:radial-gradient(circle at 30% 20%, #ffffff, var(--accent));
   border:1px solid rgba(255,255,255,0.85);
   box-shadow:0 0 0 1px rgba(0,0,0,0.6);
 }
-.settings-modal-body input[type="range"]::-moz-range-thumb{
-  width:16px; height:16px;
-  border-radius:50%;
-  background:radial-gradient(circle at 30% 20%, #ffffff, var(--accent));
-  border:1px solid rgba(255,255,255,0.85);
-  box-shadow:0 0 0 1px rgba(0,0,0,0.6);
-}
-.settings-modal-body input[type="range"]:focus-visible{ outline:none; }
-.settings-modal-body input[type="range"]:focus-visible::-webkit-slider-thumb,
-.settings-modal-body input[type="range"]:active::-webkit-slider-thumb{
-  box-shadow:0 0 0 2px rgba(79,195,247,0.5);
-}
-.settings-modal-body input[type="range"]:focus-visible::-moz-range-thumb,
-.settings-modal-body input[type="range"]:active::-moz-range-thumb{
-  box-shadow:0 0 0 2px rgba(79,195,247,0.5);
+.settings-control input[type="range"]:focus-visible{ outline:none; }
+.settings-control input[type="range"]:focus-visible::-webkit-slider-thumb{
+  box-shadow:0 0 0 2px rgba(79,195,247,0.45);
 }
 
-/* Settings selects (difficulty/theme) */
-.settings-modal-body .settings-select{
-  width:100%;
-  padding:6px 10px;
-  border-radius:var(--pill);
-  border:1px solid rgba(255,255,255,0.10);
-  background:var(--surface-1);
-  color:var(--muted);
-  font-size:0.78rem;
-  appearance:none;
-  background-image:linear-gradient(180deg, var(--surface-1), var(--surface-1));
-  cursor:pointer;
+.settings-footer{
+  margin-top:12px;
+  display:flex;
+  justify-content:flex-end;
+}
 
-  transition:
-    transform var(--t-fast) var(--ease),
-    box-shadow var(--t-fast) var(--ease),
-    border-color var(--t-med) var(--ease),
-    background var(--t-med) var(--ease),
-    color var(--t-med) var(--ease);
+/* --- Compact settings layout (requested): reduces vertical space while keeping readability. --- */
+.settings-card.settings-compact{ max-width:520px; }
+.settings-compact .settings-header{ margin-bottom:6px; }
+.settings-compact .settings-header .hint{ margin:0; font-size:0.72rem; line-height:1.15; }
+
+.settings-compact .settings-sections{ gap:6px; }
+.settings-compact .settings-section{ padding:6px 0; }
+.settings-compact .settings-section-title{ margin:0 0 6px; font-size:0.66rem; letter-spacing:0.16em; }
+
+.settings-compact .settings-row{
+  padding:6px 0;
+  gap:10px;
+  grid-template-columns:1fr minmax(140px, 220px);
 }
-.settings-modal-body .settings-select:focus-visible{
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
-  color:var(--text);
+.settings-compact .settings-left{ gap:0; }
+.settings-compact .settings-label{ font-size:0.88rem; }
+
+/* Descriptions are kept, but clamped to a single line to keep the menu tight. */
+.settings-compact .settings-desc{
+  font-size:0.72rem;
+  line-height:1.15;
+  display:-webkit-box;
+  -webkit-line-clamp:1;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
 }
-.settings-modal-body .settings-select.settings-select-active{
-  border-color:var(--accent);
-  box-shadow:0 0 0 1px rgba(79,195,247,0.35);
-  background:radial-gradient(circle at top, var(--accent-soft), var(--surface-1));
-  color:var(--text);
+
+.settings-compact .settings-select{ padding:6px 10px; font-size:0.80rem; }
+
+/* Slightly smaller switches for tighter rows. */
+.settings-compact .switch-track{ width:40px; height:22px; }
+.settings-compact .switch-track::after{ top:3px; left:3px; width:16px; height:16px; }
+.settings-compact .switch input:checked + .switch-track::after{ transform:translateX(18px); }
+
+.settings-compact .settings-control input[type="range"]{ height:20px; }
+
+/* In-game settings modal */
+.settings-modal-body{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
 }
+
+/* In-game settings: compact pass to match the main menu settings density. */
+.settings-modal-body.settings-compact{ gap:8px; }
+.settings-modal-body.settings-compact .settings-row{
+  padding:8px 0;
+  gap:10px;
+  grid-template-columns:1fr minmax(130px, 200px) 6ch;
+}
+.settings-modal-body.settings-compact .settings-control input[type="range"]{ max-width:200px; }
+.settings-modal-body.settings-compact .settings-select{ max-width:200px; }
+.settings-modal-body .settings-row{
+  grid-template-columns:1fr minmax(140px, 220px) 6ch;
+  gap:12px;
+  padding:10px 0;
+}
+.settings-modal-body .settings-value{
+  width:6ch;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+/* In-game settings modal keeps the same controls but slightly tighter widths */
+.settings-modal-body .settings-control input[type="range"]{ max-width:220px; }
+.settings-modal-body .settings-select{ max-width:220px; }
 
 /* =============================================================================
    15) CHARACTER SHEET (TABS + PANELS)
@@ -1412,7 +1908,7 @@ min-height: 0; /* instead of 60px */
   box-shadow:var(--shadow-hover);
 }
 .char-tab.active{
-  background:radial-gradient(circle at top, var(--accent-soft), var(--surface-1));
+  background:var(--surface-selected-soft);
   color:var(--text);
   border-color:var(--accent);
   box-shadow:0 0 0 1px rgba(79,195,247,0.35);
@@ -1459,6 +1955,17 @@ min-height: 0; /* instead of 60px */
   gap:8px;
 }
 .equip-empty{ color:var(--muted); font-style:italic; }
+
+/* ---------------------------------------------------------------------
+   RARITY TEXT COLORS (Inventory + Character Sheet)
+   --------------------------------------------------------------------- */
+.equip-name{ font-weight:650; }
+
+.rarity-common{ color:var(--rarity-common); }
+.rarity-uncommon{ color:var(--rarity-uncommon); }
+.rarity-rare{ color:var(--rarity-rare); }
+.rarity-epic{ color:var(--rarity-epic); }
+.rarity-legendary{ color:var(--rarity-legendary); }
 .char-companion-desc{
   font-size:0.75rem;
   color:var(--muted);
@@ -1518,7 +2025,7 @@ min-height: 0; /* instead of 60px */
 .inv-search:focus,
 .inv-search:focus-visible{
   outline:1px solid var(--accent);
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
 }
 
 .inv-sort{
@@ -1540,7 +2047,7 @@ min-height: 0; /* instead of 60px */
 .inv-sort:focus,
 .inv-sort:focus-visible{
   outline:1px solid var(--accent);
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
 }
 .inv-sort:active{ transform:translateY(1px) scale(0.98); box-shadow:var(--shadow-inset); }
 
@@ -1583,7 +2090,7 @@ min-height: 0; /* instead of 60px */
 .inv-tab.active,
 .inv-tab.selected{
   outline:1px solid var(--accent);
-  background:radial-gradient(circle at top, #1f2b45 0, #060815 70%);
+  background:var(--surface-focus);
 }
 
 .inv-list{ display:flex; flex-direction:column; gap:4px; }
@@ -1621,6 +2128,12 @@ min-height: 0; /* instead of 60px */
 
 .inv-score{ font-size:0.75rem; color:var(--muted); }
 
+/* Power delta indicator (shown in header so it remains visible when collapsed) */
+.inv-delta{ font-size:0.68rem; font-weight:750; letter-spacing:0.06em; }
+.inv-delta.same{ color:var(--muted); }
+.inv-delta.up{ color:#6fe28a; }
+.inv-delta.down{ color:#ff7b7b; }
+
 .inv-details{
   padding-top:8px;
   display:flex;
@@ -1634,7 +2147,11 @@ min-height: 0; /* instead of 60px */
   opacity:0.95;
 }
 .inv-compare{ font-size:0.74rem; color:var(--muted); }
-.inv-actions{ display:flex; flex-wrap:wrap; gap:8px; }
+.inv-actions{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.inv-actions-tight{ display:flex; gap:4px; align-items:center; }
+
+/* Inventory-style action buttons should look like compact controls, not full-width CTAs. */
+.inv-actions .btn.small{ width:auto; margin-top:0; }
 
 /* =====================================================================
    SPELLBOOK / ABILITIES: inventory-style collapsible cards
@@ -1766,13 +2283,13 @@ min-height: 0; /* instead of 60px */
   transform:translateY(-1px);
   box-shadow:var(--shadow-hover);
   border-color:rgba(255,255,255,0.16);
-  background:radial-gradient(circle at top, rgba(79,195,247,0.10), rgba(0,0,0,0.08));
+  background:var(--surface-hover);
 }
 
 .notice-row.selected{
   border-color:var(--accent);
   box-shadow:0 0 0 1px rgba(79,195,247,0.30);
-  background:radial-gradient(circle at top, var(--accent-soft), rgba(0,0,0,0.10));
+  background:var(--surface-hover-soft);
 }
 
 .notice-row-title{
@@ -1917,13 +2434,13 @@ min-height: 0; /* instead of 60px */
   transform:translateY(-1px);
   box-shadow:var(--shadow-hover);
   border-color:rgba(255,255,255,0.16);
-  background:radial-gradient(circle at top, rgba(79,195,247,0.10), rgba(0,0,0,0.08));
+  background:var(--surface-hover);
 }
 
 .spell-row.selected{
   border-color:var(--accent);
   box-shadow:0 0 0 1px rgba(79,195,247,0.30);
-  background:radial-gradient(circle at top, var(--accent-soft), rgba(0,0,0,0.10));
+  background:var(--surface-hover-soft);
 }
 
 .spell-row-title{
@@ -1978,3 +2495,13 @@ min-height: 0; /* instead of 60px */
   .spellbook-detail{ max-height:30dvh; }
 }
 
+
+
+
+
+/* --- Spell Book UX (Patch 1.1.92) ------------------------------------- */
+.spells-help{ font-size:12px; opacity:.9; margin:6px 0 4px; }
+.spells-legend{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
+.spell-badges{ display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+.badge{ display:inline-flex; align-items:center; font-size:11px; padding:2px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.22); opacity:.9; }
+.spell-card.in-combat summary{ cursor:pointer; }
