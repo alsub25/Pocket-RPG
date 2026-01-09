@@ -2,7 +2,7 @@
 
 A single‑page, browser RPG + village simulation where **daily decisions** (resting, shopping, banking, local politics, and tavern games) ripple through a living settlement — and where combat, loot, and quests feed back into that world loop.
 
-> Current patch: **v1.1.92 — The Blackbark Oath**  
+> Current patch: **v1.2.70 — The Blackbark Oath — Hardening & Bug Squash**  
 > Changelog: open the in‑game **Changelog** modal.
 
 ---
@@ -43,6 +43,22 @@ Open:
 Any static host works (GitHub Pages, Netlify, etc.). The project does not require server-side logic.
 
 ---
+
+## Project layout (Patch 1.2.70)
+
+The codebase is now organized around *purpose* (boot vs engine vs systems vs locations) to make large refactors safer.
+
+- `js/boot/` — early boot scripts (version selection, acceptance gate, boot loader overlay, optional module preflight)
+- `js/shared/` — dependency-light utilities shared by boot + game
+- `js/game/engine/` — engine entry + engine-only helpers (perf, storage diagnostics)
+- `js/game/combat/` — combat runtime helpers (post-turn sequencing, ability effects)
+- `js/game/data/` — large data tables (abilities, talents, etc.) separated from engine orchestration
+- `js/game/systems/` — core gameplay systems (time, RNG, loot, safety, validation, etc.)
+- `js/game/systems/enemy/` — enemy builder/rarity/affix pipeline
+- `js/game/locations/village/` — village modules (bank, merchant, tavern, town hall, economy, population)
+- `js/game/quests/` — quest definitions + progression pipeline
+- `js/game/changelog/` — in-game changelog data
+- `assets/audio/` — audio assets
 
 ## How to play (game loop)
 
@@ -157,36 +173,12 @@ If saves don’t persist:
 ├─ bootstrap.js
 ├─ userAcceptance.js
 ├─ style.css
-└─ Future/
-   ├─ Future.js
-   ├─ Changelog/
-   │  └─ changelog.js
-   ├─ Quests/
-   │  ├─ questDefs.js
-   │  ├─ questDefaults.js
-   │  └─ questBindings.js
-   ├─ Systems/
-   │  ├─ timeSystem.js
-   │  ├─ lootGenerator.js
-   │  ├─ kingdomGovernment.js
-   │  ├─ rng.js
-   │  ├─ assertState.js
-   │  └─ safety.js
-   └─ Locations/
-      └─ Village/
-         ├─ villageEconomy.js
-         ├─ villagePopulation.js
-         ├─ townHall.js
-         ├─ bank.js
-         ├─ merchant.js
-         ├─ tavern.js
-         └─ tavernGames.js
-```
+
 
 ### Key entry points
 - **`index.html`**: UI shell + modal host.
 - **`bootstrap.js`**: version selector/label + module bootstrapping.
-- **`Future/Future.js`**: main game orchestration (state, UI wiring, combat, saves, cheat menu).
+- **`js/game/engine/engine.js`**: main game orchestration (state, UI wiring, combat, saves, cheat menu).
 - **Systems modules**: pure-ish logic for time, RNG, validation, loot, government.
 - **Village modules**: simulation + modal UI implementations.
 
@@ -212,7 +204,7 @@ Typical workflow:
    - loot generator interaction (if applicable)
 
 ### Quests
-Quests are defined in `Future/Quests/`:
+Quests are defined in `js/game/quests/`:
 - definitions (`questDefs.js`)
 - default state/flags (`questDefaults.js`)
 - bindings/side effects (`questBindings.js`)

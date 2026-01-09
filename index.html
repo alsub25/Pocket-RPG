@@ -9,6 +9,20 @@
         <link rel="stylesheet" href="style.css" />
     </head>
     <body>
+        <!-- Boot Loader: kept in HTML so it can paint before heavy module parsing begins. -->
+        <div id="bootLoader" class="boot-loader" aria-live="polite" aria-busy="true">
+            <div class="boot-loader-card">
+                <div class="boot-loader-title">Loading Emberwood…</div>
+                <div class="boot-loader-spinner" aria-hidden="true"></div>
+
+                <div class="boot-loader-bar" aria-hidden="true">
+                    <div id="bootLoaderFill" class="boot-loader-bar-fill"></div>
+                </div>
+
+                <div id="bootLoaderText" class="boot-loader-text">Starting…</div>
+            </div>
+        </div>
+
         <div id="app">
             <!-- MAIN MENU -->
             <div id="mainMenu" class="screen">
@@ -122,6 +136,10 @@
                             <button id="btnCheatPill" class="icon-btn hidden" title="Cheats">
                                 🛠️
                             </button>
+                            <!-- Patch 1.2.5: Quest Journal pill (tracks all quests) -->
+                            <button id="btnQuestJournalPill" class="icon-btn" title="Journal">
+                                📓
+                            </button>
                             <button id="btnGameMenu" class="icon-btn" title="Menu">
                                 ≡
                             </button>
@@ -160,7 +178,8 @@
                             <div id="enemyName" class="enemy-name">Enemy</div>
                             <div id="enemyTags" class="enemy-tags"></div>
                         
-                            <div id=\"enemyTargetHint\" class=\"enemy-target-hint\"></div></div>
+                            <div id="enemyTargetHint" class="enemy-target-hint"></div>
+                        </div>
                     </div>
 
                     <div class="bar enemy-hp-bar">
@@ -200,6 +219,18 @@
                             </button>
                             <button class="log-chip" data-log-filter="danger">
                                 Enemy
+                            </button>
+                            <button class="log-chip" data-log-filter="combat">
+                                Combat
+                            </button>
+                            <button class="log-chip" data-log-filter="damage">
+                                Damage
+                            </button>
+                            <button class="log-chip" data-log-filter="procs">
+                                Procs
+                            </button>
+                            <button class="log-chip" data-log-filter="status">
+                                Status
                             </button>
                         </div>
                     </div>
@@ -331,6 +362,18 @@
                                 <div class="settings-control">
                                     <label class="switch" aria-label="Toggle reduce motion">
                                         <input type="checkbox" id="settingsReduceMotionToggle" />
+                                        <span class="switch-track" aria-hidden="true"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-left">
+                                    <div class="settings-label">Auto-equip loot</div>
+                                    <div class="settings-desc">When you gain a new weapon or armor piece and the slot is empty, equip it automatically.</div>
+                                </div>
+                                <div class="settings-control">
+                                    <label class="switch" aria-label="Toggle auto-equip loot">
+                                        <input type="checkbox" id="settingsAutoEquipLootToggle" />
                                         <span class="switch-track" aria-hidden="true"></span>
                                     </label>
                                 </div>
@@ -494,7 +537,7 @@
         </svg>
 
         <!-- after -->
-        <script type="module" src="userAcceptance.js"></script>
-        <script type="module" src="bootstrap.js"></script>
+        <script type="module" src="js/boot/userAcceptance.js"></script>
+        <script type="module" src="js/boot/bootstrap.js"></script>
     </body>
 </html>

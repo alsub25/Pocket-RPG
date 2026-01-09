@@ -94,6 +94,7 @@
   --rarity-rare:#6aa9ff;
   --rarity-epic:#c78bff;
   --rarity-legendary:#ffcc66;
+  --rarity-mythic:#ff66cc;
 
   /* --- Class meter accents (combat HUD) ---------------------------------- */
   /* These are intentionally distinct so the class meter reads instantly. */
@@ -1153,6 +1154,28 @@ h3{ font-size:0.95rem; }
   .hud-class-meter.is-ready .meter-dots::after{
     animation:none !important;
   }
+
+  /* Also hide the ready overlay entirely.
+     Without this, some browsers (notably iOS/WebKit) can freeze the pseudo-element mid-keyframe,
+     which reads as "paused flashing" instead of disabled motion. */
+  .hud-class-meter.is-ready .meter-dots::after{
+    opacity:0 !important;
+    background:none !important;
+    box-shadow:none !important;
+    filter:none !important;
+  }
+
+  /* Spell Book: disable the empowered pulse outline (remove it rather than freezing it). */
+  .spell-card.meter-buffed::after{
+    animation:none !important;
+    opacity:0 !important;
+    border-color:transparent !important;
+    box-shadow:none !important;
+  }
+
+  /* Spell select list: remove hover movement/transition. */
+  .spell-row{ transition:none !important; }
+  .spell-row:hover{ transform:none !important; }
 }
 
 /* In-game setting: Reduce motion (also honors OS setting above). */
@@ -1169,6 +1192,24 @@ body.no-motion .resource-fill.essence::after,
 body.no-motion .hud-class-meter.is-ready .meter-dots::after{
   animation:none !important;
 }
+
+/* Reduce motion should fully disable flashing/pulsing cues (not freeze them mid-animation). */
+body.no-motion .hud-class-meter.is-ready .meter-dots::after{
+  opacity:0 !important;
+  background:none !important;
+  box-shadow:none !important;
+  filter:none !important;
+}
+
+/* Spell Book / spell select: remove the empowered pulse outline and hover motion. */
+body.no-motion .spell-card.meter-buffed::after{
+  animation:none !important;
+  opacity:0 !important;
+  border-color:transparent !important;
+  box-shadow:none !important;
+}
+body.no-motion .spell-row{ transition:none !important; }
+body.no-motion .spell-row:hover{ transform:none !important; }
 
 #hud-bottom{
   display:flex;
@@ -1293,14 +1334,33 @@ body.no-motion .hud-class-meter.is-ready .meter-dots::after{
   margin:0;
   transition:max-height 0.2s ease, padding 0.2s ease;
   overflow:hidden;
+  min-height:0;
 
   /* Keep it "stationed" and scrollable so long quest text doesn't push the HUD off-screen */
   max-height:28vh;
   display:flex;
   flex-direction:column;
 }
-#questBox.collapsed{ max-height:26px; padding-bottom:2px; }
-#questBox.collapsed #questDesc{ display:none; }
+#questBox.collapsed{
+  max-height:26px;
+  min-height:26px;
+  flex:0 0 auto;
+  padding-bottom:2px;
+}
+
+/* Smooth collapse/expand: keep the quest body in the flow and animate its height/opacity.
+   (Avoid display:none; it snaps instead of animating.) */
+#questDesc{
+  opacity:1;
+  transition:max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+#questBox.collapsed #questDesc{
+  max-height:0;
+  opacity:0;
+  margin-top:0;
+  overflow:hidden;
+  pointer-events:none;
+}
 #questBox .panel-header{
   color:var(--quest-border);
   border-bottom-color:rgba(252, 211, 77, 0.22);
@@ -1321,6 +1381,121 @@ body.no-motion .hud-class-meter.is-ready .meter-dots::after{
   overflow-y:auto;
   max-height:22vh;
   padding-right:6px;
+}
+
+/* Patch 1.2.42: Quest Journal (modal content) */
+.qj-meta{
+  font-size:0.72rem;
+  color:var(--muted);
+  margin:0 0 8px;
+}
+
+.qj-section-title{
+  margin:10px 0 6px;
+  padding-bottom:4px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  font-size:0.74rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:rgba(252, 211, 77, 0.85);
+}
+
+.qj-details{
+  margin:6px 0;
+  border:1px solid rgba(252, 211, 77, 0.25);
+  border-radius:var(--radius-tight);
+  background:rgba(252, 211, 77, 0.05);
+  overflow:hidden;
+}
+
+details > summary.qj-summary{
+  list-style:none;
+}
+details > summary.qj-summary::-webkit-details-marker{
+  display:none;
+}
+
+.qj-summary{
+  padding:10px 10px;
+  font-weight:700;
+  font-size:0.82rem;
+  color:#ffe082;
+  background:linear-gradient(to bottom, rgba(252, 211, 77, 0.10), rgba(255,255,255,0));
+  user-select:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  cursor:pointer;
+}
+
+.qj-summary .qj-summary-right{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:0.72rem;
+  color:rgba(255, 224, 130, 0.8);
+  font-weight:600;
+}
+
+.qj-summary::before{
+  content:'▸';
+  display:inline-block;
+  transform:rotate(0deg);
+  transition:transform 120ms ease;
+  opacity:0.9;
+  margin-right:8px;
+}
+details[open] > summary.qj-summary::before{
+  transform:rotate(90deg);
+}
+
+.qj-body{
+  padding:10px 10px;
+  font-size:0.82rem;
+  color:#fff3c4;
+  line-height:1.35;
+  white-space:pre-line;
+}
+
+.qj-objs{
+  margin:8px 0 0;
+  padding-left:18px;
+  color:#ffe082;
+}
+.qj-objs li{ margin:3px 0; }
+
+.qj-pinned{
+  font-size:0.72rem;
+  color:rgba(255, 224, 130, 0.9);
+  margin:-4px 0 10px;
+}
+
+.qj-items{
+  margin:10px 10px 0;
+  padding:8px 8px;
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:var(--radius-tight);
+  background:rgba(0,0,0,0.18);
+}
+.qj-items-title{
+  font-size:0.72rem;
+  font-weight:700;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:rgba(252, 211, 77, 0.85);
+  margin:0 0 6px;
+}
+.qj-items-list{
+  margin:0;
+  padding-left:18px;
+  color:#ffe082;
+}
+.qj-items-list li{ margin:3px 0; }
+
+.qj-pin-btn{
+  margin:10px 10px 10px;
+  width:calc(100% - 20px);
 }
 
 @media (max-width: 720px){
@@ -1382,8 +1557,8 @@ body.no-motion .hud-class-meter.is-ready .meter-dots::after{
 /* Log */
 #logBox{
   flex:1 1 auto;
-  min-height:60px;
-  max-height:none;
+  /* Allow flex to shrink for smooth collapse */
+  min-height:0;
   padding:4px;
   border-radius:var(--radius);
   background:var(--surface-3);
@@ -1393,33 +1568,43 @@ body.no-motion .hud-class-meter.is-ready .meter-dots::after{
   margin:0;
   display:flex;
   flex-direction:column;
-  
-min-height: 0; /* instead of 60px */
-  transition: max-height 0.2s ease, padding 0.2s ease;
+  transition:height 0.2s ease, padding 0.2s ease;
 }
 
-/* only enforce the 60px minimum when expanded */
+/* Only enforce the 60px minimum when expanded */
 #logBox:not(.collapsed){
-  min-height: 60px;
+  min-height:60px;
 }
 
 #logBox.collapsed{
-  max-height: 26px;
-  min-height: 26px;      /* key: prevents extra bottom space */
-  flex: 0 0 auto;        /* optional but helps in flex layouts */
-  padding-bottom: 2px;
+  flex:0 0 auto;
+  height:26px;
+  min-height:26px;
+  padding-bottom:2px;
 }
+
+/* Smooth collapse/expand: keep the log body in the flow and animate its height/opacity.
+   (Avoid display:none; it snaps instead of animating.) */
 #log{
   flex:1 1 auto;
   min-height:0;
   background:transparent;
   padding:0;
   overflow-y:auto;
+  opacity:1;
+  transition:opacity 0.2s ease, margin-top 0.2s ease;
+}
+#logBox.collapsed #log{
+  opacity:0;
+  margin-top:0;
+  overflow:hidden;
+  pointer-events:none;
 }
 .log-line{ margin:0; padding:2px 0; }
 .log-line.system{ color:var(--accent); }
 .log-line.danger{ color:var(--danger); }
 .log-line.good{ color:#a5d6a7; }
+.log-sub{ font-size:0.82em; opacity:0.75; }
 
 /* Actions grid */
 #actions{
@@ -1576,6 +1761,46 @@ details[open] > summary.qa-summary::before{
 .item-meta{ font-size:0.74rem; color:var(--muted); }
 .item-actions{ margin-top:4px; display:flex; gap:6px; }
 
+/* --- QA / Smoke Tests: keep pill button hitboxes stable ------------------- */
+/* Patch 1.2.53: the Smoke Tests modal has a dense row of pill buttons.
+   - The pills themselves should NOT be scaled (tap targets stay consistent).
+   - Only the LABEL text scales (via --qa-pill-font) when we need to tighten.
+   - Rows should be edge-to-edge.
+   - If a row has only 2 actions, it should become a true 2-column row
+     (no "phantom" 3rd column / trailing gap). */
+.qa-pill-actions{
+  /* Override .item-actions (flex) so we can deterministically fill the row. */
+  display:grid;
+  width:100%;
+
+  /* Auto-adapt columns:
+     - With 3+ actions, this will typically land as 3 columns on phone.
+     - With 2 actions, empty tracks collapse so it becomes 2 columns.
+     - On very narrow widths, it will gracefully fall back to 1 column. */
+  grid-template-columns:repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap:10px;
+  padding:0;
+  margin-top:4px;
+
+  --qa-pill-font:0.8rem;
+}
+
+/* Text-only scaling hook (JS updates --qa-pill-font; hitbox remains stable). */
+.qa-pill-actions .btn.small,
+.qa-pill-actions button{
+  font-size:var(--qa-pill-font);
+}
+
+/* Make each pill fill its grid cell (edge-to-edge rows), without changing the
+   button's internal padding/radius so the "pill" look stays the same. */
+.qa-pill-actions .btn,
+.qa-pill-actions button{
+  width:100%;
+  margin-top:0;
+  white-space:nowrap;
+  justify-content:center;
+}
+
 /* Companion actions strip */
 .companion-actions{
   display:flex;
@@ -1659,6 +1884,33 @@ details[open] > summary.qa-summary::before{
   letter-spacing:0.14em;
   color:var(--muted);
   margin:0 0 8px;
+}
+
+/* Collapsible settings sections (used for Settings → Saves) */
+.settings-section.is-collapsible .settings-section-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  background:transparent;
+  border:0;
+  padding:0;
+  cursor:pointer;
+}
+.settings-section.is-collapsible .settings-section-title::after{
+  content:'▾';
+  opacity:0.7;
+  transform:rotate(0deg);
+  transition:transform 120ms ease;
+}
+.settings-section.is-collapsible.is-collapsed .settings-section-title::after{
+  transform:rotate(-90deg);
+}
+.settings-section.is-collapsible.is-collapsed .settings-section-title{
+  margin-bottom:0;
+}
+.settings-section.is-collapsible.is-collapsed .settings-section-content{
+  display:none;
 }
 
 .settings-row{
@@ -1867,6 +2119,81 @@ details[open] > summary.qa-summary::before{
 
 .char-tabs-wrapper{ width:100%; }
 
+/* Sheet header (Character / Enemy) */
+.sheet-header{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:10px 10px;
+  margin:2px 0 10px;
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:14px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+}
+
+.sheet-title-row{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.sheet-title{
+  font-size:1.05rem;
+  font-weight:700;
+  letter-spacing:0.02em;
+}
+
+.sheet-subtitle{
+  font-size:0.78rem;
+  color:var(--muted);
+  font-weight:600;
+}
+
+.sheet-badges{ display:flex; flex-wrap:wrap; gap:6px; }
+.sheet-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(0,0,0,0.18);
+  font-size:0.74rem;
+  color:var(--text);
+}
+.sheet-badge .k{ color:var(--muted); font-weight:600; }
+.sheet-badge .v{ font-weight:700; }
+
+.sheet-mini-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:6px;
+}
+
+@media (min-width: 520px){
+  .sheet-mini-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+}
+
+.sheet-line{
+  font-size:0.78rem;
+  color:var(--muted);
+  line-height:1.25;
+}
+
+.chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
+.chip{
+  display:inline-flex;
+  align-items:center;
+  padding:5px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(255,255,255,0.04);
+  color:var(--text);
+  font-size:0.74rem;
+  font-weight:600;
+}
+
 .char-tabs{
   display:flex;
   flex-direction:row;
@@ -1931,16 +2258,48 @@ details[open] > summary.qa-summary::before{
   margin-bottom:6px;
 }
 
+/* Patch 1.2.1: Collapsible sheet sections (reduces clutter) */
+.char-section-title.section-toggle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  cursor:pointer;
+  user-select:none;
+  padding:8px 10px;
+  border-radius:12px;
+  background:rgba(255,255,255,0.035);
+  border:1px solid rgba(255,255,255,0.06);
+  margin-bottom:8px;
+}
+.char-section-title.section-toggle:hover{
+  border-color:rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.05);
+}
+.char-section-title.section-toggle::after{
+  content:"▾";
+  font-size:0.9rem;
+  opacity:0.7;
+  transform:rotate(0deg);
+  transition:transform 120ms ease;
+}
+.char-section.collapsed .char-section-title.section-toggle::after{
+  transform:rotate(-90deg);
+}
+
+.char-section-body{ margin-top:2px; }
+.char-section.collapsed .char-section-body{ display:none; }
+
+
 .stat-grid{
   display:grid;
-  grid-template-columns:1.4fr 1fr;
-  gap:4px 8px;
-  font-size:0.82rem;
+  grid-template-columns:1fr auto;
+  gap:6px 10px;
+  font-size:0.84rem;
 }
-.stat-label{ color:var(--muted); display:flex; align-items:center; gap:4px; }
-.stat-value{ text-align:right; color:var(--text); font-weight:500; }
+.stat-label{ color:var(--muted); display:flex; align-items:center; gap:6px; }
+.stat-value{ text-align:right; color:var(--text); font-weight:650; }
 .stat-note{ font-size:0.68rem; color:var(--muted); display:block; }
-.char-stat-icon{ font-size:0.8rem; opacity:0.85; }
+.char-stat-icon{ display:none; }
 
 .stat-value.stat-attack{ color:#ef5350 !important; font-weight:700; }
 .stat-value.stat-magic{ color:#b39ddb !important; font-weight:700; }
@@ -1966,6 +2325,7 @@ details[open] > summary.qa-summary::before{
 .rarity-rare{ color:var(--rarity-rare); }
 .rarity-epic{ color:var(--rarity-epic); }
 .rarity-legendary{ color:var(--rarity-legendary); }
+.rarity-mythic{ color:var(--rarity-mythic); }
 .char-companion-desc{
   font-size:0.75rem;
   color:var(--muted);
@@ -2150,6 +2510,16 @@ details[open] > summary.qa-summary::before{
 .inv-actions{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .inv-actions-tight{ display:flex; gap:4px; align-items:center; }
 
+.inv-quest-badge{
+  padding:2px 8px;
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:999px;
+  font-size:0.72rem;
+  color:var(--muted);
+  background:rgba(0,0,0,0.18);
+  user-select:none;
+}
+
 /* Inventory-style action buttons should look like compact controls, not full-width CTAs. */
 .inv-actions .btn.small{ width:auto; margin-top:0; }
 
@@ -2158,6 +2528,68 @@ details[open] > summary.qa-summary::before{
    ===================================================================== */
 
 .spell-card.in-combat .inv-card-header{ cursor:pointer; }
+
+/* Combat meter cue: highlight empowered abilities in the Spell Book.
+   The outline pulses in the same accent as the combat HUD class meter. */
+.spell-card.meter-buffed{
+  position:relative;
+  --meter-accent: var(--accent);
+  --meter-accent-soft: rgba(124,200,255,0.22);
+}
+/* Per-class tinting (mirrors .hud-class-meter[data-meter-class=...]) */
+.spell-card.meter-buffed[data-meter-class="rogue"]{ --meter-accent:var(--cls-rogue); --meter-accent-soft:rgba(87,227,199,0.22); }
+.spell-card.meter-buffed[data-meter-class="ranger"]{ --meter-accent:var(--cls-ranger); --meter-accent-soft:rgba(125,255,122,0.20); }
+.spell-card.meter-buffed[data-meter-class="shaman"]{ --meter-accent:var(--cls-shaman); --meter-accent-soft:rgba(99,215,255,0.20); }
+.spell-card.meter-buffed[data-meter-class="necromancer"]{ --meter-accent:var(--cls-necromancer); --meter-accent-soft:rgba(177,139,255,0.22); }
+.spell-card.meter-buffed[data-meter-class="mage"]{ --meter-accent:var(--cls-mage); --meter-accent-soft:rgba(106,169,255,0.20); }
+.spell-card.meter-buffed[data-meter-class="warrior"]{ --meter-accent:var(--cls-warrior); --meter-accent-soft:rgba(255,184,107,0.20); }
+.spell-card.meter-buffed[data-meter-class="blood"]{ --meter-accent:var(--cls-blood); --meter-accent-soft:rgba(255,92,107,0.22); }
+.spell-card.meter-buffed[data-meter-class="paladin"]{ --meter-accent:var(--cls-paladin); --meter-accent-soft:rgba(255,204,102,0.20); }
+.spell-card.meter-buffed[data-meter-class="cleric"]{ --meter-accent:var(--cls-cleric); --meter-accent-soft:rgba(191,233,255,0.20); }
+.spell-card.meter-buffed[data-meter-class="berserker"]{ --meter-accent:var(--cls-berserker); --meter-accent-soft:rgba(255,122,47,0.22); }
+.spell-card.meter-buffed[data-meter-class="vampire"]{ --meter-accent:var(--cls-vampire); --meter-accent-soft:rgba(255,127,209,0.22); }
+
+.spell-card.meter-buffed::after{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  border-radius:12px;
+  pointer-events:none;
+  border:1px solid var(--meter-accent);
+  box-shadow:
+    0 0 0 0 rgba(0,0,0,0),
+    0 0 10px var(--meter-accent-soft);
+  animation: spell-meter-pulse 0.92s ease-in-out infinite;
+}
+
+@keyframes spell-meter-pulse{
+  0%{
+    opacity:0.55;
+    box-shadow:
+      0 0 8px var(--meter-accent-soft),
+      0 0 0 rgba(0,0,0,0);
+  }
+  50%{
+    opacity:0.95;
+    box-shadow:
+      0 0 18px var(--meter-accent-soft),
+      0 0 26px var(--meter-accent-soft);
+  }
+  100%{
+    opacity:0.55;
+    box-shadow:
+      0 0 8px var(--meter-accent-soft),
+      0 0 0 rgba(0,0,0,0);
+  }
+}
+
+body.no-motion .spell-card.meter-buffed::after{
+  /* Disable empowered spell pulsing entirely (avoid freezing the outline mid-animation). */
+  animation:none !important;
+  opacity:0 !important;
+  border-color:transparent !important;
+  box-shadow:none !important;
+}
 
 /* =============================================================================
    18) ANIMATIONS + RESPONSIVE WRAP
@@ -2499,9 +2931,103 @@ details[open] > summary.qa-summary::before{
 
 
 
-/* --- Spell Book UX (Patch 1.1.92) ------------------------------------- */
+/* --- Spell Book UX (Patch 1.2.0) ------------------------------------- */
 .spells-help{ font-size:12px; opacity:.9; margin:6px 0 4px; }
 .spells-legend{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
 .spell-badges{ display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
 .badge{ display:inline-flex; align-items:center; font-size:11px; padding:2px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.22); opacity:.9; }
 .spell-card.in-combat summary{ cursor:pointer; }
+
+
+/* --- Patch 1.2.0 UI: Make main-menu Settings screen fit viewport (mobile-safe) --- */
+#settingsScreen{
+  min-height:0;
+}
+#settingsScreen .settings-card{
+  width:100%;
+  max-width:560px;
+  margin:0 auto;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+#settingsScreen .settings-sections{
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* ========================================================================== */
+/* BOOT LOADER (Patch 1.2.70) */
+/* -------------------------------------------------------------------------- */
+
+.boot-loader{
+  position:fixed;
+  inset:0;
+  z-index:999998; /* below the boot diagnostics overlay */
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(0,0,0,0.85);
+  backdrop-filter:blur(4px);
+}
+
+.boot-loader.hidden{
+  display:none;
+}
+
+.boot-loader-card{
+  width:min(520px, 94vw);
+  background:rgba(20,20,20,0.92);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:14px;
+  padding:18px 16px;
+  text-align:center;
+}
+
+.boot-loader-title{
+  font-weight:800;
+  letter-spacing:0.6px;
+  font-size:16px;
+  margin-bottom:10px;
+}
+
+.boot-loader-spinner{
+  width:34px;
+  height:34px;
+  margin:0 auto 12px;
+  border-radius:50%;
+  border:3px solid rgba(255,255,255,0.18);
+  border-top-color:rgba(255,255,255,0.92);
+  animation:bootspin 0.9s linear infinite;
+}
+
+@keyframes bootspin{
+  to{ transform:rotate(360deg); }
+}
+
+.boot-loader-bar{
+  height:10px;
+  border-radius:999px;
+  background:rgba(255,255,255,0.10);
+  overflow:hidden;
+  margin:0 auto 10px;
+}
+
+.boot-loader-bar-fill{
+  height:100%;
+  width:0%;
+  border-radius:999px;
+  background:rgba(255,255,255,0.86);
+  transition:width 160ms ease;
+}
+
+.boot-loader-text{
+  font-size:12px;
+  opacity:0.88;
+  line-height:1.25;
+}
+
