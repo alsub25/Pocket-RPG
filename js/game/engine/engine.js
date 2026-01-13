@@ -201,8 +201,24 @@ function _merchantStockTotalUnits(st) {
     }
 }
 
+/**
+ * Runs the daily tick pipeline for the game simulation.
+ * This is the single source of truth for day-change side effects.
+ * 
+ * @param {Object} state - The game state object
+ * @param {number} absoluteDay - The target day to tick to
+ * @param {Object} hooks - Optional callbacks for quest/bank ticks and UI updates
+ */
 function runDailyTicks(state, absoluteDay, hooks = {}) {
-    if (!state || typeof absoluteDay !== 'number' || !Number.isFinite(absoluteDay)) return
+    // Validate inputs
+    if (!state || typeof state !== 'object') {
+        console.error('[Engine] runDailyTicks: Invalid state object')
+        return
+    }
+    if (typeof absoluteDay !== 'number' || !Number.isFinite(absoluteDay)) {
+        console.error('[Engine] runDailyTicks: Invalid absoluteDay:', absoluteDay)
+        return
+    }
 
     // Dev perf hook (opt-in): record daily tick cost for skipped-day catch-up debugging.
     const _t0 = _perfNow()
@@ -226,6 +242,7 @@ function runDailyTicks(state, absoluteDay, hooks = {}) {
     let startDay = lastDay + 1
     if (targetDay - startDay + 1 > MAX_CATCH_UP_DAYS) {
         startDay = targetDay - MAX_CATCH_UP_DAYS + 1
+        console.warn('[Engine] runDailyTicks: Capping catch-up days at', MAX_CATCH_UP_DAYS, 'days')
     }
 
     for (let day = startDay; day <= targetDay; day++) {
@@ -246,7 +263,16 @@ function runDailyTicks(state, absoluteDay, hooks = {}) {
 
         // -------------------- DAILY SYSTEM PIPELINE --------------------
         // Keep this list inline so adding a new day-tick system is a one-line edit.
-        // Order matters.
+        // Order matters: systems should be listed in logical dependency order.
+        //
+        // Pipeline order:
+        //   1. Quests - Process daily quest events first
+        //   2. Government/Town Hall - Apply political effects and decree expirations
+        //   3. Economy - Calculate village metrics and tier adjustments
+        //   4. Merchants - Restock and prune old inventory
+        //   5. Bank - Process interest and loan updates
+        //   6. Population - Update mood and apply decree effects
+        //
         const DAILY_STEPS = [
             // 1) Quests (daily hooks) — optional, provided via hooks.
             {
@@ -254,27 +280,57 @@ function runDailyTicks(state, absoluteDay, hooks = {}) {
                 run: () => {
                     if (hooks && typeof hooks.onQuestDailyTick === 'function') {
                         hooks.onQuestDailyTick(day)
+                    } else if (state.debug && state.debug.verboseLogging) {
+                        console.log('[Engine] No quest daily tick hook provided')
                     }
                 }
             },
             // 2) Government / Town Hall (decrees, council state, etc.)
             {
                 id: 'government',
-                run: () => handleGovernmentDayTick(state, day, hooks)
+                run: () => {
+                    if (typeof handleGovernmentDayTick !== 'function') {
+                        console.error('[Engine] handleGovernmentDayTick not available')
+                        return
+                    }
+                    handleGovernmentDayTick(state, day, hooks)
+                }
             },
             {
                 id: 'townHall',
-                run: () => handleTownHallDayTick(state, day, hooks)
+                run: () => {
+                    if (typeof handleTownHallDayTick !== 'function') {
+                        console.error('[Engine] handleTownHallDayTick not available')
+                        return
+                    }
+                    handleTownHallDayTick(state, day, hooks)
+                }
             },
             // 3) Economy (village metrics / tier)
             {
                 id: 'economy',
-                run: () => handleEconomyDayTick(state, day)
+                run: () => {
+                    if (typeof handleEconomyDayTick !== 'function') {
+                        console.error('[Engine] handleEconomyDayTick not available')
+                        return
+                    }
+                    handleEconomyDayTick(state, day)
+                }
             },
             // 4) Merchants (daily restock)
             {
                 id: 'merchants',
-                run: () => handleMerchantDayTick(state, day, cloneItemDef)
+                run: () => {
+                    if (typeof handleMerchantDayTick !== 'function') {
+                        console.error('[Engine] handleMerchantDayTick not available')
+                        return
+                    }
+                    if (typeof cloneItemDef !== 'function') {
+                        console.error('[Engine] cloneItemDef not available for merchant restocking')
+                        return
+                    }
+                    handleMerchantDayTick(state, day, cloneItemDef)
+                }
             },
             // 5) Bank (interest ticks / ledger summaries)
             {
@@ -282,21 +338,34 @@ function runDailyTicks(state, absoluteDay, hooks = {}) {
                 run: () => {
                     if (hooks && typeof hooks.onBankDailyTick === 'function') {
                         hooks.onBankDailyTick(day)
+                    } else if (state.debug && state.debug.verboseLogging) {
+                        console.log('[Engine] No bank daily tick hook provided')
                     }
                 }
             },
             // 6) Population (mood drift, decree mood effects)
             {
                 id: 'population',
-                run: () => handlePopulationDayTick(state, day, hooks)
+                run: () => {
+                    if (typeof handlePopulationDayTick !== 'function') {
+                        console.error('[Engine] handlePopulationDayTick not available')
+                        return
+                    }
+                    handlePopulationDayTick(state, day, hooks)
+                }
             }
         ]
 
         for (const step of DAILY_STEPS) {
             try {
+                if (state.debug && state.debug.verboseLogging) {
+                    console.log(`[Engine] Running daily step: ${step.id} for day ${day}`)
+                }
                 step.run()
-            } catch (_) {
+            } catch (err) {
                 // Individual systems should never crash the day pipeline.
+                console.error(`[Engine] Error in daily step '${step.id}' for day ${day}:`, err)
+                // Continue processing other steps even if one fails
             }
         }
 
@@ -347,25 +416,44 @@ function runDailyTicks(state, absoluteDay, hooks = {}) {
     } catch (_) {}
 }
 
-// Patch 1.2.52+: single, shared time-advance entrypoint.
-// Any place that advances time should go through this so day-change hooks can't drift.
-// NOTE: takes an explicit state object to prevent hidden global-state coupling.
+/**
+ * Advances the world time and triggers daily ticks if a day boundary is crossed.
+ * This is the unified entrypoint for all time advancement.
+ * 
+ * @param {Object} stateArg - The game state object (or uses global state if null)
+ * @param {number} parts - Number of day parts to advance
+ * @param {string} reason - Reason for time advancement (for debugging)
+ * @param {Object} hooks - Optional callbacks for time/daily tick events
+ * @returns {Object} Time step information
+ */
 function advanceWorldTime(stateArg, parts, reason, hooks = {}) {
     const s = stateArg || state
-    if (!s) return null
+    if (!s) {
+        console.error('[Engine] advanceWorldTime: No state available')
+        return null
+    }
 
     return perfWrap(s, 'village:time.advanceWorldTime', { parts, reason }, () => {
         const step = advanceTime(s, parts)
+
+        if (!step) {
+            console.error('[Engine] advanceWorldTime: advanceTime returned null/undefined')
+            return null
+        }
 
         try {
             if (hooks && typeof hooks.onAfterTimeAdvance === 'function') {
                 hooks.onAfterTimeAdvance(step, { parts, reason })
             }
-        } catch (_) {
-            // ignore
+        } catch (err) {
+            console.error('[Engine] advanceWorldTime: Error in onAfterTimeAdvance hook:', err)
+            // Continue despite hook error
         }
 
         if (step && step.dayChanged) {
+            if (state.debug && state.debug.verboseLogging) {
+                console.log(`[Engine] Day changed to ${step.after.absoluteDay}, triggering daily ticks`)
+            }
             runDailyTicks(s, step.after.absoluteDay, hooks)
         }
 
@@ -373,29 +461,74 @@ function advanceWorldTime(stateArg, parts, reason, hooks = {}) {
     })
 }
 
-// Patch 1.2.52 (hotfix): advance to the next Morning via the unified pipeline.
-// This ensures *all* day-advances (rest, cheats, scripted skips) run the exact same daily tick path.
+/**
+ * Advances time to the next Morning day part.
+ * Ensures all day-advances (rest, cheats, scripted skips) run the exact same daily tick path.
+ * 
+ * @param {Object} stateArg - The game state object (or uses global state if null)
+ * @param {Object} hooks - Optional callbacks for time/daily tick events
+ * @returns {Object} Updated time information
+ */
 function advanceToNextMorning(stateArg, hooks = {}) {
     // Keep compatibility with dependency-injected callers that pass state explicitly.
     // The game uses the global `state`, so we normalize against whichever is available.
     const s = stateArg || state
+    if (!s) {
+        console.error('[Engine] advanceToNextMorning: No state available')
+        return null
+    }
+
     const info = getTimeInfo(s)
+    if (!info) {
+        console.error('[Engine] advanceToNextMorning: getTimeInfo returned null/undefined')
+        return null
+    }
+
     const partsPerDay = Array.isArray(DAY_PARTS) && DAY_PARTS.length ? DAY_PARTS.length : 3
 
     // If already Morning, rest should advance a full day.
     const steps = info.partIndex === 0 ? partsPerDay : Math.max(1, partsPerDay - info.partIndex)
+    
+    if (state.debug && state.debug.verboseLogging) {
+        console.log(`[Engine] advanceToNextMorning: Advancing ${steps} parts from ${info.partName}`)
+    }
+    
     advanceWorldTime(s, steps, 'toMorning', hooks)
     return getTimeInfo(s)
 }
 
-// Patch 1.2.52 (hotfix): advance N calendar days and land on Morning.
+/**
+ * Advances world time by N calendar days and lands on Morning.
+ * 
+ * @param {Object} stateArg - The game state object (or uses global state if null)
+ * @param {number} days - Number of days to advance
+ * @param {Object} hooks - Optional callbacks for time/daily tick events
+ * @returns {Object} Updated time information
+ */
 function advanceWorldDays(stateArg, days, hooks = {}) {
     const s = stateArg || state
+    if (!s) {
+        console.error('[Engine] advanceWorldDays: No state available')
+        return null
+    }
+
     const info = getTimeInfo(s)
+    if (!info) {
+        console.error('[Engine] advanceWorldDays: getTimeInfo returned null/undefined')
+        return null
+    }
+
     const partsPerDay = Array.isArray(DAY_PARTS) && DAY_PARTS.length ? DAY_PARTS.length : 3
 
     const d = Math.max(0, Math.floor(Number(days) || 0))
-    if (!d) return getTimeInfo(s)
+    if (!d) {
+        console.warn('[Engine] advanceWorldDays: Invalid or zero days specified:', days)
+        return getTimeInfo(s)
+    }
+
+    if (state.debug && state.debug.verboseLogging) {
+        console.log(`[Engine] advanceWorldDays: Advancing ${d} days from day ${info.dayIndex}`)
+    }
 
     const toMorning = info.partIndex === 0 ? partsPerDay : Math.max(1, partsPerDay - info.partIndex)
     const steps = toMorning + partsPerDay * Math.max(0, d - 1)
@@ -420,11 +553,19 @@ const SAVE_SCHEMA = 7 // bump when the save structure changes (migrations run on
  * ============================================================================= */
 // Imported from ../systems/safety.js (keep NaN/Infinity guards consistent across systems).
 
-// Minimal state sanitation to prevent NaN/Infinity cascades from corrupting the run.
-// NOTE: takes an explicit state object so QA tools can safely audit cloned states.
+/**
+ * Minimal state sanitation to prevent NaN/Infinity cascades from corrupting the run.
+ * NOTE: takes an explicit state object so QA tools can safely audit cloned states.
+ * 
+ * @param {Object} s - The state object to sanitize
+ */
 function sanitizeCoreStateObject(s) {
     try {
-        if (!s || typeof s !== 'object') return
+        if (!s || typeof s !== 'object') {
+            console.error('[Engine] sanitizeCoreStateObject: Invalid state object')
+            return
+        }
+        
         const p = s.player
         if (p) {
             ensurePlayerSpellSystems(p)
@@ -435,6 +576,10 @@ function sanitizeCoreStateObject(s) {
             p.resource = clampFinite(p.resource, 0, p.maxResource, p.maxResource)
 
             p.gold = Math.max(0, Math.floor(finiteNumber(p.gold, 0)))
+            
+            if (state.debug && state.debug.verboseLogging) {
+                console.log('[Engine] Sanitized player state: HP=', p.hp, '/', p.maxHp, 'Gold=', p.gold)
+            }
         }
 
         const e = s.currentEnemy
@@ -447,8 +592,9 @@ function sanitizeCoreStateObject(s) {
             s.time.dayIndex = Math.max(0, Math.floor(finiteNumber(s.time.dayIndex, 0)))
             s.time.partIndex = clampFinite(s.time.partIndex, 0, 2, 0)
         }
-    } catch (_) {
-        // ignore
+    } catch (err) {
+        console.error('[Engine] sanitizeCoreStateObject: Error during sanitization:', err)
+        // Continue despite error
     }
 }
 
@@ -468,6 +614,13 @@ let lastCrashReport = null
 // (Safari iOS will throw if a non-declared global is referenced.)
 let lastSaveError = null
 
+/**
+ * Records crash information for debugging black screen bugs.
+ * 
+ * @param {string} kind - Type of crash ('error', 'unhandledrejection')
+ * @param {Error|string} err - The error object or message
+ * @param {Object} extra - Additional context information
+ */
 function recordCrash(kind, err, extra = {}) {
     try {
         const message =
@@ -475,6 +628,7 @@ function recordCrash(kind, err, extra = {}) {
             (typeof err === 'string' ? err : '') ||
             'Unknown error'
         const stack = err && err.stack ? String(err.stack) : ''
+        
         lastCrashReport = {
             kind,
             message: String(message),
@@ -494,19 +648,28 @@ function recordCrash(kind, err, extra = {}) {
             extra
         }
 
+        console.error('[Engine] Crash recorded:', kind, message)
+        if (stack) {
+            console.error('[Engine] Stack trace:', stack)
+        }
 
         try {
             safeStorageSet(_STORAGE_DIAG_KEY_LAST_CRASH, JSON.stringify(lastCrashReport), { action: 'write crash report' })
-        } catch (_) {}
+        } catch (storageErr) {
+            console.error('[Engine] Failed to save crash report to storage:', storageErr)
+        }
 
         // Keep a short in-game breadcrumb too.
         try {
             if (typeof addLog === 'function') {
                 addLog('⚠️ An error occurred. Use Feedback to copy a report.', 'danger')
             }
-        } catch (_) {}
-    } catch (_) {
-        // ignore
+        } catch (logErr) {
+            console.error('[Engine] Failed to add crash log:', logErr)
+        }
+    } catch (outerErr) {
+        // Last resort error logging
+        console.error('[Engine] Critical error in recordCrash:', outerErr)
     }
 }
 
