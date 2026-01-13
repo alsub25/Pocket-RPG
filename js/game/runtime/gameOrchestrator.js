@@ -14193,9 +14193,13 @@ function initSettingsFromState() {
     const autoEquipLootEl = document.getElementById('settingsAutoEquipLootToggle')
     const highContrastEl = document.getElementById('settingsHighContrast')
     const textSizeEl = document.getElementById('settingsTextSize')
+    const colorSchemeEl = document.getElementById('settingsColorScheme')
+    const uiScaleEl = document.getElementById('settingsUiScale')
+    const showCombatNumbersEl = document.getElementById('settingsShowCombatNumbers')
+    const autoSaveEl = document.getElementById('settingsAutoSave')
 
     // If controls aren't present, nothing to do
-    if (!volumeSlider && !textSpeedSlider && !settingsDifficulty && !autoEquipLootEl && !highContrastEl && !textSizeEl) return
+    if (!volumeSlider && !textSpeedSlider && !settingsDifficulty && !autoEquipLootEl && !highContrastEl && !textSizeEl && !colorSchemeEl && !uiScaleEl && !showCombatNumbersEl && !autoSaveEl) return
 
     // If state doesn't exist, bail
     if (typeof state === 'undefined' || !state) return
@@ -14239,6 +14243,26 @@ function initSettingsFromState() {
     if (autoEquipLootEl && !autoEquipLootEl.dataset.pqWired) {
         autoEquipLootEl.dataset.pqWired = '1'
         autoEquipLootEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (colorSchemeEl && !colorSchemeEl.dataset.pqWired) {
+        colorSchemeEl.dataset.pqWired = '1'
+        colorSchemeEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (uiScaleEl && !uiScaleEl.dataset.pqWired) {
+        uiScaleEl.dataset.pqWired = '1'
+        uiScaleEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (showCombatNumbersEl && !showCombatNumbersEl.dataset.pqWired) {
+        showCombatNumbersEl.dataset.pqWired = '1'
+        showCombatNumbersEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (autoSaveEl && !autoSaveEl.dataset.pqWired) {
+        autoSaveEl.dataset.pqWired = '1'
+        autoSaveEl.addEventListener('change', () => applySettingsChanges())
     }
 
     // Text speed should apply live (and avoid stacked listeners)
@@ -14286,6 +14310,27 @@ function initSettingsFromState() {
     } catch (_) {}
 
     if (autoEquipLootEl) autoEquipLootEl.checked = !!state.settingsAutoEquipLoot
+
+    if (showCombatNumbersEl) showCombatNumbersEl.checked = (state.settingsShowCombatNumbers !== false)
+    if (autoSaveEl) autoSaveEl.checked = (state.settingsAutoSave !== false)
+
+    // Color scheme is stored in unified engine settings
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (colorSchemeEl && settings && typeof settings.get === 'function') {
+            const scheme = settings.get('ui.colorScheme', 'auto')
+            colorSchemeEl.value = String(scheme)
+        }
+    } catch (_) {}
+
+    // UI scale is stored in unified engine settings
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (uiScaleEl && settings && typeof settings.get === 'function') {
+            const scale = Number(settings.get('ui.scale', 1))
+            uiScaleEl.value = String(scale)
+        }
+    } catch (_) {}
 
     if (settingsDifficulty && state.difficulty) {
         settingsDifficulty.value = state.difficulty
@@ -14368,6 +14413,35 @@ function applySettingsChanges() {
     if (autoEquipToggle) {
         state.settingsAutoEquipLoot = !!autoEquipToggle.checked
         try { engineSettings && engineSettings.set && engineSettings.set('gameplay.autoEquipLoot', !!state.settingsAutoEquipLoot) } catch (_) {}
+    }
+
+    // Color scheme
+    const colorSchemeEl = document.getElementById('settingsColorScheme')
+    if (colorSchemeEl) {
+        const scheme = String(colorSchemeEl.value || 'auto')
+        try { engineSettings && engineSettings.set && engineSettings.set('ui.colorScheme', scheme) } catch (_) {}
+    }
+
+    // UI scale
+    const uiScaleEl = document.getElementById('settingsUiScale')
+    if (uiScaleEl) {
+        const scale = Number(uiScaleEl.value) || 1
+        try { engineSettings && engineSettings.set && engineSettings.set('ui.scale', scale) } catch (_) {}
+        // The a11y bridge plugin will apply the scale to the DOM
+    }
+
+    // Show combat numbers
+    const showCombatNumbersEl = document.getElementById('settingsShowCombatNumbers')
+    if (showCombatNumbersEl) {
+        state.settingsShowCombatNumbers = !!showCombatNumbersEl.checked
+        try { engineSettings && engineSettings.set && engineSettings.set('gameplay.showCombatNumbers', !!state.settingsShowCombatNumbers) } catch (_) {}
+    }
+
+    // Auto-save
+    const autoSaveEl = document.getElementById('settingsAutoSave')
+    if (autoSaveEl) {
+        state.settingsAutoSave = !!autoSaveEl.checked
+        try { engineSettings && engineSettings.set && engineSettings.set('gameplay.autoSave', !!state.settingsAutoSave) } catch (_) {}
     }
 
     // Apply audio settings immediately

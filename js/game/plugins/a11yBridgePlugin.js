@@ -40,7 +40,9 @@ export function createA11yBridgePlugin() {
 
           // Text scaling: scale rem-based tokens by adjusting the root font-size.
           const scale = _clamp(derived.textScale || 1, 0.85, 1.25)
-          try { document.documentElement.style.fontSize = String(16 * scale) + 'px' } catch (_) {}
+          const uiScale = _clamp(settings.get('ui.scale', 1), 0.8, 1.3)
+          const combinedScale = scale * uiScale
+          try { document.documentElement.style.fontSize = String(16 * combinedScale) + 'px' } catch (_) {}
 
           // Persist legacy keys for backwards compatibility with older builds.
           try { safeStorageSet('pq-theme', theme, { action: 'write theme' }) } catch (_) {}
