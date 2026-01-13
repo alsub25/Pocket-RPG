@@ -85,7 +85,7 @@ export const CHANGELOG = [
               "Restored the Text size selector on the main-menu Settings screen and wired it to engine settings (a11y.textScale).",
               "In-game Settings modal now also includes Text size and High contrast controls, both wired to the same engine-wide accessibility settings so the two menus stay in sync."
             ]
-          }
+          },
           {
             "title": "Enhanced Settings Menu with new options",
             "bullets": [
