@@ -903,7 +903,7 @@ function ensureTownHallEffects(state) {
   };
 
   for (const [k, v] of Object.entries(defaults)) {
-    if (eff[k] === undefined) eff[k] = v;
+    if (eff[k] == null) eff[k] = v;
   }
 
   return eff;
