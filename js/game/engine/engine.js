@@ -12107,13 +12107,28 @@ function calcEnemyDamage(baseStat, elementType) {
     return CombatMath.calcEnemyDamage(baseStat, elementType)
 }
 
-// --- TRUE TURN-BASED COMBAT + MULTI-ENEMY (Patch 1.1.9) ------------------------
-
+/**
+ * Ensures combat turn state is properly initialized.
+ * Creates default combat state if missing.
+ * 
+ * @returns {Object|null} The combat state object or null if state is unavailable
+ */
 function ensureCombatTurnState() {
-    if (!state) return null
+    if (!state) {
+        console.error('[Engine] ensureCombatTurnState: No state available')
+        return null
+    }
 
-    if (!Array.isArray(state.enemies)) state.enemies = []
-    if (typeof state.targetEnemyIndex !== 'number') state.targetEnemyIndex = 0
+    if (!Array.isArray(state.enemies)) {
+        state.enemies = []
+        if (state.debug && state.debug.verboseLogging) {
+            console.log('[Engine] Initialized enemies array')
+        }
+    }
+    
+    if (typeof state.targetEnemyIndex !== 'number') {
+        state.targetEnemyIndex = 0
+    }
 
     if (!state.combat || typeof state.combat !== 'object') {
         state.combat = {
@@ -12121,6 +12136,9 @@ function ensureCombatTurnState() {
             busy: false,
             round: 1,
             battleDrops: 0
+        }
+        if (state.debug && state.debug.verboseLogging) {
+            console.log('[Engine] Initialized combat state')
         }
     }
 
@@ -12132,11 +12150,21 @@ function ensureCombatTurnState() {
     return state.combat
 }
 
+/**
+ * Checks if it's currently the player's turn in combat.
+ * 
+ * @returns {boolean} True if it's the player's turn and combat is not busy
+ */
 function combatIsPlayerTurn() {
     const c = ensureCombatTurnState()
     return !!(c && c.phase === 'player' && !c.busy)
 }
 
+/**
+ * Checks if combat is currently in a busy/resolving state.
+ * 
+ * @returns {boolean} True if combat is busy processing
+ */
 function combatIsBusy() {
     const c = ensureCombatTurnState()
     return !!(c && c.busy)
