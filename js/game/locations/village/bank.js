@@ -54,7 +54,7 @@ function initBankState(state) {
     // "first ever run". We preserve negative values to allow backfilling
     // in controlled scenarios (e.g., automated tests).
     const rawLid = state.bank.lastInterestDay;
-    if (rawLid == null) {
+    if (rawLid === null || typeof rawLid === "undefined") {
       state.bank.lastInterestDay = null;
     } else {
       const lid = Number(rawLid);
@@ -187,6 +187,163 @@ function formatPercent(rate) {
   return (rate * 100).toFixed(1) + "%";
 }
 
+// ---------------------------------------------------------------------------
+// COMMAND HELPERS (exported)
+// ---------------------------------------------------------------------------
+// These helpers allow the engine command bus to execute bank actions
+// deterministically (replay/telemetry/snapshots), while the modal UI can
+// simply dispatch commands.
+
+export function bankDeposit({ state, amt, addLog, recordInput, updateHUD, saveGame } = {}) {
+  const p = state && state.player ? state.player : null;
+  if (!p) return false;
+  const bank = initBankState(state);
+  const log = typeof addLog === 'function' ? addLog : () => {};
+  const amount = Math.floor(Number(amt));
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if ((p.gold || 0) < amount) {
+    log('You do not have that much gold.', 'system');
+    return false;
+  }
+
+  try { recordInput?.('bank.deposit', { amt: amount }) } catch (_) {}
+  p.gold = sanitizeGold((p.gold || 0) - amount);
+  bank.balance = sanitizeGold((bank.balance || 0) + amount);
+  log(`You deposit ${amount} gold into your savings account.`, 'good');
+  try { updateHUD?.() } catch (_) {}
+  try { saveGame?.() } catch (_) {}
+  return true;
+}
+
+export function bankWithdraw({ state, amt, addLog, recordInput, updateHUD, saveGame } = {}) {
+  const p = state && state.player ? state.player : null;
+  if (!p) return false;
+  const bank = initBankState(state);
+  const log = typeof addLog === 'function' ? addLog : () => {};
+  const amount = Math.floor(Number(amt));
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if ((bank.balance || 0) < amount) {
+    log('You do not have that much in savings.', 'system');
+    return false;
+  }
+
+  try { recordInput?.('bank.withdraw', { amt: amount }) } catch (_) {}
+  bank.balance = sanitizeGold((bank.balance || 0) - amount);
+  p.gold = sanitizeGold((p.gold || 0) + amount);
+  log(`You withdraw ${amount} gold from your savings account.`, 'good');
+  try { updateHUD?.() } catch (_) {}
+  try { saveGame?.() } catch (_) {}
+  return true;
+}
+
+export function bankInvest({ state, amt, addLog, recordInput, updateHUD, saveGame } = {}) {
+  const p = state && state.player ? state.player : null;
+  if (!p) return false;
+  const bank = initBankState(state);
+  const log = typeof addLog === 'function' ? addLog : () => {};
+  const amount = Math.floor(Number(amt));
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if ((p.gold || 0) < amount) {
+    log('You do not have that much gold.', 'system');
+    return false;
+  }
+
+  try { recordInput?.('bank.invest', { amt: amount }) } catch (_) {}
+  p.gold = sanitizeGold((p.gold || 0) - amount);
+  bank.investments = sanitizeGold((bank.investments || 0) + amount);
+  log(`You invest ${amount} gold into longer-term ventures.`, 'good');
+  try { updateHUD?.() } catch (_) {}
+  try { saveGame?.() } catch (_) {}
+  return true;
+}
+
+export function bankCashOut({ state, addLog, updateHUD, saveGame } = {}) {
+  const p = state && state.player ? state.player : null;
+  if (!p) return false;
+  const bank = initBankState(state);
+  const log = typeof addLog === 'function' ? addLog : () => {};
+  if ((bank.investments || 0) <= 0) {
+    log('You have no investments to cash out.', 'system');
+    return false;
+  }
+
+  const feeRate = 0.05;
+  const fee = Math.floor((bank.investments || 0) * feeRate);
+  const payout = sanitizeGold((bank.investments || 0) - fee);
+  bank.investments = 0;
+  p.gold = sanitizeGold((p.gold || 0) + payout);
+  log(`You cash out your investments, receiving ${payout} gold after ${fee} gold in fees.`, 'system');
+  try { updateHUD?.() } catch (_) {}
+  try { saveGame?.() } catch (_) {}
+  return true;
+}
+
+export function bankBorrow({ state, amt, addLog, recordInput, updateHUD, saveGame } = {}) {
+  const p = state && state.player ? state.player : null;
+  if (!p) return false;
+  const bank = initBankState(state);
+  const log = typeof addLog === 'function' ? addLog : () => {};
+
+  const amount = Math.floor(Number(amt));
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if (amount > 500) {
+    log('The bank refuses to lend you that much in one go.', 'system');
+    return false;
+  }
+
+  if (!bank.loan) {
+    const baseRates = getCurrentRates(state);
+    bank.loan = { balance: 0, baseRate: baseRates.loanRate };
+  }
+
+  const currentLoan = bank.loan && bank.loan.balance > 0 ? sanitizeGold(bank.loan.balance) : 0;
+  if (currentLoan + amount > 1000) {
+    log('The banker frowns. "Settle some of your existing debt before borrowing more."', 'danger');
+    return false;
+  }
+
+  p.gold = sanitizeGold((p.gold || 0) + amount);
+  bank.loan.balance = sanitizeGold(currentLoan + amount);
+  try { recordInput?.('bank.borrow', { amt: amount }) } catch (_) {}
+  log(`You take a loan of ${amount} gold. Interest will accrue until you repay it.`, 'danger');
+  try { updateHUD?.() } catch (_) {}
+  try { saveGame?.() } catch (_) {}
+  return true;
+}
+
+export function bankRepay({ state, amt, addLog, recordInput, updateHUD, saveGame } = {}) {
+  const p = state && state.player ? state.player : null;
+  if (!p) return false;
+  const bank = initBankState(state);
+  const log = typeof addLog === 'function' ? addLog : () => {};
+
+  const current = bank.loan && bank.loan.balance > 0 ? sanitizeGold(bank.loan.balance) : 0;
+  if (current <= 0) {
+    log('You have no outstanding loan to repay.', 'system');
+    return false;
+  }
+  const max = Math.min(current, sanitizeGold(p.gold || 0));
+  const amount = Math.floor(Number(amt));
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if (amount > max) {
+    log('You cannot repay more than you currently owe and carry.', 'system');
+    return false;
+  }
+
+  p.gold = sanitizeGold((p.gold || 0) - amount);
+  bank.loan.balance = sanitizeGold(current - amount);
+  try { recordInput?.('bank.repay', { amt: amount }) } catch (_) {}
+  if ((bank.loan.balance || 0) <= 0) {
+    bank.loan.balance = 0;
+    log('You fully repay your loan. The banker notes it with a nod.', 'good');
+  } else {
+    log(`You repay ${amount} gold towards your loan. Remaining balance: ${bank.loan.balance}g.`, 'system');
+  }
+  try { updateHUD?.() } catch (_) {}
+  try { saveGame?.() } catch (_) {}
+  return true;
+}
+
 // --- Weekly interest engine -----------------------------------------------
 
 /**
@@ -223,7 +380,7 @@ function applyInterest(state, addLog) {
 
   // First-ever run: initialize the reference day and bail.
   // (Treat null/undefined as uninitialized; do not coerce with Number(null) -> 0.)
-  if (bank.lastInterestDay == null || !Number.isFinite(Number(bank.lastInterestDay))) {
+  if (bank.lastInterestDay === null || typeof bank.lastInterestDay === "undefined" || !Number.isFinite(Number(bank.lastInterestDay))) {
     bank.lastInterestDay = currentDay;
 
     // Patch/migration quality-of-life: give a one-time note so it doesn't feel "broken".
@@ -381,7 +538,8 @@ export function openBankModalImpl({
   addLog,
   recordInput,
   updateHUD,
-  saveGame
+  saveGame,
+  dispatchCommand
 }) {
   const p = state.player;
   if (!p) return;
@@ -672,18 +830,20 @@ export function openBankModalImpl({
         return;
       }
 
-      try { recordInput?.('bank.deposit', { amt }) } catch (_) {}
+      // Route through engine.commands when available.
+      try {
+        if (typeof dispatchCommand === 'function') {
+          dispatchCommand('BANK_DEPOSIT', { amt });
+          refreshSummaryText();
+          refreshAccountStats();
+          return;
+        }
+      } catch (_) {}
 
-      p.gold -= amt;
-      bank.balance += amt;
-      addLog(
-        `You deposit ${amt} gold into your savings account.`,
-        "good"
-      );
-      updateHUD();
+      // Fallback: mutate directly (headless / no-engine builds)
+      bankDeposit({ state, amt, addLog, recordInput, updateHUD, saveGame });
       refreshSummaryText();
       refreshAccountStats();
-      saveGame();
     });
     savingsActions.appendChild(btnDeposit);
 
@@ -707,18 +867,18 @@ export function openBankModalImpl({
         return;
       }
 
-      try { recordInput?.('bank.withdraw', { amt }) } catch (_) {}
+      try {
+        if (typeof dispatchCommand === 'function') {
+          dispatchCommand('BANK_WITHDRAW', { amt });
+          refreshSummaryText();
+          refreshAccountStats();
+          return;
+        }
+      } catch (_) {}
 
-      bank.balance -= amt;
-      p.gold += amt;
-      addLog(
-        `You withdraw ${amt} gold from your savings account.`,
-        "good"
-      );
-      updateHUD();
+      bankWithdraw({ state, amt, addLog, recordInput, updateHUD, saveGame });
       refreshSummaryText();
       refreshAccountStats();
-      saveGame();
     });
     savingsActions.appendChild(btnWithdraw);
 
@@ -778,18 +938,18 @@ export function openBankModalImpl({
         return;
       }
 
-      try { recordInput?.('bank.invest', { amt }) } catch (_) {}
+      try {
+        if (typeof dispatchCommand === 'function') {
+          dispatchCommand('BANK_INVEST', { amt });
+          refreshSummaryText();
+          refreshAccountStats();
+          return;
+        }
+      } catch (_) {}
 
-      p.gold -= amt;
-      bank.investments += amt;
-      addLog(
-        `You invest ${amt} gold into longer-term ventures.`,
-        "good"
-      );
-      updateHUD();
+      bankInvest({ state, amt, addLog, recordInput, updateHUD, saveGame });
       refreshSummaryText();
       refreshAccountStats();
-      saveGame();
     });
     investActions.appendChild(btnInvest);
 
@@ -802,22 +962,18 @@ export function openBankModalImpl({
         return;
       }
 
-      // A small "exit fee" so investments feel distinct from savings
-      const feeRate = 0.05;
-      const fee = Math.floor(bank.investments * feeRate);
-      const payout = bank.investments - fee;
+      try {
+        if (typeof dispatchCommand === 'function') {
+          dispatchCommand('BANK_CASH_OUT', {});
+          refreshSummaryText();
+          refreshAccountStats();
+          return;
+        }
+      } catch (_) {}
 
-      bank.investments = 0;
-      p.gold += payout;
-
-      addLog(
-        `You cash out your investments, receiving ${payout} gold after ${fee} gold in fees.`,
-        "system"
-      );
-      updateHUD();
+      bankCashOut({ state, addLog, updateHUD, saveGame });
       refreshSummaryText();
       refreshAccountStats();
-      saveGame();
     });
     investActions.appendChild(btnCashOut);
 
@@ -895,16 +1051,18 @@ export function openBankModalImpl({
         return;
       }
 
-      p.gold += amt;
-      bank.loan.balance += amt;
-      addLog(
-        `You take a loan of ${amt} gold. Interest will accrue until you repay it.`,
-        "danger"
-      );
-      updateHUD();
+      try {
+        if (typeof dispatchCommand === 'function') {
+          dispatchCommand('BANK_BORROW', { amt });
+          refreshSummaryText();
+          refreshAccountStats();
+          return;
+        }
+      } catch (_) {}
+
+      bankBorrow({ state, amt, addLog, recordInput, updateHUD, saveGame });
       refreshSummaryText();
       refreshAccountStats();
-      saveGame();
     });
     loanActions.appendChild(btnBorrow);
 
@@ -944,25 +1102,18 @@ export function openBankModalImpl({
         return;
       }
 
-      p.gold -= amt;
-      bank.loan.balance -= amt;
-      if (bank.loan.balance <= 0) {
-        bank.loan.balance = 0;
-        addLog(
-          "You fully repay your loan. The banker notes it with a nod.",
-          "good"
-        );
-      } else {
-        addLog(
-          `You repay ${amt} gold towards your loan. Remaining balance: ${bank.loan.balance}g.`,
-          "system"
-        );
-      }
+      try {
+        if (typeof dispatchCommand === 'function') {
+          dispatchCommand('BANK_REPAY', { amt });
+          refreshSummaryText();
+          refreshAccountStats();
+          return;
+        }
+      } catch (_) {}
 
-      updateHUD();
+      bankRepay({ state, amt, addLog, recordInput, updateHUD, saveGame });
       refreshSummaryText();
       refreshAccountStats();
-      saveGame();
     });
     loanActions.appendChild(btnRepay);
 

@@ -21,7 +21,7 @@ function _safeJsonStringify(x) {
 }
 
 const VERSIONS = [
-  { id: 'future', label: GAME_FULL_LABEL, entry: './js/game/engine/engine.js' },
+  { id: 'future', label: GAME_FULL_LABEL, entry: './js/game/main.js' },
 ];
 
 const STORAGE_KEY = "selected_game_version";
@@ -294,10 +294,33 @@ async function loadGameVersion(version, { onFail } = {}) {
   await BootLoader.nextFrame();
   mark('importStart');
 
+  function loadModuleViaScriptTag(url) {
+    return new Promise((resolve, reject) => {
+      try {
+        const s = document.createElement('script');
+        s.id = GAME_SCRIPT_ID;
+        s.type = 'module';
+        s.src = url;
+        s.async = true;
+        s.addEventListener('load', () => resolve(), { once: true });
+        s.addEventListener('error', (e) => reject(e || new Error('Module script load failed')), { once: true });
+        document.head.appendChild(s);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
   // Load the game entry module via dynamic import so we can await completion
   // and hide the loader in a consistent place.
   try {
-    await import(entryUrl);
+    // iOS Safari / WebView can behave differently under file://:
+    // module <script> tags often work even when dynamic import() throws.
+    if (location.protocol === 'file:') {
+      await loadModuleViaScriptTag(entryUrl);
+    } else {
+      await import(entryUrl);
+    }
     mark('importEnd');
     console.log('[bootstrap] Loaded:', entryUrl);
     try {

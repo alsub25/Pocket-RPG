@@ -1,6 +1,7 @@
 // js/boot/userAcceptance.js
-// Patch 1.2.70: early boot diagnostics + acceptance gate.
+// Patch 1.2.72: early boot diagnostics + acceptance gate.
 
+import { GAME_PATCH } from '../game/systems/version.js';
 import { safeStorageGet, safeStorageSet, safeStorageRemove } from './lib/safeStorage.js';
 
 /* --------------------------------------------------------------------------
@@ -121,7 +122,7 @@ export function installBootDiagnostics() {
       title.style.fontSize = '18px'
       title.style.fontWeight = '700'
       title.style.marginBottom = '10px'
-      title.textContent = 'Boot Diagnostics (Patch 1.2.70)'
+      title.textContent = `Boot Diagnostics (Patch ${GAME_PATCH})`
       overlay.appendChild(title)
 
       const sub = document.createElement('div')

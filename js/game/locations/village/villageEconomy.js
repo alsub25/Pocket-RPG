@@ -4,7 +4,7 @@
 // Government can nudge effective prosperity/security/trade up or down on top.
 import { getVillageGovernmentEffect } from "../../systems/kingdomGovernment.js";
 import { rngFloat } from "../../systems/rng.js";
-import { perfWrap } from "../../engine/perf.js";
+import { perfWrap } from "../../../engine/perf.js";
 
 export const ECONOMY_TIERS = {
   struggling: {

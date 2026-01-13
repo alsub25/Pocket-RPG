@@ -1,272 +1,78 @@
-<div align="center">
+# Emberwood: The Blackbark Oath
 
-# 🌲 Emberwood: The Blackbark Oath ⚔️
+A single‑page, browser RPG + village simulation where **daily decisions** (resting, shopping, banking, local politics, and tavern games) ripple through a living settlement — and where combat, loot, and quests feed back into that world loop.
 
-### *A Browser-Based Fantasy RPG & Village Simulation*
-
-[![Version](https://img.shields.io/badge/version-v1.2.70-brightgreen.svg)](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
-[![License](https://img.shields.io/badge/license-See%20LICENSE-blue.svg)](#license)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing-guidelines)
-[![No Build Required](https://img.shields.io/badge/build-not%20required-success.svg)](#quick-start)
-
-**[Play Now](https://alsub25.github.io/Emberwood-The-Blackbark-Oath/) • [Report Bug](https://github.com/alsub25/Emberwood-The-Blackbark-Oath/issues) • [Request Feature](https://github.com/alsub25/Emberwood-The-Blackbark-Oath/issues)**
-
----
-
-</div>
-
-## 🎮 About The Game
-
-**Emberwood: The Blackbark Oath** is a rich single-page browser RPG that combines deep turn-based combat with an immersive village simulation. Your **daily decisions**—from resting at the tavern to managing finances at the bank, influencing local politics, and taking on dangerous quests—ripple through a living, breathing settlement.
-
-> **Current Patch:** v1.2.70 — *The Blackbark Oath — Hardening & Bug Squash*  
-> 📜 **In-game changelog:** Open **Changelog** from the main menu
-
-### ✨ Key Features
+> **Current patch:** v1.2.72 — *The Blackbark Oath — Locus Wiring: Events, Input & Autosave*  
+> **In‑game changelog:** open **Changelog** from the main menu.
 
 This repository is intentionally **no-build** and **static-host friendly**:
 
-- 🌐 **Runs entirely in the browser** — No backend required
-- 📦 **Native ES modules** — No bundler, no build step
-- 💾 **Local saves** — Persists via `localStorage` (single-player, device-local)
-- 🛠️ **Developer tools included** — Smoke Tests, Scenario Runner, Bug Report bundle for testing and balancing
-- 🎯 **Pure JavaScript** — Easy to understand, modify, and extend
-- 📱 **Mobile-friendly** — iOS Safari compatible with special guards
+- Runs entirely in the browser (no backend).
+- Uses **native ES modules** (no bundler required).
+- Saves persist via `localStorage` (single-player, device-local).
+- Includes **Developer Cheats / QA tools** (Smoke Tests, Scenario Runner, Bug Report bundle) intended for testing and balancing.
 
 ---
 
-## 📚 Table of Contents
+## Table of contents
 
-<details>
-<summary><b>Click to expand</b></summary>
-
-- [🎮 About The Game](#-about-the-game)
-- [🎯 Gameplay Highlights](#-gameplay-highlights)
-- [🚀 Quick Start](#-quick-start)
-- [🌐 Deploy to GitHub Pages](#-deploy-to-github-pages)
-- [📂 Project Layout](#-project-layout)
-- [🏗️ Architecture Overview](#️-architecture-overview)
-- [⚙️ Gameplay Systems](#️-gameplay-systems)
-  - [State Model & Save Schema](#state-model--save-schema)
-  - [Time System & Daily Ticks](#time-system--daily-ticks)
-  - [RNG & Determinism](#rng--determinism)
+- [Quick start](#quick-start)
+- [Deploy to GitHub Pages](#deploy-to-github-pages)
+- [Project layout](#project-layout)
+- [Architecture overview](#architecture-overview)
+- [Gameplay systems](#gameplay-systems)
+  - [State model & save schema](#state-model--save-schema)
+  - [Time system & daily ticks](#time-system--daily-ticks)
+  - [RNG & determinism](#rng--determinism)
   - [Combat](#combat)
-  - [Abilities & Effects](#abilities--effects)
-  - [Status Effects & Synergies](#status-effects--synergies)
-  - [Elements, Affinities & Resistances](#elements-affinities--resistances)
-  - [Classes, Resources & Progression](#classes-resources--progression)
+  - [Abilities & effects](#abilities--effects)
+  - [Status effects & synergies](#status-effects--synergies)
+  - [Elements, affinities & resistances](#elements-affinities--resistances)
+  - [Classes, resources & progression](#classes-resources--progression)
   - [Talents](#talents)
-  - [Items, Inventory & Equipment](#items-inventory--equipment)
-  - [Loot Generation](#loot-generation)
-  - [Enemies, Rarity & Affixes](#enemies-rarity--affixes)
+  - [Items, inventory & equipment](#items-inventory--equipment)
+  - [Loot generation](#loot-generation)
+  - [Enemies, rarity & affixes](#enemies-rarity--affixes)
   - [Quests](#quests)
-  - [Village Simulation](#village-simulation)
+  - [Village simulation](#village-simulation)
   - [Logging & UI](#logging--ui)
-  - [Diagnostics & QA Tools](#diagnostics--qa-tools)
-- [➕ Adding Content](#-adding-content)
-- [🧪 Testing & Debugging](#-testing--debugging)
-- [🤝 Contributing Guidelines](#-contributing-guidelines)
-- [📋 Versioning & Releases](#-versioning--releases)
-- [📜 License](#-license)
-
-</details>
+  - [Diagnostics & QA tools](#diagnostics--qa-tools)
+- [Adding content](#adding-content)
+- [Testing & debugging](#testing--debugging)
+- [Contributing guidelines](#contributing-guidelines)
+- [Versioning & releases](#versioning--releases)
+- [License](#license)
 
 ---
 
-## 🎯 Gameplay Highlights
+## Quick start
 
-<table>
-<tr>
-<td width="50%">
-
-### ⚔️ **Combat & Character Building**
-- 🎭 **9 Unique Classes** — Mage, Warrior, Rogue, Ranger, Blood Knight, Cleric, Berserker, Vampire, Necromancer
-- 💫 **Deep Ability System** — Unlock powerful spells and skills as you level up
-- 🌟 **Talent Trees** — Customize your playstyle with passive bonuses
-- 🎲 **Turn-Based Combat** — Strategic battles with enemy intents and combo systems
-- 🔥 **Elemental Synergies** — Combine fire, ice, and other elements for devastating effects
-- ⚡ **Status Effects** — Bleed, Burn, Chill, Poison, and many more
-
-</td>
-<td width="50%">
-
-### 🏰 **Village Life & Economy**
-- 🏪 **Merchant System** — Buy and sell items, with dynamic stock and pricing
-- 🏦 **Banking** — Deposits, withdrawals, loans, and weekly interest
-- 🎲 **Tavern Games** — Gambling mini-games and resting mechanics
-- 👑 **Local Politics** — Petitions, decrees, and interactions with the king
-- 📈 **Living Economy** — Prices and mood drift based on your actions
-- ⏰ **Time-Based Events** — Day/night cycle affects available activities
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🎒 **Loot & Equipment**
-- 🗡️ **Procedurally Generated Items** — Unique weapons and armor
-- ✨ **Rarity System** — Common to Legendary items with scaling stats
-- 🎁 **Equipment Traits** — Special effects like on-hit procs
-- 📦 **Inventory Management** — Stackable consumables and gear
-- 💰 **Smart Pricing** — Dynamic sell values based on item quality
-
-</td>
-<td width="50%">
-
-### 📜 **Quests & Progression**
-- 📖 **Quest System** — Story-driven and procedural quests
-- 🎯 **Multiple Quest Steps** — Complex objectives and requirements
-- 🏅 **Rewards** — Gold, XP, and unique items
-- 📊 **Character Progression** — Level up, distribute skill points
-- 🔓 **Unlock System** — New abilities at specific levels
-
-</td>
-</tr>
-</table>
-
----
-
-## 📸 Screenshots & Demo
-
-> 🎮 **[Play the live demo](https://alsub25.github.io/Emberwood-The-Blackbark-Oath/)**
-
-### Game Features Preview
-
-<details>
-<summary>🖼️ <b>View Screenshots (Coming Soon)</b></summary>
-
-*Screenshots will be added here to showcase:*
-- 🎭 Character creation and class selection
-- ⚔️ Turn-based combat system
-- 🏰 Village simulation and interactions
-- 🎒 Inventory and equipment management
-- 📜 Quest journal and progression
-- 🛠️ Developer tools and diagnostics
-
-*To add screenshots: Place images in `/assets` and link them here*
-
-</details>
-
----
-
-## 🚀 Quick Start
-
-### 🏃 Run Locally
+### Run locally
 
 Because Emberwood uses ES modules, you should run it from a local web server.
 
-<table>
-<tr>
-<td width="50%">
-
-#### 🐍 **Python**
+#### Python
 
 ```bash
-# Python 3.x
 python -m http.server 8000
-
-# Python 2.x
-python -m SimpleHTTPServer 8000
 ```
 
-Then open: `http://localhost:8000`
-
-</td>
-<td width="50%">
-
-#### 📦 **Node.js**
+#### Node
 
 ```bash
-# Using npx (no install required)
 npx serve .
-
-# Or install serve globally
-npm install -g serve
-serve .
 ```
 
-Then open: `http://localhost:3000` (or as shown)
+Open `http://localhost:8000`.
 
-</td>
-</tr>
-</table>
+### iOS / `file://` note
 
-<details>
-<summary>💡 <b>Other Options</b></summary>
-
-#### 🦀 **Rust (miniserve)**
-```bash
-cargo install miniserve
-miniserve . -p 8000
-```
-
-#### 🔵 **PHP**
-```bash
-php -S localhost:8000
-```
-
-#### 🟢 **Live Server (VS Code Extension)**
-Install "Live Server" extension and click "Go Live" button
-
-</details>
-
-### 📱 iOS / `file://` Note
-
-> ⚠️ The project includes extra guards for iOS Safari, but **serving from HTTP is still recommended**.  
-> Loading modules from `file://` can be inconsistent and surface stricter module semantics.
+The project includes extra guards for iOS Safari, but **serving from HTTP is still recommended**.
+Loading modules from `file://` can be inconsistent and can surface stricter module semantics.
 
 ---
 
-## 🛠️ Technology Stack
-
-Emberwood is built with modern web technologies, focusing on simplicity and maintainability:
-
-<table>
-<tr>
-<td width="50%">
-
-### 🎨 **Frontend**
-- **Vanilla JavaScript** (ES6+ modules)
-- **HTML5** & **CSS3**
-- **LocalStorage API** for persistence
-- **No frameworks or libraries required**
-
-</td>
-<td width="50%">
-
-### 🏗️ **Architecture**
-- **Event-driven** state management
-- **Modular** design pattern
-- **Data-driven** content system
-- **Pure functions** for game logic
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 📦 **Development**
-- **No build step** required
-- **Native ES modules** import/export
-- **Git** for version control
-- **Built-in dev tools** for testing
-
-</td>
-<td width="50%">
-
-### 🎯 **Key Features**
-- **Zero dependencies** (no node_modules!)
-- **Static hosting** compatible
-- **Mobile-friendly** responsive design
-- **Offline-capable** after first load
-
-</td>
-</tr>
-</table>
-
----
-
-## 🌐 Deploy to GitHub Pages
+## Deploy to GitHub Pages
 
 Emberwood is a static site. GitHub Pages works well.
 
@@ -290,165 +96,94 @@ All scripts/styles use **relative paths**, so Pages works whether deployed at th
 
 ---
 
-## 📂 Project Layout
+## Project layout
 
-### 📁 Top Level Structure
+Top level:
 
 ```
-Emberwood-The-Blackbark-Oath/
-├── index.html          # Main entry point
-├── style.css           # Game styling
-├── assets/             # Images and resources
-├── js/                 # JavaScript modules
-│   ├── boot/          # Boot sequence
-│   ├── game/          # Core game logic
-│   └── shared/        # Shared utilities
-└── README.md          # This file
+Emberwood_patch_1.2.72_core_systems/
+  index.html
+  style.css
+  assets/
+  js/
+  README.md
 ```
 
-### 🗂️ JavaScript Module Organization
+JavaScript modules:
 
-<details>
-<summary><b>📦 Boot System</b> <code>js/boot/</code></summary>
+- `js/boot/` — early boot scripts
+  - `bootstrap.js` — boot sequencing + optional preflight checks
+  - `bootLoader.js` — boot overlay + timing
+  - `userAcceptance.js` — acceptance gate / user prompt logic
+  - `lib/safeStorage.js` — minimal boot-safe storage wrapper
 
-- **`bootstrap.js`** — Boot sequencing + optional preflight checks
-- **`bootLoader.js`** — Boot overlay + timing
-- **`userAcceptance.js`** — Acceptance gate / user prompt logic
-- **`lib/safeStorage.js`** — Minimal boot-safe storage wrapper
+- `js/shared/` — dependency-light utilities shared by boot + game
+  - `storage/safeStorage.js`
 
-</details>
+- `js/engine/` — proprietary engine core + platform helpers
+  - `engine.js` — Engine Core (state/events/services + plugin lifecycle)
+  - `perf.js` — performance capture helpers
+  - `storageRuntime.js` — runtime storage diagnostics / safe wrappers
 
-<details>
-<summary><b>🔧 Shared Utilities</b> <code>js/shared/</code></summary>
-
-- **`storage/safeStorage.js`** — Dependency-light utilities shared by boot + game
-
-</details>
-
-<details>
-<summary><b>🎮 Game Engine</b> <code>js/game/engine/</code></summary>
-
-**Core Orchestration:**
-- **`engine.js`** — Main entry (state orchestration, gameplay flow)
-- **`saveManager.js`** — Save/load + migrations + save-slot helpers
-- **`storageRuntime.js`** — Runtime storage diagnostics / safe wrappers
-- **`perf.js`** — Performance capture helpers
-
-**UI Layer:**
-- `ui/uiRuntime.js` — Screen switching, modal runtime, log renderer helpers
-- `ui/uiBindings.js` — DOM event wiring (menu buttons, HUD gestures, chips)
-
-**Developer Tools:**
-- `devtools/diagnosticsUI.js` — Smoke Tests modal UI + dev pill visibility
-
-</details>
-
-<details>
-<summary><b>📊 Game Data</b> <code>js/game/data/</code></summary>
-
-- **`abilities.js`** — All ability definitions (spells, attacks, etc.)
-- **`items.js`** — Item definitions and equipment data
-- **`talents.js`** — Talent tree definitions
-
-</details>
-
-<details>
-<summary><b>⚔️ Combat System</b> <code>js/game/combat/</code></summary>
-
-- **`math.js`** — Damage/heal calculations, crit handling, mitigation
-- **`statusEngine.js`** — Status ticking / application / stacking rules
-- **`abilityEffects.js`** — Ability implementations
-- **`postTurnSequence.js`** — End-of-turn sequencing
-
-</details>
-
-<details>
-<summary><b>🔄 Core Systems</b> <code>js/game/systems/</code></summary>
-
-- **`timeSystem.js`** — Day/day-part handling + normalization
-- **`rng.js`** — Deterministic RNG option + logging
-- **`lootGenerator.js`** — Item generation pipeline
-- **`kingdomGovernment.js`** — King behavior + decree logic
-- **`assertState.js`, `safety.js`** — Invariants and guardrails
-- **`enemy/`** — Enemy generation pipeline (templates/rarity/affixes)
-
-</details>
-
-<details>
-<summary><b>🏘️ Village System</b> <code>js/game/locations/village/</code></summary>
-
-- **`merchant.js`** — Shop system and trading
-- **`bank.js`** — Financial system
-- **`townHall.js`** — Politics and decrees
-- **`tavern.js`, `tavernGames.js`** — Rest and gambling
-- **`villageEconomy.js`** — Economic simulation
-- **`villagePopulation.js`** — Population mood and behavior
-
-</details>
-
-<details>
-<summary><b>📜 Quest System</b> <code>js/game/quests/</code></summary>
-
-- **`questDefs.js`** — Quest definitions
-- **`questDefaults.js`** — Default state and flags
-- **`questBindings.js`** — Side effects and trigger wiring
-- **`questSystem.js`** — Lifecycle helpers
-- **`questTriggerRegistry.js`** — Registry of trigger types
-
-</details>
-
-<details>
-<summary><b>📝 Changelog</b> <code>js/game/changelog/</code></summary>
-
-- **`changelog.js`** — In-game changelog data
-
-</details>
+- `js/game/` — Emberwood game code (content + orchestration)
+  - `main.js` — game entry (creates engine + boots orchestrator, then engine.start())
+  - `runtime/`
+    - `gameOrchestrator.js` — game-specific orchestration (wires UI, saves, systems)
+  - `plugins/` — engine plugins (UI runtime, diagnostics overlay, combat runtime, companion runtime)
+  - `persistence/`
+    - `saveManager.js` — save/load + migrations + save-slot helpers
+  - `ui/`
+    - `runtime/` — screen switching, modal runtime, log renderer helpers + DOM bindings
+    - `devtools/diagnosticsUI.js` — Smoke Tests modal UI + dev pill visibility
+    - `spells/spellbookModal.js` — Spell Book modal builder
+  - `utils/itemCloner.js` — JSON-safe deep clone helper
+  - `data/` — large data tables (`abilities.js`, `items.js`, `talents.js`, etc.)
+  - `combat/` — combat math + runtime helpers
+  - `systems/` — core systems (time, RNG, loot, government, safety, enemies)
+  - `locations/` — location modules (village, etc.)
+  - `quests/` — quest system
+  - `changelog/` — in-game changelog data
+  - `state/` — initial state factory
+  - `qa/` — QA helpers
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture overview
 
 Emberwood is designed around a single **authoritative game state object** plus a set of systems that read/update it.
 
-### 🚀 Boot Sequence
+### Boot sequence
 
-```mermaid
-graph LR
-    A[bootstrap.js] --> B[Boot Overlay]
-    B --> C[User Acceptance]
-    C --> D[Engine Load]
-    D --> E[Game Start]
-```
+1. `js/boot/bootstrap.js` runs first.
+2. A boot overlay is shown and basic diagnostics are captured.
+3. If required, user acceptance is handled (`userAcceptance.js`).
+4. The game entry (`js/game/main.js`) is imported.
 
-1. **`js/boot/bootstrap.js`** runs first
-2. Boot overlay displays with diagnostics
-3. User acceptance handled (`userAcceptance.js`)
-4. Game engine entry (`js/game/engine/engine.js`) imports
-5. Game initializes and loads
+### Engine orchestration
 
-### 🎯 Engine Orchestration
+- `js/engine/engine.js` is the proprietary **Engine Core** (state/events/services + plugins).
+  - Built-in engine services: clock + scheduler, command bus, snapshot save/load + migration registry, structured logging + event trace, RNG streams, perf watchdog, input router, UI router, asset registry, error boundary crash reports, and a headless harness.
+- `js/game/runtime/gameOrchestrator.js` is the game-specific orchestrator.
 
-The `engine.js` module coordinates all major systems:
+`gameOrchestrator.js` coordinates:
 
-- 🏗️ **Building/initializing state** — Creates the initial game state
-- 💾 **Save Management** — Calls `saveManager` for load/save/migrate operations
-- 🎨 **UI Wiring** — Delegates to `uiRuntime` + `uiBindings` for all UI interactions
-- ⚙️ **System Delegation** — Manages time, RNG, loot, quests, village systems
-- ⚔️ **Combat Modules** — Handles turn-based combat during fights
+- Building/initializing state
+- Calling **saveManager** for load/save/migrate
+- Wiring UI via `uiRuntime` + `uiBindings`
+- Delegating to systems (time, RNG, loot, quests, village)
+- Delegating to combat modules during fights
 
-### 🔧 Key Refactors in v1.2.70
+Key refactors (ongoing through 1.2.72):
 
-The **Hardening & Bug Squash** patch introduced major architectural improvements:
+- **Save/migrations** extracted to `saveManager.js`
+- **UI runtime + bindings** extracted to `ui/runtime/uiRuntime.js` / `ui/runtime/uiBindings.js`
+- **Diagnostics/QA UI** extracted to `devtools/diagnosticsUI.js`
 
-- ✅ **Save/Migrations** — Extracted to dedicated `saveManager.js`
-- ✅ **UI Runtime + Bindings** — Separated into `uiRuntime.js` / `uiBindings.js`
-- ✅ **Diagnostics/QA UI** — Moved to `devtools/diagnosticsUI.js`
-
-> 💡 These extractions reduce circular imports and avoid iOS `file://` pitfalls (temporal dead zones, read-only imported bindings).
+These extractions reduce circular imports and avoid iOS `file://` pitfalls (temporal dead zones, read‑only imported bindings).
 
 ---
 
-## ⚙️ Gameplay Systems
+## Gameplay systems
 
 ### State model & save schema
 
@@ -713,48 +448,48 @@ Implementation note (important for iOS Safari):
 
 ---
 
-## ➕ Adding Content
+## Adding content
 
-### 👹 Add an Enemy
+### Add an enemy
 
-1. 📝 Find the enemy template table (commonly in engine or enemy builder inputs)
-2. ➕ Add a new template ID and base stats/move list
-3. 🎮 Use **Cheat Menu → spawn/start battle** by `templateId`
-4. 🔄 Iterate until the encounter feels right
+1. Find the enemy template table (commonly in engine or enemy builder inputs).
+2. Add a new template ID and base stats/move list.
+3. Use Cheat Menu → spawn/start battle by `templateId`.
+4. Iterate until the encounter feels right.
 
-### 🗡️ Add an Item
+### Add an item
 
-1. 📝 Add an entry in `js/game/data/items.js`
-2. ✅ Confirm:
-   - 📦 Inventory display
-   - ⚔️ Equip rules (if equipment)
-   - 💰 Sell value
-   - 🎲 Loot generator behavior
-3. 🎮 Use **Cheat Menu** to grant by item ID for fast iteration
+1. Add an entry in `js/game/data/items.js`.
+2. Confirm:
+   - Inventory display
+   - Equip rules (if equipment)
+   - Sell value
+   - Loot generator behavior
+3. Use Cheat Menu to grant by item ID for fast iteration.
 
-### ✨ Add an Ability
+### Add an ability
 
-1. 📝 Add the ability definition in `js/game/data/abilities.js`
-2. 💻 Implement its logic in `js/game/combat/abilityEffects.js`
-3. 🔓 Add unlock rules for a class if needed
-4. 🧪 Run **Smoke Tests** (abilities classification checks will fail fast if misconfigured)
+1. Add the ability definition in `js/game/data/abilities.js`.
+2. Implement its logic in `js/game/combat/abilityEffects.js`.
+3. Add unlock rules for a class if needed.
+4. Run Smoke Tests (abilities classification checks will fail fast if misconfigured).
 
-### 🌟 Add a Talent
+### Add a talent
 
-1. 📝 Add the talent in `js/game/data/talents.js`
-2. 📊 Ensure it updates derived stats through the stat recompute pipeline
-3. 🧪 Run **Smoke Tests** (talent integrity + summary checks will catch many mistakes)
+1. Add the talent in `js/game/data/talents.js`.
+2. Ensure it updates derived stats through the stat recompute pipeline.
+3. Run Smoke Tests (talent integrity + summary checks will catch many mistakes).
 
-### 📖 Add a Quest
+### Add a quest
 
-1. 📝 Define in `js/game/quests/questDefs.js`
-2. 🔧 Add default state in `questDefaults.js`
-3. 🔗 Bind triggers in `questBindings.js` using the trigger registry
-4. ✅ Verify lifecycle with **Smoke Tests** (quest init/start/advance/complete)
+1. Define in `js/game/quests/questDefs.js`.
+2. Add default state in `questDefaults.js`.
+3. Bind triggers in `questBindings.js` using the trigger registry.
+4. Verify lifecycle with Smoke Tests (quest init/start/advance/complete).
 
 ---
 
-## 🧪 Testing & Debugging
+## Testing & debugging
 
 ### Smoke Tests
 
@@ -792,92 +527,51 @@ For reproducible reports:
 
 ---
 
-## 🤝 Contributing Guidelines
+## Contributing guidelines
 
-We welcome contributions! Here's how to get started:
+### Design goals
 
-### 🎯 Design Goals
+- Keep systems small and single-purpose.
+- Prefer **pure logic modules** (no DOM) for core mechanics.
+- Use UI adapters/hooks rather than importing gameplay code into UI modules.
 
-- 📦 **Keep systems small and single-purpose** — Modular architecture
-- 🧩 **Prefer pure logic modules** (no DOM) for core mechanics
-- 🔌 **Use UI adapters/hooks** rather than importing gameplay code into UI modules
-- 📝 **Document your changes** in the changelog for significant updates
+### iOS / ES module pitfalls to avoid
 
-### ⚠️ iOS / ES Module Pitfalls to Avoid
+- **Temporal dead zones**: avoid referencing late-bound functions during module evaluation.
+- **Read-only imports**: never assign to an imported binding; use adapters.
+- Keep boot + version modules dependency-light.
 
-- 🚫 **Temporal dead zones**: Avoid referencing late-bound functions during module evaluation
-- 🚫 **Read-only imports**: Never assign to an imported binding; use adapters
-- ✅ **Keep boot + version modules dependency-light**
+### Style
 
-### 💅 Style Guidelines
-
-- ✨ Keep helpers dependency-light
-- 🔗 Avoid cross-layer imports (systems → UI)
-- 📋 Add changelog entries for behavior changes and major refactors
-- 🧪 Run Smoke Tests before submitting PRs
-
-### 🔄 Pull Request Process
-
-1. 🍴 Fork the repository
-2. 🌿 Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. 💾 Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. 🚀 Push to the branch (`git push origin feature/AmazingFeature`)
-5. 📬 Open a Pull Request
+- Keep helpers dependency-light.
+- Avoid cross-layer imports (systems → UI).
+- Add changelog entries for behavior changes and major refactors.
 
 ---
 
-## 📋 Versioning & Releases
+## Versioning & releases
 
-### 🏷️ Patch Label
+### Patch label
 
 The build label lives in `js/game/systems/version.js`:
 
-- **`GAME_PATCH`** — Version number (e.g., "1.2.70")
-- **`GAME_PATCH_NAME`** — Patch name (e.g., "The Blackbark Oath")
-- **`GAME_FULL_LABEL`** — Combined label for display
+- `GAME_PATCH`
+- `GAME_PATCH_NAME`
+- `GAME_FULL_LABEL`
 
-### 📝 In-Game Changelog
+### In-game changelog
 
 Changelog entries live in `js/game/changelog/changelog.js`.
 
-- Visible from the main menu **Changelog** button
-- Documents new features, fixes, and improvements
-- Organized by patch version
-
-### 💾 Save Schema
+### Save schema
 
 The smoke tests print the current **save schema**. When changing save structure:
 
-- ✅ Add/adjust migrations in `saveManager.js`
-- ✅ Keep migrations tolerant of unknown keys for forward compatibility
-- ✅ Test loading saves from previous versions
+- Add/adjust migrations in `saveManager.js`.
+- Keep migrations tolerant of unknown keys for forward compatibility.
 
 ---
 
-## 📜 License
+## License
 
-This project is open source. Please add a `LICENSE` file that matches your intent (MIT/GPL/Proprietary).
-
-**Third-party assets:**  
-If you add third-party assets, list sources and licenses in this section.
-
----
-
-<div align="center">
-
-## 🌟 Support The Project
-
-If you enjoy Emberwood: The Blackbark Oath, consider:
-
-⭐ **Starring the repository**  
-🐛 **Reporting bugs** via [Issues](https://github.com/alsub25/Emberwood-The-Blackbark-Oath/issues)  
-💡 **Suggesting features** via [Issues](https://github.com/alsub25/Emberwood-The-Blackbark-Oath/issues)  
-🤝 **Contributing** via Pull Requests
-
----
-
-Made with ❤️ by the Emberwood community
-
-**[⬆ Back to Top](#-emberwood-the-blackbark-oath-️)**
-
-</div>
+Add a `LICENSE` file that matches your intent (MIT/GPL/Proprietary). If you add third‑party assets, list sources and licenses in this README.

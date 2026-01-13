@@ -111,6 +111,9 @@
   --cls-vampire:#ff7fd1;
 
   --theme-name:"default";
+
+  /* Accessibility hooks (applied by the ew.a11yBridge plugin) */
+  --ew-text-scale: 1;
 }
 
 /* Theme overrides: only touch variables */
@@ -157,6 +160,17 @@
   --accent:#a16bff; --accent-soft:rgba(161,107,255,0.30);
   --danger:#ff2e63; --danger-soft:rgba(255,46,99,0.25);
   --gold:#b48dfd;
+}
+
+/* =============================================================================
+   A11Y OVERRIDES
+   ============================================================================= */
+
+body.high-contrast{
+  /* Make muted text more legible and borders more visible */
+  --muted:#cfd6e6;
+  --border:#5560a3;
+  --shadow-card:0 10px 28px rgba(0,0,0,0.72);
 }
 
 /* =============================================================================
@@ -614,7 +628,21 @@ h3{ font-size:0.95rem; }
 .changelog-modal,
 .cheat-modal{ font-size:0.8rem; line-height:1.35; }
 
+.changelog-modal{
+  max-width:100%;
+  overflow-x:hidden;
+  touch-action:pan-y;
+  overscroll-behavior-x:none;
+}
+
+/* Prevent long, unbroken changelog strings (paths, IDs) from forcing horizontal panning */
+.changelog-modal :is(p, summary, li, h4, ul){
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
 .changelog-modal details{
+  max-width:100%;
   border:1px solid var(--border);
   border-radius:var(--radius);
   padding:4px 6px;
@@ -1669,6 +1697,8 @@ details[open] > summary.qj-summary::before{
 #enemyModalBody{
   flex:1;
   overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior-x:none;
   padding:4px;
   font-size:0.82rem;
 }
@@ -2957,10 +2987,23 @@ body.no-motion .spell-card.meter-buffed::after{
   min-height:0;
   overflow:auto;
   -webkit-overflow-scrolling:touch;
+
+  /* Mobile: prevent slider/toggle "bubbles" (thumb + shadow) from being clipped by
+     the scroll container edge, and hide the visible scrollbar/indicator. */
+  /* Give the thumbs extra breathing room so iOS/WebKit doesn't clip the shadow/bubble. */
+  padding-right:18px;
+  scrollbar-width:none;          /* Firefox */
+  -ms-overflow-style:none;       /* Legacy Edge */
+}
+
+#settingsScreen .settings-sections::-webkit-scrollbar{
+  width:0;
+  height:0;
+  display:none;                  /* Chromium/WebKit */
 }
 
 /* ========================================================================== */
-/* BOOT LOADER (Patch 1.2.70) */
+/* BOOT LOADER (Patch 1.2.72) */
 /* -------------------------------------------------------------------------- */
 
 .boot-loader{

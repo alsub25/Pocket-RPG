@@ -316,6 +316,7 @@ export function handleMerchantDayTick(state, absoluteDay, cloneItemDef) {
 function buildItemRow({
     body,
     itemKey,
+    merchantId,
     state,
     context,
     cloneItemDef,
@@ -326,6 +327,7 @@ function buildItemRow({
     saveGame,
     addLog,
     recordInput,
+    dispatchCommand,
     goldLineEl, // <p> "Your gold: Xg" from the shop
     stockMap // object: itemKey -> remaining stock
 }) {
@@ -409,6 +411,23 @@ function buildItemRow({
     }
 
     btnBuy.addEventListener('click', () => {
+        // Preferred path: route purchases through the command bus so replay/telemetry
+        // can capture deterministic state transitions.
+        try {
+            if (typeof dispatchCommand === 'function') {
+                const ok = dispatchCommand('SHOP_BUY', {
+                    context,
+                    merchantId: merchantId || null,
+                    itemKey,
+                    price: finalPrice
+                })
+                if (ok) {
+                    refreshUI()
+                    return
+                }
+            }
+        } catch (_) {}
+
         const remaining = getRemainingStock()
         const soldOut = remaining <= 0
 
@@ -424,6 +443,7 @@ function buildItemRow({
             return
         }
 
+        // Fallback (headless / no-engine builds): execute locally.
         // Take payment + give item.
         const price = Math.max(1, finiteInt(finalPrice, 1))
         p.gold = Math.max(0, finiteInt(p.gold, 0) - price)
@@ -460,6 +480,77 @@ function buildItemRow({
 }
 
 // ---------------------------------------------------------------------------
+// COMMAND HANDLERS (exported)
+// ---------------------------------------------------------------------------
+
+// Central purchase executor used by the engine command handlers.
+// This keeps merchant purchases deterministic and replayable.
+export function executeMerchantBuy({
+    state,
+    context,
+    merchantId,
+    itemKey,
+    price,
+    addLog,
+    recordInput,
+    addItemToInventory,
+    updateHUD,
+    saveGame,
+    handleEconomyAfterPurchase,
+    getMerchantPrice,
+    cloneItemDef
+} = {}) {
+    const p = state && state.player ? state.player : null
+    if (!p) return false
+
+    const log = typeof addLog === 'function' ? addLog : () => {}
+    const ctx = String(context || 'village')
+    const mId = String(merchantId || '')
+    const k = String(itemKey || '')
+    if (!mId || !k) return false
+
+    // Ensure bucket exists; shop builders should have already called ensureMerchantStock,
+    // but commands may be replayed/triggered in other contexts.
+    const bucket = getMerchantStockBucket(state, ctx, mId)
+
+    const remaining = typeof bucket[k] === 'number' ? finiteInt(bucket[k], 0) : 0
+    if (remaining <= 0) {
+        log('That item is sold out.', 'system')
+        return false
+    }
+
+    // Prefer payload price for UI parity, but fall back to live price computation.
+    const _defForPrice = typeof cloneItemDef === 'function' ? cloneItemDef(k) : null
+    const basePrice = _defForPrice && typeof _defForPrice.price === 'number' ? _defForPrice.price : 0
+    const computed = typeof getMerchantPrice === 'function' ? getMerchantPrice(basePrice, state, ctx) : null
+    const want = Number.isFinite(Number(price)) ? Number(price) : computed
+    const finalPrice = Math.max(1, finiteInt(want, 1))
+
+    if (finiteInt(p.gold, 0) < finalPrice) {
+        const def = typeof cloneItemDef === 'function' ? cloneItemDef(k) : null
+        log('You cannot afford ' + (def?.name || 'that item') + '.', 'system')
+        return false
+    }
+
+    // Take payment + give item.
+    p.gold = Math.max(0, finiteInt(p.gold, 0) - finalPrice)
+    try { if (typeof addItemToInventory === 'function') addItemToInventory(k, 1) } catch (_) {}
+
+    // Decrement stock.
+    bucket[k] = Math.max(0, finiteInt(bucket[k], 0) - 1)
+
+    const def = typeof cloneItemDef === 'function' ? cloneItemDef(k) : null
+    log('You purchase ' + (def?.name || 'an item') + ' for ' + finalPrice + ' gold.', 'good')
+
+    try { recordInput?.('merchant.buy', { context: ctx, merchantId: mId, itemKey: k, price: finalPrice }) } catch (_) {}
+    try { if (typeof handleEconomyAfterPurchase === 'function') handleEconomyAfterPurchase(state, finalPrice, ctx) } catch (_) {}
+    try { if (typeof updateHUD === 'function') updateHUD() } catch (_) {}
+    try { if (typeof saveGame === 'function') saveGame() } catch (_) {}
+
+    return true
+}
+
+// ---------------------------------------------------------------------------
 // VILLAGE MERCHANT HUB
 // ---------------------------------------------------------------------------
 
@@ -474,7 +565,8 @@ function openVillageMerchantHub({
     addItemToInventory,
     updateHUD,
     saveGame,
-    recordInput
+    recordInput,
+    dispatchCommand
 }) {
     const econSummary = getVillageEconomySummary(state)
     const tier = econSummary.tier
@@ -538,7 +630,8 @@ function openVillageMerchantHub({
                     addItemToInventory,
                     updateHUD,
                     saveGame,
-                    recordInput
+                    recordInput,
+                    dispatchCommand
                 })
             })
 
@@ -571,7 +664,8 @@ function openSpecificMerchantShop({
     addItemToInventory,
     updateHUD,
     saveGame,
-    recordInput
+    recordInput,
+    dispatchCommand
 }) {
     const p = state.player
     if (!p) return
@@ -622,6 +716,7 @@ function openSpecificMerchantShop({
                 buildItemRow({
                     body,
                     itemKey,
+                    merchantId,
                     state,
                     context: 'village',
                     cloneItemDef,
@@ -632,6 +727,7 @@ function openSpecificMerchantShop({
                     saveGame,
                     addLog,
                     recordInput,
+                    dispatchCommand,
                     goldLineEl: goldLine,
                     stockMap
                 })
@@ -683,7 +779,8 @@ function openTravelingMerchantShop({
     addItemToInventory,
     updateHUD,
     saveGame,
-    recordInput
+    recordInput,
+    dispatchCommand
 }) {
     const p = state.player
     if (!p) return
@@ -739,6 +836,7 @@ function openTravelingMerchantShop({
                 buildItemRow({
                     body,
                     itemKey,
+                    merchantId: 'traveling',
                     state,
                     context: 'wandering',
                     cloneItemDef,
@@ -749,6 +847,7 @@ function openTravelingMerchantShop({
                     saveGame,
                     addLog,
                     recordInput,
+                    dispatchCommand,
                     goldLineEl: goldLine,
                     stockMap
                 })
@@ -781,7 +880,8 @@ export function openMerchantModalImpl({
     addItemToInventory,
     updateHUD,
     saveGame,
-    recordInput
+    recordInput,
+    dispatchCommand
 }) {
     if (!state || !state.player) return
     const ctx = context || 'village'
@@ -798,7 +898,8 @@ export function openMerchantModalImpl({
             addItemToInventory,
             updateHUD,
             saveGame,
-            recordInput
+            recordInput,
+            dispatchCommand
         })
     } else {
         openTravelingMerchantShop({
@@ -812,7 +913,8 @@ export function openMerchantModalImpl({
             addItemToInventory,
             updateHUD,
             saveGame,
-            recordInput
+            recordInput,
+            dispatchCommand
         })
     }
 }

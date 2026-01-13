@@ -3,6 +3,286 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.2.80",
+    "title": "The Blackbark Oath — Engine Integration: Single-Load Boot, Snapshot Schema Migration, Modal Escape & Motion A11y",
+    "sections": [
+      {
+        "heading": "Engine integration fixes",
+        "items": [
+          {
+            "title": "Asset preloads: screen/area wiring now matches the live UI",
+            "bullets": [
+              "Fixed a mismatch where the asset manifest defined screen groups for 'village'/'forest', but the UI runtime only ever enters screens: mainMenu, character, game, settings.",
+              "Added missing screen groups (screen:character, screen:game, screen:settings) and introduced area groups (area:<id>) for ambience that changes inside the single 'game' screen.",
+              "Updated ew.screenAssetPreload to also listen for area:enter events so area ambience can preload the same way screens and modals do."
+            ]
+          },
+          {
+            "title": "Area lifecycle events (so plugins can react consistently)",
+            "bullets": [
+              "Added a setArea() helper in the orchestrator that emits area:leave / area:enter engine events and also forwards a world:areaEntered event when the world event bus is present.",
+              "Updated travel + teleport + story-jump placement to use setArea() so the engine can observe area changes for preloads/analytics and ownership cleanup.",
+              "Boot now schedules an initial area:enter emission (owner: system:boot) so loaded saves trigger area-aware plugins immediately after engine.start()."
+            ]
+          },
+          {
+            "title": "Enemy Sheet modal now participates in engine modal lifecycle",
+            "bullets": [
+              "Enemy Sheet (enemyModal) now emits modal:open / modal:close with a dedicated owner namespace, so input contexts and preload plugins can treat it like other modals.",
+              "Added owner-based schedule/tween cleanup for the Enemy Sheet to prevent UI effects from leaking across Enemy Sheet re-opens.",
+              "Registered a modal:enemySheet asset group in the manifest to support future Enemy Sheet-specific assets.",
+              "Escape behavior: pressing Esc/Back now closes the Enemy Sheet before opening the Pause menu (consistent with other modals)."
+            ]
+          },
+          {
+            "title": "Save robustness: Engine snapshots now migrate by schema (no more patch-version brittleness)",
+            "bullets": [
+              "Load now validates Engine snapshot checksums before applying state, catching corrupted envelopes early.",
+              "Snapshot loads now route snapshot.state through the same SAVE_SCHEMA migration pipeline as legacy saves (engine snapshots no longer skip migrations).",
+              "Added engine.validateSave() so future systems can validate snapshots without mutating live state."
+            ]
+          },
+          {
+            "title": "Quality-of-life: silent autosave + reduced-motion compliance",
+            "bullets": [
+              "Autosave is now fully silent by default (no 'Saving…'/'Saved.' popups); it simply saves in the background.",
+              "Reduced motion: toast animations and log panel height transitions now respect the no-motion setting (instant state changes, no tweens).",
+              "UI runtime music helpers now prefer the engine audio service when present (removes hidden coupling to orchestration wiring)."
+            ]
+          },
+          {
+            "title": "SavePolicy adoption: quest + companion systems",
+            "bullets": [
+              "Quest bindings now call requestSave('quests') instead of calling the raw saveGame() writer, allowing savePolicy to coalesce and respect safe points.",
+              "Companion runtime now receives a requestSave-backed save hook so companion grant/dismiss and other companion-driven state changes integrate with savePolicy."
+            ]
+          },
+          {
+            "title": "Gameplay actions now route through engine.commands (replay/telemetry-friendly)",
+            "bullets": [
+              "Expanded command-bus coverage beyond the explore/action bar so core gameplay mutations can be captured deterministically.",
+              "Inventory: Use Potion, Equip, Unequip, Sell, and Drop now dispatch commands first (with safe fallbacks when the engine is unavailable).",
+              "Spell Book: casting an ability in combat now dispatches COMBAT_CAST_ABILITY so replays can reproduce spell usage.",
+              "Merchants: Buy actions now dispatch SHOP_BUY and are executed by a centralized handler that updates gold, stock buckets, and economy effects.",
+              "Banking: Deposit, Withdraw, Invest, Cash Out, Borrow, and Repay now dispatch BANK_* commands for consistent logging and replay.",
+              "Fixed inventory equip highlighting for duplicate items: only the equipped instance is marked as equipped (no more ‘both copies equipped’ confusion)."
+            ]
+          },
+          {
+            "title": "QA tools are now engine-wide (Smoke Tests, Bug Report, Scenario Runner)",
+            "bullets": [
+              "Introduced a new engine QA service (engine.qa) as the single integration point for Smoke Tests, Bug Report bundling, audits, and scenarios.",
+              "Added ew.qaBridge to register Emberwood QA suites into engine.qa so devtools can run without importing orchestrator functions directly.",
+              "Diagnostics overlay now pulls QA runners/formatters from engine.qa (callers can still override via deps), making QA features engine-wide.",
+              "Bug Report bundles now automatically include engine instrumentation tails (event trace, command log, perf scopes, UI router stack, replay meta/tape, telemetry tail)."
+            ]
+          },
+          {
+            "title": "UI polish: main-menu Settings controls no longer clip on mobile",
+            "bullets": [
+              "Added mobile-safe right padding inside the main-menu Settings scroll container so slider/toggle thumbs (and their shadows) don’t get cut off at the edge.",
+              "Hid the visible scrollbar/scroll indicator for the main-menu Settings list while keeping touch scrolling.",
+              "Restored the Text size selector on the main-menu Settings screen and wired it to engine settings (a11y.textScale).",
+              "In-game Settings modal now also includes Text size and High contrast controls, both wired to the same engine-wide accessibility settings so the two menus stay in sync."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.2.72",
+    "title": "The Blackbark Oath — Locus Wiring: Commands, Screen Preloads & Save Transactions",
+    "sections": [
+      {
+        "heading": "Maintenance",
+        "items": [
+          {
+            "title": "Version label bump",
+            "bullets": [
+              "Updated GAME_PATCH to 1.2.72 and refreshed the patch name used by HUD labels and bug-report exports.",
+              "Updated the engine header banner to match the new patch label."
+            ]
+          },
+          {
+            "title": "Architecture: proprietary Engine Core split",
+            "bullets": [
+              "js/engine/engine.js is now the proprietary Engine Core (state + event bus + service registry), and contains no game rules/content.",
+              "Moved the game-specific runtime wiring into js/game/runtime/gameOrchestrator.js.",
+              "Added a new entry module js/game/main.js so bootstrap loads a stable game entry while the Engine Core remains reusable.",
+              "Boot now loads js/game/main.js (instead of importing the orchestrator directly), keeping the boot contract stable as refactors continue."
+            ]
+          },
+          {
+            "title": "Folder structure cleanup",
+            "bullets": [
+              "Promoted the proprietary Engine Core to js/engine/engine.js (engine-only surface area).",
+              "Moved platform helpers to js/engine/* (perf.js, storageRuntime.js) and game persistence to js/game/persistence/saveManager.js.",
+              "Moved game UI modules into js/game/ui/* (runtime, devtools, spells) and utility helpers into js/game/utils/.",
+              "Renamed the entry module to js/game/main.js and updated boot wiring + import paths throughout."
+            ]
+          },
+          {
+            "title": "Engine Core: plugin lifecycle + dependency graph",
+            "bullets": [
+              "Expanded js/engine/engine.js with a real plugin manager supporting init/start/stop/dispose hooks.",
+              "Plugins can declare requires/optionalRequires; the engine resolves a stable topological start order and detects cycles/missing deps.",
+              "Added engine.start()/stop() and plugin inspection helpers (getPlugin/listPlugins/getPluginReport).",
+              "Game boot now calls engine.start() after bootGame() so registered plugins can start automatically."
+            ]
+          },
+          {
+            "title": "Engine plugins: first runtime systems converted",
+            "bullets": [
+              "Converted UI runtime + DOM bindings into the ew.uiRuntime plugin (configureUI + initUIBindings now run via engine.start()).",
+              "Converted the Diagnostics/QA overlay into the ew.diagnosticsOverlay plugin and registered it as the diagnostics service.",
+              "Converted combat engines (CombatMath, StatusEngine, post-turn sequencer) into the ew.combatRuntime plugin; the orchestrator now binds these via engine services to avoid module-evaluation instantiation under file://.",
+              "Converted the companion combat runtime into the ew.companionRuntime plugin; orchestrator prefers the service with a fallback for tests/older builds."
+            ]
+          },
+
+          {
+            "title": "Locus services: flags, i18n, uiCompose, savePolicy, replay, telemetry, assets, tween, settings & a11y",
+            "bullets": [
+              "Added a persistent feature-flag service (engine.flags) plus a small ew.flags plugin to define defaults and load stored overrides.",
+              "Added engine.i18n for lightweight localization with an ew.i18n seed plugin (currently used for QA toasts/messages).",
+              "Added engine.uiCompose (toast/busy/transition/HUD) and wired a DOM adapter via the ew.uiComposeBridge plugin.",
+              "Added engine.savePolicy to centralize dirty-state saving (safe points + coalescing + retry) and connected it to saveGame() via ew.savePolicyBridge; autosave now prefers this path.",
+              "Added engine.replay (records command dispatches + optional snapshots) with basic Replay controls in the Smoke Tests modal.",
+              "Added engine.telemetry for breadcrumb capture and optional crash bundle persistence; bug-report bundles now include telemetry tail/flags/savePolicy/replay metadata.",
+              "Added engine.assets manifest support (assets + groups + preload progress), and registered Emberwood's starter audio manifest via ew.assetsManifest.",
+              "Added engine.tween, a clock-driven tween/animation service with owner-based cancellation (screen/modal-safe).",
+              "Added engine.settings (persistent prefs) and engine.a11y (OS + user accessibility preferences), with ew.settings and ew.a11yBridge applying theme/reduced motion/text scale consistently.",
+              "Settings screen: added a High contrast selector (Auto/On/Off) wired to engine.settings (a11y.highContrast)."
+            ]
+          },
+
+          {
+            "title": "Engine modularization: static data extraction",
+            "bullets": [
+              "Moved DIFFICULTY_CONFIG and MAX_PLAYER_LEVEL into js/game/data/difficulty.js.",
+              "Moved PLAYER_CLASSES into js/game/data/playerClasses.js.",
+              "Moved COMPANION_DEFS and COMPANION_ABILITIES into js/game/data/companions.js.",
+              "Moved ENEMY_ABILITIES and ENEMY_ABILITY_SETS into js/game/data/enemyAbilities.js.",
+              "gameOrchestrator.js now imports these authored data modules, shrinking the orchestration surface area and making future balance edits safer."
+            ]
+          },
+          {
+            "title": "Engine modularization: Spell Book modal extraction",
+            "bullets": [
+              "Extracted the Spell Book modal builder out of gameOrchestrator.js into js/game/ui/spells/spellbookModal.js.",
+              "gameOrchestrator.js now keeps a thin, hoisted openSpellsModal() wrapper that lazy-initializes the modal via dependency injection (avoids circular imports and TDZ hazards).",
+              "No gameplay behavior changes intended; this refactor keeps the orchestrator focused on orchestration."
+            ]
+          },
+          {
+            "title": "Engine modularization: Companion runtime extraction",
+            "bullets": [
+              "Moved companion scaling, ability execution, cooldown ticking, and the companion combat AI out of gameOrchestrator.js into js/game/combat/companionRuntime.js.",
+              "gameOrchestrator.js now delegates to a lazily constructed companion runtime (dependency injected) so combat helpers stay testable without circular imports.",
+              "Rewired stat recalculation to use the extracted scaling helper, preserving existing maxHP bonus behavior."
+            ]
+          },
+          {
+            "title": "Changelog UX: vertical-only scrolling",
+            "bullets": [
+              "Prevented horizontal panning/scrolling inside the in-game Changelog modal (touch + trackpad), so the panel stays vertically scrollable only.",
+              "Hardened changelog text wrapping so long strings (paths/IDs) cannot force sideways overflow."
+            ]
+          },
+          {
+            "title": "Boot: file:// module loader compatibility",
+            "bullets": [
+              "When running from file:// on iOS, bootstrap now loads the game entry module via a <script type=\"module\"> injection fallback instead of dynamic import().",
+              "This avoids Safari/WebView edge-cases where dynamic import() fails under file:// even though module scripts work."
+            ]
+          },
+          {
+            "title": "Engine modularization: item definition cloning helper",
+            "bullets": [
+              "Added js/game/utils/itemCloner.js (JSON-safe deep clone helper).",
+              "Replaced the inlined cloneItemDef() function with a shared cloneItemDef constant backed by createItemCloner(ITEM_DEFS).",
+              "Behavior is unchanged; this is a maintenance refactor to consolidate cloning semantics and reduce orchestrator duplication."
+            ]
+          },
+          {
+            "title": "Boot diagnostics patch label hardening",
+            "bullets": [
+              "Boot Diagnostics overlay now pulls the patch label from js/game/systems/version.js instead of hardcoding it.",
+              "This prevents future patch bumps from leaving boot-time bug reports with stale patch numbers."
+            ]
+          },
+          {
+            "title": "Docs refresh for 1.2.72",
+            "bullets": [
+              "Updated README.md current patch line and project tree references to reflect 1.2.72.",
+              "Documented the new data modules and extracted engine subsystems as part of the ongoing refactor."
+            ]
+          }
+        
+          ,
+          {
+            "title": "Engine Core: systems-grade services",
+            "bullets": [
+              "Added deterministic clock + scheduler (engine.tick and engine.schedule.after/every) for centralized timing.",
+              "Added a command bus (engine.dispatch) with middleware support and a replayable command log.",
+              "Added snapshot save/load helpers with checksum validation and a migration registry (engine.save/load + engine.migrations).",
+              "Added structured logging and event tracing, plus a unified error boundary that can build copyable crash reports.",
+              "Added seeded RNG streams, perf watchdog (slow scopes/frames), asset registry + preload, input router, UI router modal stack, and a headless test harness (engine.harness.runSteps)."
+            ]
+          }
+
+,
+          {
+            "title": "Engine services wired into gameplay loops",
+            "bullets": [
+              "Fixed ew.uiRuntime plugin adapter installation to correctly capture the Engine instance during init (prevents engine.ui modal routing from becoming a no-op).",
+              "Routed all standard modal opens/closes through the Engine UI router (engine.ui) via an adapter installed by the ew.uiRuntime plugin, so the modal stack is tracked for diagnostics.",
+              "Save/load now prefers Engine snapshots (engine.save/engine.load), while still supporting legacy saves through the existing migration loader.",
+              "Autosave coalescing now schedules via engine.schedule (clock-driven) instead of setTimeout, enabled by the Engine auto tick-loop.",
+              "Engine Core now auto-ticks in live runtime (requestAnimationFrame fallback) so clock/scheduler features run without manual tick calls."
+            ]
+          }
+
+          ,
+          {
+            "title": "Locus scheduler: timer ownership + teardown cleanup",
+            "bullets": [
+              "Extended engine.schedule with task ownership (owner strings) and a schedule.cancelOwner(owner) cleanup primitive.",
+              "UI modal rendering now tags a per-modal owner and cancels all owned tasks on modal close, preventing deferred UI effects from firing after the modal is gone.",
+              "Screen switching now cancels all tasks owned by the previous screen (owner: 'screen:<name>') to prevent timer leaks when leaving a screen.",
+              "Migrated remaining UI/deferred timers (interior music debounce, tavern render coalescing, combat pause pacing, door SFX safety fallback) to engine.schedule with safe fallbacks when the engine is unavailable."
+            ]
+          },
+
+          ,
+          {
+            "title": "Locus wiring: world events, quest bridge, input contexts & autosave",
+            "bullets": [
+              "Added a small world event layer (world:*) so systems can react without direct imports (loot gained, enemy defeated, battle start/end).",
+              "Quest progress is now event-driven via ew.questEvents, which listens to world:itemGained and world:enemyDefeated.",
+              "Added ew.inputContexts + ew.uiCommands: screen/modal-scoped input contexts dispatch engine commands for consistent UI control.",
+              "Added ew.autosave: coalesces event-driven save requests and schedules periodic safety saves via engine.schedule (owner: system:autosave).",
+              "Added ew.simTick: watches for day/part transitions and ensures the daily tick pipeline runs after loads or time jumps.",
+              "Removed the last setTimeout fallback under js/game; non-engine fallbacks now use microtasks/MessageChannel/RAF."
+            ]
+          }
+
+          ,
+          {
+            "title": "Engine utilization: command gateway, asset-driven loading & save transactions",
+            "bullets": [
+              "Routed primary UI actions (explore, combat buttons, and key village modals) through engine.commands via the ew.gameCommands plugin.",
+              "Adopted savePolicy more broadly by replacing most direct saveGame() calls with requestSave(), allowing dirty-state coalescing and safe-point-aware flushing.",
+              "Wrapped enemy defeat reward processing in a savePolicy transaction to prevent mid-resolution inconsistent saves.",
+              "Added ew.screenAssetPreload: screen/modal entry now preloads declared asset groups and reports progress via engine.uiCompose busy overlay (including a progress bar)."
+            ]
+          }
+]
+      }
+    ]
+  },
+{
     "version": "1.2.70",
     "title": "The Blackbark Oath — Hardening & Bug Squash",
     "sections": [
@@ -26,7 +306,7 @@ export const CHANGELOG = [
           {
             "title": "Engine cleanup: save/migration extraction",
             "bullets": [
-              "Moved save migrations, save/load, and multi-slot save helpers out of engine.js into js/game/engine/saveManager.js.",
+              "Moved save migrations, save/load, and multi-slot save helpers out of engine.js into js/game/persistence/saveManager.js.",
               "engine.js now delegates persistence to a saveManager instance, keeping orchestration and UI wiring cleaner.",
               "Fixed an iOS Safari ES-module load crash introduced by the extraction by late-binding save hooks (avoids temporal-dead-zone initialization issues under file://).",
               "Restored the internal save-blob builder hook used by Smoke Tests / Scenario Runner after the extraction (_buildSaveBlob is now exposed via saveManager and rebound in engine.js).",
@@ -36,8 +316,8 @@ export const CHANGELOG = [
           {
             "title": "Engine cleanup: UI module extraction",
             "bullets": [
-              "Extracted DOM helpers, screen switching, and modal focus-trap logic out of engine.js into js/game/engine/ui/uiRuntime.js.",
-              "Moved DOMContentLoaded wiring (main menu buttons, settings controls, HUD taps/swipes, log filter chips, and modal dismissal handlers) into js/game/engine/ui/uiBindings.js.",
+              "Extracted DOM helpers, screen switching, and modal focus-trap logic out of engine.js into js/game/ui/runtime/uiRuntime.js.",
+              "Moved DOMContentLoaded wiring (main menu buttons, settings controls, HUD taps/swipes, log filter chips, and modal dismissal handlers) into js/game/ui/runtime/uiBindings.js.",
               "engine.js now configures UI dependencies via configureUI(...) and calls initUIBindings(...) to keep orchestration thinner.",
               "Smoke-test log isolation now relies on the uiRuntime UI-write gate while the suite swaps state (prevents suite runs from mutating the player's visible log).",
               "No simulation/combat logic changes in this step; this is strictly a UI refactor to make future UI regressions easier to locate and fix."
@@ -46,10 +326,18 @@ export const CHANGELOG = [
           {
             "title": "Engine cleanup: Diagnostics/QA UI extraction",
             "bullets": [
-              "Moved Smoke Tests modal UI + dev pill visibility out of engine.js into js/game/engine/devtools/diagnosticsUI.js.",
+              "Moved Smoke Tests modal UI + dev pill visibility out of engine.js into js/game/ui/devtools/diagnosticsUI.js.",
               "engine.js now initializes a diagnostics UI instance and forwards openSmokeTestsModal/syncSmokeTestsPillVisibility calls.",
               "Reduced engine.js surface area for diagnostics work, making future QA UI tweaks less likely to regress gameplay code.",
               "Retuned smoke-test quick-mode iteration counts so iOS file:// runs remain fast while still exercising key invariants (full mode remains available)."
+            ]
+          },
+          {
+            "title": "Docs: GitHub-ready README expansion",
+            "bullets": [
+              "Rewrote README.md to be GitHub-friendly and substantially more detailed (architecture, systems deep-dives, testing/QA, and deployment notes).",
+              "Documented the post-1.2.70 module boundaries (saveManager, uiRuntime/uiBindings, diagnosticsUI) to reduce future refactor regressions.",
+              "Added GitHub Pages deployment instructions and iOS file:// caveats for ES module loading."
             ]
           }
         ]
@@ -155,8 +443,8 @@ export const CHANGELOG = [
           {
             "title": "Engine modularization",
             "bullets": [
-              "Extracted localStorage diagnostics into js/game/engine/storageRuntime.js.",
-              "Extracted perf instrumentation helpers (perfNow/perfRecord/perfWrap) into js/game/engine/perf.js.",
+              "Extracted localStorage diagnostics into js/engine/storageRuntime.js.",
+              "Extracted perf instrumentation helpers (perfNow/perfRecord/perfWrap) into js/engine/perf.js.",
               "Extracted combat post-turn sequencing into js/game/combat/postTurnSequence.js.",
               "Extracted combat damage/mitigation math into js/game/combat/math.js (keeps engine.js focused on orchestration).",
               "Extracted combat status ticking + on-hit synergies into js/game/combat/statusEngine.js.",
@@ -182,7 +470,7 @@ export const CHANGELOG = [
               "Added a lightweight boot loader overlay (with progress) so the UI can paint before heavy module parsing and asset loads.",
               "Bootstrap now prefetches critical audio assets before engine start to reduce first-interaction stalls.",
               "Preflight module-graph scanning is now opt-in for performance (enabled via ?preflight=1 / ?diag=1, or automatically after a recorded failed boot).",
-              "Updated boot entry wiring so index.html loads js/boot/* and bootstrap loads the engine from js/game/engine/engine.js."
+              "Updated boot entry wiring so index.html loads js/boot/* and bootstrap loads the engine from js/engine/engine.js."
             ]
           },
           {

@@ -1,5 +1,5 @@
 // bootLoader.js
-// Patch 1.2.70: lightweight boot overlay + progress API.
+// Patch 1.2.72: lightweight boot overlay + progress API.
 
 const LOADER_ID = 'bootLoader';
 const FILL_ID = 'bootLoaderFill';

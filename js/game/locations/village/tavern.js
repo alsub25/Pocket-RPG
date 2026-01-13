@@ -11,10 +11,17 @@
 //   falls back to individual ticks for compatibility.
 
 import { rngInt } from "../../systems/rng.js";
+import { nextTick } from "../../utils/timing.js";
+
+// Ownership convention for all timers / disposables created while the tavern modal is open.
+// Some older builds referenced a bare `OWNER` identifier in this module; keep it defined
+// here to prevent ReferenceError crashes (notably on iOS Safari) if any callsite still
+// uses `OWNER`.
+const OWNER = "modal:tavern";
 
 /** @typedef {{
  *  state: any,
- *  openModal: (title: string, builder: (body: HTMLElement) => void) => void,
+ *  openModal: (title: string, builder: (body: HTMLElement) => void, opts?: { owner?: string }) => void,
  *  addLog: (text: string, type?: string) => void,
  *  getVillageEconomySummary: (state: any) => any,
  *  getRestCost: (state: any) => number,
@@ -437,10 +444,19 @@ export function openTavernModalImpl(deps) {
     let renderTavern = () => {};
 
     // Coalesce multiple state updates into a single UI refresh (prevents stacking / duplicates).
+    const _getSchedule = () => {
+      try {
+        const eng = window.__emberwoodEngine || window.__emberwoodEngineRef || null;
+        return eng && eng.schedule && typeof eng.schedule.after === 'function' ? eng.schedule : null;
+      } catch (_) {
+        return null;
+      }
+    };
+
     const scheduleRender = () => {
       if (renderQueued) return;
       renderQueued = true;
-      setTimeout(() => {
+      const run = () => {
         renderQueued = false;
         if (!body || !body.isConnected) return;
         const modal = body.closest("#modal");
@@ -450,7 +466,14 @@ export function openTavernModalImpl(deps) {
         purgeModalPanelExtras(body);
 
         renderTavern();
-      }, 0);
+      };
+
+      const sched = _getSchedule();
+      if (sched) {
+        try { sched.after(0, run, { owner: OWNER }); return; } catch (_) {}
+      }
+      // Fallback: coalesce to the next microtask tick.
+      nextTick(run);
     };
 
     renderTavern = () => {
@@ -1334,5 +1357,5 @@ export function openTavernModalImpl(deps) {
   
     };
     renderTavern();
-});
+  }, { owner: OWNER });
 }
