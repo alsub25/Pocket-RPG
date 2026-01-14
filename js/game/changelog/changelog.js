@@ -98,6 +98,19 @@ export const CHANGELOG = [
             ]
           }
         ]
+      },
+      {
+        "heading": "Bug Fixes",
+        "items": [
+          {
+            "title": "Fixed code formatting issue in Ranger damage calculation",
+            "bullets": [
+              "Corrected line 1758 in gameOrchestrator.js where two statements were incorrectly placed on the same line",
+              "The Ranger's marked enemy damage calculation now has proper formatting for better code readability",
+              "This was a cosmetic fix that doesn't change game behavior but improves code maintainability"
+            ]
+          }
+        ]
       }
     ]
   },
