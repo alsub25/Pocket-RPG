@@ -47,10 +47,12 @@ import { createAudioBridgePlugin } from '../plugins/audioBridgePlugin.js'
 import { createRngBridgePlugin } from '../plugins/rngBridgePlugin.js'
 import { createGameCommandsPlugin } from '../plugins/gameCommandsPlugin.js'
 import { createScreenAssetPreloadPlugin } from '../plugins/screenAssetPreloadPlugin.js'
+import { createStateMutationPlugin } from '../plugins/stateMutationPlugin.js'
+import { createUiEventsPlugin } from '../plugins/uiEventsPlugin.js'
 
 /* =============================================================================
  * Emberwood Engine (engine.js)
- * Patch: 1.2.72 — The Blackbark Oath — Spell Book, Companions & Changelog UX
+ * Patch: 1.2.82 — The Blackbark Oath — Comprehensive Engine Integration
  *
  * WHAT THIS FILE DOES IN-GAME
  * - Boots the game runtime after the UI shell loads.
@@ -20098,6 +20100,9 @@ export function bootGame(engine) {
         _engine.use(createAssetsManifestPlugin())
         _engine.use(createSettingsPlugin({ getState: () => state }))
         _engine.use(createA11yBridgePlugin())
+        
+        // State mutation service (centralizes all state changes)
+        _engine.use(createStateMutationPlugin())
 
         // 1) UI runtime + DOM bindings
         _engine.use(createUiRuntimePlugin({
@@ -20146,6 +20151,17 @@ export function bootGame(engine) {
                 updateEnemyPanel,
                 openEnemySheet,
                 cycleTargetEnemy
+            }
+        }))
+
+        // UI events plugin (event-driven UI updates)
+        _engine.use(createUiEventsPlugin({
+            uiRuntime: {
+                addLog,
+                updateTimeDisplay,
+                updateEnemyPanel,
+                setScene,
+                formatTimeLong
             }
         }))
 
