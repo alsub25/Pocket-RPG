@@ -1,127 +1,127 @@
 /* =============================================================================
  * Ability Definitions (abilities.js)
- * Patch: 1.2.65 — The Blackbark Oath
+ * Patch: 1.2.65 — The Protocol
  *
  * Extracted from engine.js as part of the 1.2.65 modularization overhaul.
  * This file is intentionally DATA-ONLY (no side effects).
  * ============================================================================= */
 
 export const ABILITIES = {
-    // MAGE
+    // TECH SPECIALIST
     fireball: {
         id: 'fireball',
-        name: 'Fireball',
+        name: 'Plasma Blast',
         classId: 'mage',
         cost: { mana: 20 },
-        note: 'A scorching projectile that deals heavy fire damage.'
+        note: 'A scorching plasma projectile that deals heavy thermal damage.'
     },
     iceShard: {
         id: 'iceShard',
-        name: 'Ice Shard',
+        name: 'Cryo Shot',
         classId: 'mage',
         cost: { mana: 15 },
-        note: 'Moderate damage with a slight chill. In Hard, AI assumes you slow it.'
+        note: 'Moderate damage with a freezing effect. In Hard, AI assumes you slow it.'
     },
     arcaneShield: {
         id: 'arcaneShield',
-        name: 'Arcane Shield',
+        name: 'Energy Shield',
         classId: 'mage',
         cost: { mana: 18 },
-        note: 'Summon a barrier that absorbs damage this fight.'
+        note: 'Deploy a barrier that absorbs damage this fight.'
     },
 
-    // WARRIOR
+    // SOLDIER
     powerStrike: {
         id: 'powerStrike',
         name: 'Power Strike',
         classId: 'warrior',
         cost: { fury: 25 },
-        note: 'Consume Fury for a crushing blow.'
+        note: 'Consume Adrenaline for a crushing blow.'
     },
     battleCry: {
         id: 'battleCry',
-        name: 'Battle Cry',
+        name: 'War Shout',
         classId: 'warrior',
         cost: { fury: 15 },
-        note: 'Boost attack and generate extra Fury.'
+        note: 'Boost attack and generate extra Adrenaline.'
     },
     shieldWall: {
         id: 'shieldWall',
-        name: 'Shield Wall',
+        name: 'Barrier Deploy',
         classId: 'warrior',
         cost: { fury: 20 },
         note: 'Greatly reduce incoming damage for a short time.'
     },
 
-    // BLOOD KNIGHT
+    // CYBORG
     bloodSlash: {
         id: 'bloodSlash',
-        name: 'Blood Slash',
+        name: 'Bio-Blade',
         classId: 'blood',
         cost: { hp: 10 },
-        note: 'Convert your own blood into a vicious strike.'
+        note: 'Convert your own vitality into a vicious strike.'
     },
     leech: {
         id: 'leech',
-        name: 'Leech',
+        name: 'Life Drain',
         classId: 'blood',
         cost: { blood: 15 },
-        note: 'Drain life from the enemy and heal yourself.'
+        note: 'Siphon energy from the enemy and heal yourself.'
     },
     hemorrhage: {
         id: 'hemorrhage',
-        name: 'Hemorrhage',
+        name: 'Trauma Protocol',
         classId: 'blood',
         cost: { blood: 20 },
         note: 'Inflict a lingering wound that bleeds over time.'
     },
-    // RANGER
+    // SCOUT
     piercingShot: {
         id: 'piercingShot',
-        name: 'Piercing Shot',
+        name: 'Armor-Piercing Round',
         classId: 'ranger',
         cost: { fury: 20 },
-        note: 'A powerful arrow that punches straight through defenses.'
+        note: 'A powerful shot that punches straight through defenses.'
     },
     twinArrows: {
         id: 'twinArrows',
-        name: 'Twin Arrows',
+        name: 'Dual Shot',
         classId: 'ranger',
         cost: { fury: 25 },
-        note: 'Loose two rapid shots in succession.'
+        note: 'Fire two rapid shots in succession.'
     },
     markedPrey: {
         id: 'markedPrey',
-        name: 'Marked Prey',
+        name: 'Target Designator',
         classId: 'ranger',
         cost: { fury: 15 },
-        note: 'Harm your foe and leave them bleeding from precise hits.'
+        note: 'Mark your foe and cause bleeding from precise hits.'
     },
 
-    // PALADIN
+    // SHIELD OPERATIVE
     holyStrike: {
         id: 'holyStrike',
-        name: 'Holy Strike',
+        name: 'Concussive Strike',
         classId: 'paladin',
         cost: { mana: 15 },
-        note: 'Smite the target with a sanctified blow, stronger against wounded foes.'
+        note: 'Strike the target with a powerful blow, stronger against wounded foes.'
     },
     blessingLight: {
         id: 'blessingLight',
-        name: 'Blessing of Light',
+        name: 'Med-Kit Deploy',
         classId: 'paladin',
         cost: { mana: 20 },
-        note: 'Mend your wounds and conjure a small protective shield.'
+        note: 'Mend your wounds and deploy a small protective shield.'
     },
     retributionAura: {
         id: 'retributionAura',
-        name: 'Retribution Aura',
+        name: 'Combat Stim',
         classId: 'paladin',
         cost: { mana: 18 },
         note: 'Empower your strikes and harden your resolve for a short time.'
     },
 
-    // ROGUE
+    // INFILTRATOR
     backstab: {
         id: 'backstab',
         name: 'Backstab',
@@ -131,66 +131,66 @@ export const ABILITIES = {
     },
     poisonedBlade: {
         id: 'poisonedBlade',
-        name: 'Poisoned Blade',
+        name: 'Toxin Blade',
         classId: 'rogue',
         cost: { fury: 20 },
-        note: 'Slash your foe and inflict a lingering poison.'
+        note: 'Slash your foe and inflict a lingering toxin.'
     },
     shadowstep: {
         id: 'shadowstep',
-        name: 'Shadowstep',
+        name: 'Phase Shift',
         classId: 'rogue',
         cost: { fury: 12 },
-        note: 'Slip through the shadows, repositioning and sharpening your next attack.'
+        note: 'Teleport through space, repositioning and sharpening your next attack.'
     },
 
-    // CLERIC
+    // MEDIC
     holyHeal: {
         id: 'holyHeal',
-        name: 'Holy Heal',
+        name: 'Emergency Heal',
         classId: 'cleric',
         cost: { mana: 22 },
-        note: 'Call down gentle light to restore your vitality.'
+        note: 'Deploy medical nanites to restore your vitality.'
     },
     smite: {
         id: 'smite',
-        name: 'Smite',
+        name: 'Shock Bolt',
         classId: 'cleric',
         cost: { mana: 14 },
-        note: 'A focused bolt of radiant power.'
+        note: 'A focused bolt of electrical power.'
     },
     purify: {
         id: 'purify',
-        name: 'Purify',
+        name: 'Cleanse',
         classId: 'cleric',
         cost: { mana: 16 },
         note: 'Cleanse yourself of bleeding and bolster your defenses.'
     },
 
-    // NECROMANCER
+    // DRONE MASTER
     soulBolt: {
         id: 'soulBolt',
-        name: 'Soul Bolt',
+        name: 'Drone Strike',
         classId: 'necromancer',
         cost: { mana: 16 },
-        note: 'Fire a shard of stolen essence that harms your foe and feeds you.'
+        note: 'Fire a shard of stolen energy that harms your foe and feeds you.'
     },
     raiseBones: {
         id: 'raiseBones',
-        name: 'Raise Bones',
+        name: 'Deploy Combat Drone',
         classId: 'necromancer',
         cost: { mana: 24 },
-        note: 'Summon a skeletal companion to fight at your side.'
+        note: 'Summon an automated drone to fight at your side.'
     },
     decay: {
         id: 'decay',
-        name: 'Decay',
+        name: 'Corrosion',
         classId: 'necromancer',
         cost: { mana: 20 },
-        note: 'Rot your enemy from within with a stacking, bleeding rot.'
+        note: 'Corrode your enemy from within with a stacking, bleeding effect.'
     },
 
-    // SHAMAN
+    // PSIONIC
     lightningLash: {
         id: 'lightningLash',
         name: 'Lightning Lash',
@@ -200,42 +200,42 @@ export const ABILITIES = {
     },
     earthskin: {
         id: 'earthskin',
-        name: 'Earthskin',
+        name: 'Kinetic Barrier',
         classId: 'shaman',
         cost: { mana: 16 },
-        note: 'Stone-hard skin dampens incoming blows for a short while.'
+        note: 'Force field dampens incoming blows for a short while.'
     },
     spiritHowl: {
         id: 'spiritHowl',
-        name: 'Spirit Howl',
+        name: 'Battle Cry',
         classId: 'shaman',
         cost: { mana: 20 },
         note: 'Let out a primal call that empowers your companion.'
     },
-    // VAMPIRE
+    // ENERGY SIPHON
     essenceDrain: {
         id: 'essenceDrain',
-        name: 'Essence Drain',
+        name: 'Power Drain',
         classId: 'vampire',
         cost: { essence: 20 },
-        note: 'Rip life from your foe, healing yourself and refilling Essence.'
+        note: 'Rip energy from your foe, healing yourself and refilling Essence.'
     },
     batSwarm: {
         id: 'batSwarm',
-        name: 'Bat Swarm',
+        name: 'Nano Swarm',
         classId: 'vampire',
         cost: { essence: 25 },
-        note: 'Unleash a swarm of spectral bats that ravage and bleed the target.'
+        note: 'Unleash a swarm of nanobots that ravage and bleed the target.'
     },
     shadowVeil: {
         id: 'shadowVeil',
-        name: 'Shadow Veil',
+        name: 'Cloak Field',
         classId: 'vampire',
         cost: { essence: 18 },
-        note: 'Shroud yourself in darkness to reduce damage taken for a short time.'
+        note: 'Shroud yourself in a cloaking field to reduce damage taken for a short time.'
     },
 
-    // BERSERKER
+    // HEAVY TROOPER
     frenziedBlow: {
         id: 'frenziedBlow',
         name: 'Frenzied Blow',
@@ -252,63 +252,63 @@ export const ABILITIES = {
     },
     bloodlustRage: {
         id: 'bloodlustRage',
-        name: 'Bloodlust',
+        name: 'Combat Stim',
         classId: 'berserker',
         cost: { fury: 15 },
-        note: 'Succumb to rage, surging with Fury and attack strength.'
+        note: 'Inject combat stimulants, surging with Adrenaline and attack strength.'
     },
 
     // --- PATCH 1.1.0: NEW CLASS UNLOCKS --------------------------------------
 
-    // MAGE (unlocks)
+    // TECH SPECIALIST (unlocks)
     arcaneSurge: {
         id: 'arcaneSurge',
-        name: 'Arcane Surge',
+        name: 'Overcharge',
         classId: 'mage',
         cost: { mana: 24 },
-        note: 'Unleash a burst of arcane damage and charge your focus (short Magic buff). (Unlocks at level 3)'
+        note: 'Unleash a burst of energy damage and charge your focus (short Tech buff). (Unlocks at level 3)'
     },
     meteorSigil: {
         id: 'meteorSigil',
-        name: 'Meteor Sigil',
+        name: 'Orbital Strike',
         classId: 'mage',
         cost: { mana: 40 },
-        note: 'Carve a sigil that calls down a meteor for massive damage to your target and splash damage to nearby foes. (Unlocks at level 6)'
+        note: 'Call down an orbital strike for massive damage to your target and splash damage to nearby foes. (Unlocks at level 6)'
     },
 
-    // WARRIOR (unlocks)
+    // SOLDIER (unlocks)
     cleave: {
         id: 'cleave',
         name: 'Cleave',
         classId: 'warrior',
         cost: { fury: 28 },
-        note: 'A wide, brutal swing that damages multiple enemies and feeds your Fury. (Unlocks at level 3)'
+        note: 'A wide, brutal swing that damages multiple enemies and feeds your Adrenaline. (Unlocks at level 3)'
     },
     ironFortress: {
         id: 'ironFortress',
-        name: 'Iron Fortress',
+        name: 'Fortress Protocol',
         classId: 'warrior',
         cost: { fury: 22 },
         note: 'Fortify yourself with a barrier and strong damage reduction. (Unlocks at level 6)'
     },
 
-    // BLOOD KNIGHT (unlocks)
+    // CYBORG (unlocks)
     crimsonPact: {
         id: 'crimsonPact',
-        name: 'Crimson Pact',
+        name: 'Bio-Surge',
         classId: 'blood',
         cost: { hp: 12 },
-        note: 'Trade HP for a surge of Blood and a short Attack buff. (Unlocks at level 3)'
+        note: 'Trade HP for a surge of Bio-Energy and a short Attack buff. (Unlocks at level 3)'
     },
     bloodNova: {
         id: 'bloodNova',
-        name: 'Blood Nova',
+        name: 'Bio-Detonation',
         classId: 'blood',
         cost: { blood: 28 },
-        note: 'Detonate your Blood into a violent nova that damages all enemies and makes them bleed. (Unlocks at level 6)'
+        note: 'Detonate your Bio-Energy into a violent nova that damages all enemies and makes them bleed. (Unlocks at level 6)'
     },
 
-    // RANGER (unlocks)
+    // SCOUT (unlocks)
     evasionRoll: {
         id: 'evasionRoll',
         name: 'Evasion Roll',
@@ -318,32 +318,32 @@ export const ABILITIES = {
     },
     rainOfThorns: {
         id: 'rainOfThorns',
-        name: 'Rain of Thorns',
+        name: 'Flechette Barrage',
         classId: 'ranger',
         cost: { fury: 30 },
-        // Explicitly non-elemental: it's a physical arrow volley that can still
+        // Explicitly non-elemental: it's a physical projectile volley that can still
         // interact with weapon-based systems.
         tags: ['physical'],
         note: 'A volley that peppers multiple enemies and deepens bleeding. (Unlocks at level 6)'
     },
 
-    // PALADIN (unlocks)
+    // SHIELD OPERATIVE (unlocks)
     judgment: {
         id: 'judgment',
-        name: 'Judgment',
+        name: 'Judgment Strike',
         classId: 'paladin',
         cost: { mana: 22 },
-        note: 'Smite the wicked. Deals extra when the foe is bleeding or chilled. (Unlocks at level 3)'
+        note: 'Strike with force. Deals extra when the foe is bleeding or chilled. (Unlocks at level 3)'
     },
     aegisVow: {
         id: 'aegisVow',
-        name: 'Aegis Vow',
+        name: 'Aegis Protocol',
         classId: 'paladin',
         cost: { mana: 26 },
-        note: 'A sacred vow that converts healing into shields and hardens you for 3 turns. (Unlocks at level 6)'
+        note: 'A defensive protocol that converts healing into shields and hardens you for 3 turns. (Unlocks at level 6)'
     },
 
-    // ROGUE (unlocks)
+    // INFILTRATOR (unlocks)
     smokeBomb: {
         id: 'smokeBomb',
         name: 'Smoke Bomb',

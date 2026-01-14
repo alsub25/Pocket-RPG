@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🌲 Emberwood: The Blackbark Oath ⚔️
+# 🚀 Nexus Prime: The Protocol ⚡
 
-### A Browser-Based Fantasy RPG & Living Village Simulator
+### A Browser-Based Sci-Fi RPG & Living Colony Simulator
 
 [![Version](https://img.shields.io/badge/version-1.2.82-blue.svg)](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
 [![License](https://img.shields.io/badge/license-See%20License%20Section-green.svg)](#-license)
@@ -18,7 +18,7 @@
 
 ## 🎯 Overview
 
-**Emberwood: The Blackbark Oath** is an immersive single-page browser RPG combining deep turn-based combat with a living village simulation. Every decision you make—whether resting at the tavern, negotiating with merchants, managing your bank account, or influencing local politics—creates ripples through an interconnected world where combat, loot, and quests feed back into the social and economic fabric of your settlement.
+**Nexus Prime: The Protocol** is an immersive single-page browser RPG combining deep turn-based combat with a living colony simulation. Every decision you make—whether resting at the cantina, negotiating with traders, managing your credits, or influencing station politics—creates ripples through an interconnected world where combat, loot, and missions feed back into the social and economic fabric of your colony.
 
 ### ✨ Key Features
 
@@ -37,13 +37,13 @@
 </td>
 <td width="50%">
 
-#### 🏘️ **Living Village**
+#### 🏘️ **Living Colony**
 - Dynamic economy simulation
-- Merchant stock management
+- Trader stock management
 - Banking system with loans & interest
-- Town hall governance & decrees
+- Command center governance & decrees
 - Population mood tracking
-- Tavern games & gambling
+- Cantina games & gambling
 
 </td>
 </tr>
@@ -52,11 +52,11 @@
 
 #### ⚡ **Character Progression**
 - Multiple classes with unique abilities
-- Talent tree system
+- Tech tree system
 - Equipment with procedural traits
 - Skill point allocation
 - Level-based ability unlocks
-- Resource management (mana, stamina, etc.)
+- Resource management (energy, adrenaline, etc.)
 
 </td>
 <td width="50%">
