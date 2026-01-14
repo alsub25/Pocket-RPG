@@ -10,6 +10,11 @@ import { createVillagePopulationService } from '../services/villagePopulationSer
 export function createVillageServicesPlugin() {
   let economyService = null;
   let populationService = null;
+  
+  // Store handler references for proper cleanup
+  let combatVictoryHandler = null;
+  let merchantPurchaseHandler = null;
+  let timeDayChangedHandler = null;
 
   return {
     id: 'ew.villageServices',
@@ -39,39 +44,52 @@ export function createVillageServicesPlugin() {
 
     start(engine) {
       // Subscribe to relevant events that trigger village system updates
+      // Store handler references for proper cleanup
 
       // Economy: handle after battle
-      engine.on('combat:victory', (payload) => {
+      combatVictoryHandler = (payload) => {
         if (economyService && payload.enemy && payload.area) {
           economyService.handleAfterBattle(payload.enemy, payload.area);
         }
-      });
+      };
+      engine.on('combat:victory', combatVictoryHandler);
 
       // Economy: handle after purchase
-      engine.on('merchant:purchase', (payload) => {
+      merchantPurchaseHandler = (payload) => {
         if (economyService && payload.goldSpent) {
           economyService.handleAfterPurchase(payload.goldSpent, payload.context);
         }
-      });
+      };
+      engine.on('merchant:purchase', merchantPurchaseHandler);
 
       // Listen for time advancement events to trigger daily ticks
-      engine.on('time:dayChanged', (payload) => {
+      timeDayChangedHandler = (payload) => {
         if (economyService && typeof payload.newDay === 'number') {
           economyService.handleDayTick(payload.newDay);
         }
         if (populationService && typeof payload.newDay === 'number') {
           populationService.handleDayTick(payload.newDay);
         }
-      });
+      };
+      engine.on('time:dayChanged', timeDayChangedHandler);
 
       engine.log?.info?.('village', 'Village services started and listening for events');
     },
 
     stop(engine) {
-      // Cleanup event listeners
-      engine.off('combat:victory');
-      engine.off('merchant:purchase');
-      engine.off('time:dayChanged');
+      // Cleanup event listeners with specific handlers
+      if (combatVictoryHandler) {
+        engine.off('combat:victory', combatVictoryHandler);
+        combatVictoryHandler = null;
+      }
+      if (merchantPurchaseHandler) {
+        engine.off('merchant:purchase', merchantPurchaseHandler);
+        merchantPurchaseHandler = null;
+      }
+      if (timeDayChangedHandler) {
+        engine.off('time:dayChanged', timeDayChangedHandler);
+        timeDayChangedHandler = null;
+      }
 
       engine.log?.info?.('village', 'Village services stopped');
     },

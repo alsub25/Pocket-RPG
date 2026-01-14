@@ -72,7 +72,7 @@ export function createTimeService(engine) {
     const before = getTimeInfo(stateWithTime);
 
     const partsPerDay = DAY_PARTS.length;
-    let remaining = Math.max(0, steps | 0);
+    let remaining = Math.max(0, Math.floor(steps));
 
     let newDayIndex = time.dayIndex;
     let newPartIndex = time.partIndex;

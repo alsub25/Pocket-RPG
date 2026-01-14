@@ -11,6 +11,19 @@ import {
   getRestCost
 } from '../locations/village/villageEconomy.js';
 
+// Economic constants
+const PROSPERITY_DRIFT_BIAS = 0.45;  // Slight upward bias in daily drift
+const PROSPERITY_DRIFT_RANGE = 6;    // Max drift amount per day (-3.0 to +3.3)
+const BOSS_SECURITY_BONUS = 8;       // Security boost for defeating bosses
+const NORMAL_SECURITY_BONUS = 2;     // Security boost for normal enemies
+const BOSS_PROSPERITY_MULTIPLIER = 0.6;  // Prosperity gain as % of security bonus
+
+// Purchase impact on economy
+const PURCHASE_TRADE_DIVISOR = 20;     // Gold/20 = trade boost (max 5)
+const PURCHASE_TRADE_MAX = 5;          // Maximum trade boost per purchase
+const PURCHASE_PROSPERITY_DIVISOR = 25; // Gold/25 = prosperity boost (max 4)
+const PURCHASE_PROSPERITY_MAX = 4;     // Maximum prosperity boost per purchase
+
 function clamp(val, min, max) {
   const n = Number(val);
   if (!Number.isFinite(n)) return min;
@@ -72,8 +85,8 @@ export function createVillageEconomyService(engine) {
     // Guard against double-ticking
     if (econ.lastDayUpdated === absoluteDay) return;
 
-    // Create immutable update
-    const drift = (rng.random() - 0.45) * 6; // -3.0 .. +3.3ish
+    // Create immutable update with daily prosperity drift
+    const drift = (rng.random() - PROSPERITY_DRIFT_BIAS) * PROSPERITY_DRIFT_RANGE;
     const newProsperity = clamp(econ.prosperity + drift, 0, 100);
 
     // Check for active Town Hall decree effects
@@ -155,9 +168,9 @@ export function createVillageEconomyService(engine) {
     // Only monsters outside the village affect trade route safety
     if (area !== 'forest' && area !== 'ruins') return;
 
-    const bossBonus = enemy && enemy.isBoss ? 8 : 2;
-    const newSecurity = clamp((econ.security || 40) + bossBonus, 0, 100);
-    const newProsperity = clamp(econ.prosperity + bossBonus * 0.6, 0, 100);
+    const securityBonus = enemy && enemy.isBoss ? BOSS_SECURITY_BONUS : NORMAL_SECURITY_BONUS;
+    const newSecurity = clamp((econ.security || 40) + securityBonus, 0, 100);
+    const newProsperity = clamp(econ.prosperity + securityBonus * BOSS_PROSPERITY_MULTIPLIER, 0, 100);
 
     const updatedEcon = {
       ...econ,
@@ -179,8 +192,8 @@ export function createVillageEconomyService(engine) {
     engine.emit('village:economyAfterBattle', {
       enemy,
       area,
-      securityDelta: bossBonus,
-      prosperityDelta: bossBonus * 0.6,
+      securityDelta: securityBonus,
+      prosperityDelta: securityBonus * BOSS_PROSPERITY_MULTIPLIER,
       newTierId: updatedEcon.tierId
     });
   }
@@ -199,8 +212,8 @@ export function createVillageEconomyService(engine) {
     const stateWithEcon = initEconomy(state);
     const econ = stateWithEcon.villageEconomy;
 
-    const tradeDelta = Math.min(5, goldSpent / 20);
-    const prosperityDelta = Math.min(4, goldSpent / 25);
+    const tradeDelta = Math.min(PURCHASE_TRADE_MAX, goldSpent / PURCHASE_TRADE_DIVISOR);
+    const prosperityDelta = Math.min(PURCHASE_PROSPERITY_MAX, goldSpent / PURCHASE_PROSPERITY_DIVISOR);
 
     const updatedEcon = {
       ...econ,

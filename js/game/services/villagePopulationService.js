@@ -4,6 +4,10 @@
 // This service wraps the village population system to ensure all state changes
 // go through the engine properly with immutable updates and event emissions.
 
+// Constants
+const MOOD_DRIFT_AMOUNT = 1;  // How much mood drifts toward neutral per day
+const MOOD_DRIFT_MESSAGE = 'Villager tempers settle toward neutral overnight.';
+
 /**
  * Creates an engine-integrated village population service.
  * All state mutations go through engine.setState() with immutable updates.
@@ -111,7 +115,7 @@ export function createVillagePopulationService(engine) {
   /**
    * Handle daily population tick (mood drift, decree effects)
    */
-  function handleDayTick(absoluteDay, hooks = {}) {
+  function handleDayTick(absoluteDay) {
     const state = engine.getState();
     const stateWithPop = initPopulation(state);
     const pop = stateWithPop.village.population;
@@ -125,11 +129,11 @@ export function createVillagePopulationService(engine) {
 
     // Mood naturally drifts toward neutral
     if (newMood > 0) {
-      newMood -= 1;
-      reasons.push('Villager tempers settle toward neutral overnight.');
+      newMood -= MOOD_DRIFT_AMOUNT;
+      reasons.push(MOOD_DRIFT_MESSAGE);
     } else if (newMood < 0) {
-      newMood += 1;
-      reasons.push('Villager tempers settle toward neutral overnight.');
+      newMood += MOOD_DRIFT_AMOUNT;
+      reasons.push(MOOD_DRIFT_MESSAGE);
     }
 
     // Active Town Hall decrees can push mood daily
