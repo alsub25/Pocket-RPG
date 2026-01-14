@@ -3,6 +3,7 @@
 import { GAME_FULL_LABEL } from '../game/systems/version.js';
 import { safeStorageGet, safeStorageSet } from './lib/safeStorage.js';
 import { BootLoader } from './bootLoader.js';
+import { showSplashSequence } from './splashScreen.js';
 
 // Persisted boot timings for QA / bug reports.
 const BOOT_METRICS_KEY = 'ew-last-boot-metrics';
@@ -554,6 +555,9 @@ function ensureChangeVersionButton() {
 
 function initBootstrap() {
   onDocReady(async () => {
+    // Show splash screen with studio and engine logos
+    await showSplashSequence();
+
     // Show immediately so the overlay can paint before any heavier work.
     BootLoader.show('Starting…');
     await BootLoader.nextFrame();

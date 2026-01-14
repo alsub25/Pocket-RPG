@@ -9,8 +9,23 @@
         <link rel="stylesheet" href="style.css" />
     </head>
     <body>
+        <!-- Splash Screen: Studio and Engine logos -->
+        <div id="splashScreen" class="splash-screen">
+            <div class="splash-content">
+                <div id="studioLogo" class="splash-logo studio-logo">
+                    <div class="logo-icon">💡</div>
+                    <div class="logo-text">BLUE LAMP</div>
+                    <div class="logo-subtitle">STUDIOS</div>
+                </div>
+                <div id="engineLogo" class="splash-logo engine-logo hidden">
+                    <div class="logo-text-large">LOCUS</div>
+                    <div class="logo-subtitle">ENGINE</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Boot Loader: kept in HTML so it can paint before heavy module parsing begins. -->
-        <div id="bootLoader" class="boot-loader" aria-live="polite" aria-busy="true">
+        <div id="bootLoader" class="boot-loader hidden" aria-live="polite" aria-busy="true">
             <div class="boot-loader-card">
                 <div class="boot-loader-title">Loading Emberwood…</div>
                 <div class="boot-loader-spinner" aria-hidden="true"></div>
