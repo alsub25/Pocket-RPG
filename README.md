@@ -82,7 +82,7 @@
 - **Forward Compatible**: Migration system ensures old saves work with new versions
 - **Developer-Friendly**: Modular architecture with clear separation of concerns
 
-> **Current Patch:** v1.2.72 — *The Blackbark Oath — Locus Wiring: Events, Input & Autosave*  
+> **Current Patch:** v1.2.81 — *The Blackbark Oath — Locus Wiring: Events, Input & Autosave*  
 > **In-Game Changelog:** Open the **Changelog** button from the main menu for detailed patch notes
 
 ---
@@ -765,7 +765,7 @@ The game uses a single top-level `state` object representing the entire game wor
 ```javascript
 // Save format
 {
-  version: "1.2.72",
+  version: "1.2.81",
   timestamp: 1234567890,
   player: { /* player state */ },
   time: { /* time state */ },
@@ -1613,7 +1613,7 @@ Exports comprehensive debugging information:
 
 ```javascript
 {
-  patch: "1.2.72",
+  patch: "1.2.81",
   timestamp: "2026-01-13T22:00:00Z",
   userAgent: "...",
   saveSchema: { /* save structure */ },
@@ -1928,7 +1928,7 @@ Export detailed debugging information for issue reports.
 
 ```json
 {
-  "patch": "1.2.72",
+  "patch": "1.2.81",
   "timestamp": "2026-01-13T22:00:00Z",
   "userAgent": "Mozilla/5.0...",
   "saveSchema": { /* structure */ },
@@ -2125,7 +2125,7 @@ export { DEFAULT_VALUE };
 Version information lives in `js/game/systems/version.js`:
 
 ```javascript
-export const GAME_PATCH = "1.2.72";
+export const GAME_PATCH = "1.2.81";
 export const GAME_PATCH_NAME = "The Blackbark Oath";
 export const GAME_FULL_LABEL = `v${GAME_PATCH} — ${GAME_PATCH_NAME}`;
 ```
@@ -2143,7 +2143,7 @@ Changelog entries in `js/game/changelog/changelog.js`:
 ```javascript
 export const CHANGELOG = [
   {
-    version: "1.2.72",
+    version: "1.2.81",
     date: "2026-01-13",
     title: "Locus Wiring: Events, Input & Autosave",
     changes: [
@@ -2513,7 +2513,7 @@ To add a license, create a `LICENSE` file in the repository root.
 ### Development
 
 - **Creator**: alsub25
-- **Version**: 1.2.72 - The Blackbark Oath
+- **Version**: 1.2.81 - The Blackbark Oath
 - **Repository**: [Emberwood-The-Blackbark-Oath](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
 
 ### Inspiration
