@@ -472,8 +472,8 @@ const engine = createEngine({
     player: { hp: 100, maxHp: 100 },
     // ... more state
   },
-  patch: '1.2.82',
-  patchName: 'Engine Enhancement',
+  patch: '1.2.85',
+  patchName: 'Engine Integration Expansion',
   autoTick: true,  // Enable automatic tick loop
   autoTickMode: 'raf'  // Use requestAnimationFrame
 });
@@ -1070,8 +1070,8 @@ import { createEngine } from './js/engine/engine.js';
 // Create engine
 const engine = createEngine({ 
   initialState: { player: { hp: 100 } },
-  patch: '1.2.82',
-  patchName: 'Engine Enhancement'
+  patch: '1.2.85',
+  patchName: 'Engine Integration Expansion'
 });
 
 // Register plugins
