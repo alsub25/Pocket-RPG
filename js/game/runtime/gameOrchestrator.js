@@ -49,6 +49,9 @@ import { createGameCommandsPlugin } from '../plugins/gameCommandsPlugin.js'
 import { createScreenAssetPreloadPlugin } from '../plugins/screenAssetPreloadPlugin.js'
 import { createVillageServicesPlugin } from '../plugins/villageServicesPlugin.js'
 import { createTimeServicePlugin } from '../plugins/timeServicePlugin.js'
+import { createKingdomGovernmentPlugin } from '../plugins/kingdomGovernmentPlugin.js'
+import { createLootGeneratorPlugin } from '../plugins/lootGeneratorPlugin.js'
+import { createQuestSystemPlugin } from '../plugins/questSystemPlugin.js'
 
 // Refactored modules (Patch 1.2.72 - Intensive Refactor & Hardening)
 import {
@@ -20647,7 +20650,16 @@ export function bootGame(engine) {
         // 14) Village services (economy, population) - Engine-integrated state management
         _engine.use(createVillageServicesPlugin())
 
-        // 15) Replay recorder/player (records command dispatches)
+        // 15) Kingdom government service - Engine-integrated kingdom/government state management
+        _engine.use(createKingdomGovernmentPlugin())
+
+        // 16) Loot generator service - Engine-integrated loot generation with event emissions
+        _engine.use(createLootGeneratorPlugin())
+
+        // 17) Quest system service - Engine-integrated quest state management
+        _engine.use(createQuestSystemPlugin())
+
+        // 18) Replay recorder/player (records command dispatches)
         _engine.use(createReplayBridgePlugin({ getState: () => state }))
 
         // Cache service handles as soon as plugins start.
