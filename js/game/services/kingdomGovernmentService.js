@@ -54,6 +54,7 @@ export function createKingdomGovernmentService(engine) {
     const currentState = engine.getState();
     
     // Create a mutable copy for the legacy function to work with
+    // Note: Deep clone required because legacy kingdom system mutates state
     const tempState = JSON.parse(JSON.stringify(currentState));
     
     // Run the day tick on the copy
@@ -64,7 +65,10 @@ export function createKingdomGovernmentService(engine) {
           if (ui && ui.addLog) {
             ui.addLog(msg, category);
           }
-        } catch (_) {}
+        } catch (err) {
+          // Log service access failed - not critical for kingdom tick
+          engine.log?.warn?.('kingdom', 'Failed to add log during tick', { error: err.message });
+        }
       }
     };
     

@@ -24,9 +24,27 @@ export function createQuestSystemService(engine) {
   if (!engine) throw new Error('QuestSystemService requires engine instance');
 
   /**
+   * Helper to get UI service API for quest callbacks
+   */
+  function getQuestAPI() {
+    const ui = engine.get('ui');
+    return {
+      addLog: (msg, category) => {
+        try {
+          if (ui && ui.addLog) ui.addLog(msg, category);
+        } catch (err) {
+          engine.log?.warn?.('quest', 'Failed to add log', { error: err.message });
+        }
+      }
+    };
+  }
+
+  /**
    * Initialize quest structures in state if missing
+   * Note: Uses deep clone for legacy quest system compatibility
    */
   function initQuests(state) {
+    // Deep clone required because legacy quest system mutates state
     const tempState = JSON.parse(JSON.stringify(state));
     ensureQuestStructures(tempState);
     
@@ -42,6 +60,7 @@ export function createQuestSystemService(engine) {
    */
   function initMainQuest() {
     const state = engine.getState();
+    // Deep clone required because legacy quest system mutates state
     const tempState = JSON.parse(JSON.stringify(state));
     
     initMainQuestImpl(tempState);
@@ -64,16 +83,10 @@ export function createQuestSystemService(engine) {
    */
   function startSideQuest(questId) {
     const state = engine.getState();
+    // Deep clone required because legacy quest system mutates state
     const tempState = JSON.parse(JSON.stringify(state));
     
-    // Get UI service for API hooks
-    const ui = engine.get('ui');
-    const api = {
-      addLog: (msg, category) => {
-        if (ui && ui.addLog) ui.addLog(msg, category);
-      }
-    };
-    
+    const api = getQuestAPI();
     startSideQuestImpl(tempState, questId, api);
     
     const newState = {
@@ -95,15 +108,10 @@ export function createQuestSystemService(engine) {
    */
   function advanceSideQuest(questId, nextStep) {
     const state = engine.getState();
+    // Deep clone required because legacy quest system mutates state
     const tempState = JSON.parse(JSON.stringify(state));
     
-    const ui = engine.get('ui');
-    const api = {
-      addLog: (msg, category) => {
-        if (ui && ui.addLog) ui.addLog(msg, category);
-      }
-    };
-    
+    const api = getQuestAPI();
     advanceSideQuestImpl(tempState, questId, nextStep, api);
     
     const newState = {
@@ -126,15 +134,10 @@ export function createQuestSystemService(engine) {
    */
   function completeSideQuest(questId, rewardsFn) {
     const state = engine.getState();
+    // Deep clone required because legacy quest system mutates state
     const tempState = JSON.parse(JSON.stringify(state));
     
-    const ui = engine.get('ui');
-    const api = {
-      addLog: (msg, category) => {
-        if (ui && ui.addLog) ui.addLog(msg, category);
-      }
-    };
-    
+    const api = getQuestAPI();
     completeSideQuestImpl(tempState, questId, rewardsFn, api);
     
     const newState = {
@@ -156,15 +159,10 @@ export function createQuestSystemService(engine) {
    */
   function applyItemProgress(itemId, quantity = 1) {
     const state = engine.getState();
+    // Deep clone required because legacy quest system mutates state
     const tempState = JSON.parse(JSON.stringify(state));
     
-    const ui = engine.get('ui');
-    const api = {
-      addLog: (msg, category) => {
-        if (ui && ui.addLog) ui.addLog(msg, category);
-      }
-    };
-    
+    const api = getQuestAPI();
     applyItemProgressImpl(tempState, itemId, quantity, api);
     
     const newState = {
@@ -186,15 +184,10 @@ export function createQuestSystemService(engine) {
    */
   function applyEnemyProgress(enemy) {
     const state = engine.getState();
+    // Deep clone required because legacy quest system mutates state
     const tempState = JSON.parse(JSON.stringify(state));
     
-    const ui = engine.get('ui');
-    const api = {
-      addLog: (msg, category) => {
-        if (ui && ui.addLog) ui.addLog(msg, category);
-      }
-    };
-    
+    const api = getQuestAPI();
     applyEnemyProgressImpl(tempState, enemy, api);
     
     const newState = {
