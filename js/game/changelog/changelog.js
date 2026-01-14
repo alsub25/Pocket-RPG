@@ -17,6 +17,36 @@ export const CHANGELOG = [
               "Better plugin lifecycle management with clearer dependency resolution",
               "Enhanced service registry pattern for reducing circular dependencies"
             ]
+          },
+          {
+            "title": "Comprehensive Engine Integration for Village Systems",
+            "bullets": [
+              "Created engine-integrated village economy service with immutable state updates via engine.setState()",
+              "Created engine-integrated village population service with proper event emissions",
+              "All village state mutations now go through engine with spread operators for immutability",
+              "Added comprehensive event system for village changes: village:economyTick, village:economyAfterBattle, village:economyAfterPurchase, village:populationTick, village:populationMoodChanged, village:populationSizeChanged",
+              "Village systems now properly leverage engine's RNG service for deterministic behavior"
+            ]
+          },
+          {
+            "title": "Engine-Integrated Time Service",
+            "bullets": [
+              "Created time service with immutable state updates through engine.setState()",
+              "All time advancements emit proper events: time:advanced, time:partChanged, time:dayChanged, time:yearChanged, time:jumpedToMorning",
+              "Time service provides clean API: getCurrentTime(), advanceTime(), jumpToNextMorning()",
+              "Time mutations now follow engine patterns with event-driven architecture",
+              "Other systems can react to time changes through engine event bus"
+            ]
+          },
+          {
+            "title": "New Service Plugins",
+            "bullets": [
+              "Added villageServicesPlugin to register economy and population services with proper lifecycle",
+              "Added timeServicePlugin to register time service with engine",
+              "Plugins include proper init/start/stop/dispose lifecycle hooks",
+              "Automatic event subscription for combat victories and purchases affecting economy",
+              "Time service integrated with village daily tick pipeline through events"
+            ]
           }
         ]
       },
@@ -42,6 +72,29 @@ export const CHANGELOG = [
               "Best practices section covering owner-based cleanup, deterministic RNG, and proper state management",
               "Quick start guide for creating engine instances and registering plugins",
               "Complete file map of all engine modules with descriptions"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Technical Improvements",
+        "items": [
+          {
+            "title": "Immutable State Management Pattern",
+            "bullets": [
+              "All state updates now use spread operators for immutability",
+              "State changes flow through engine.setState() as single source of truth",
+              "Prevents accidental state mutations and improves debuggability",
+              "Makes state changes trackable and replayable"
+            ]
+          },
+          {
+            "title": "Event-Driven Architecture",
+            "bullets": [
+              "Comprehensive event emissions for all significant state changes",
+              "Enables loose coupling between game systems",
+              "Systems can react to changes without direct dependencies",
+              "Supports future command replay and undo/redo functionality"
             ]
           }
         ]
