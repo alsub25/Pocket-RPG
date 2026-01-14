@@ -3227,7 +3227,14 @@ function setMusicEnabled(enabled, { persist = true } = {}) {
     audioState.musicEnabled = on
     if (persist) {
         try {
-            safeStorageSet('pq-music-enabled', on ? '1' : '0', { action: 'write music toggle' })
+            // Use engine settings service
+            const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+            if (settings && settings.set) {
+                settings.set('audio.musicEnabled', on)
+            } else {
+                // Legacy fallback
+                safeStorageSet('pq-music-enabled', on ? '1' : '0', { action: 'write music toggle' })
+            }
         } catch (e) {}
     }
     initAudio()
@@ -3242,7 +3249,14 @@ function setSfxEnabled(enabled, { persist = true } = {}) {
     audioState.sfxEnabled = on
     if (persist) {
         try {
-            safeStorageSet('pq-sfx-enabled', on ? '1' : '0', { action: 'write sfx toggle' })
+            // Use engine settings service
+            const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+            if (settings && settings.set) {
+                settings.set('audio.sfxEnabled', on)
+            } else {
+                // Legacy fallback
+                safeStorageSet('pq-sfx-enabled', on ? '1' : '0', { action: 'write sfx toggle' })
+            }
         } catch (e) {}
     }
     initAudio()
@@ -3274,10 +3288,26 @@ function initAudio() {
             audioState.musicEnabled = state.musicEnabled !== false
             audioState.sfxEnabled = state.sfxEnabled !== false
         } else {
-            const m = safeStorageGet('pq-music-enabled')
-            if (m !== null) audioState.musicEnabled = m === '1' || m === 'true'
-            const s = safeStorageGet('pq-sfx-enabled')
-            if (s !== null) audioState.sfxEnabled = s === '1' || s === 'true'
+            // Try engine settings first, then fall back to legacy storage
+            try {
+                const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                if (settings && typeof settings.get === 'function') {
+                    audioState.musicEnabled = settings.get('audio.musicEnabled', true)
+                    audioState.sfxEnabled = settings.get('audio.sfxEnabled', true)
+                } else {
+                    // Legacy fallback
+                    const m = safeStorageGet('pq-music-enabled')
+                    if (m !== null) audioState.musicEnabled = m === '1' || m === 'true'
+                    const s = safeStorageGet('pq-sfx-enabled')
+                    if (s !== null) audioState.sfxEnabled = s === '1' || s === 'true'
+                }
+            } catch (e) {
+                // Final fallback to legacy storage
+                const m = safeStorageGet('pq-music-enabled')
+                if (m !== null) audioState.musicEnabled = m === '1' || m === 'true'
+                const s = safeStorageGet('pq-sfx-enabled')
+                if (s !== null) audioState.sfxEnabled = s === '1' || s === 'true'
+            }
         }
     } catch (e) {}
 
@@ -13146,8 +13176,15 @@ function openInGameSettingsModal() {
             slider.addEventListener('input', () => {
                 const v = Number(slider.value) || 0
                 state.settingsVolume = v
+                // Use engine settings service
                 try {
-                    safeStorageSet('pq-master-volume', String(v), { action: 'write volume' })
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('audio.masterVolume', v)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-master-volume', String(v), { action: 'write volume' })
+                    }
                 } catch (e) {}
                 value.textContent = v + '%'
                 setMasterVolumePercent(v)
@@ -13217,7 +13254,17 @@ function openInGameSettingsModal() {
                 themeSelectInline.appendChild(opt)
             })
 
-            themeSelectInline.value = safeStorageGet('pq-theme') || 'default'
+            // Hydrate from engine settings when present
+            try {
+                const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                if (settings && typeof settings.get === 'function') {
+                    themeSelectInline.value = settings.get('ui.theme', 'default')
+                } else {
+                    themeSelectInline.value = safeStorageGet('pq-theme') || 'default'
+                }
+            } catch (_) {
+                themeSelectInline.value = 'default'
+            }
             themeSelectInline.addEventListener('change', () => setTheme(themeSelectInline.value))
 
             control.appendChild(themeSelectInline)
@@ -13246,8 +13293,15 @@ function openInGameSettingsModal() {
                 const v = Number(slider.value) || 100
                 state.settingsTextSpeed = v
                 value.textContent = String(v)
+                // Use engine settings service
                 try {
-                    safeStorageSet('pq-text-speed', String(v), { action: 'write text speed' })
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('ui.textSpeed', v)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-text-speed', String(v), { action: 'write text speed' })
+                    }
                 } catch (e) {}
             })
 
@@ -13408,8 +13462,15 @@ function openInGameSettingsModal() {
 
             const sw = makeSwitch(null, !!state.settingsAutoEquipLoot, (on) => {
                 state.settingsAutoEquipLoot = !!on
+                // Use engine settings service
                 try {
-                    safeStorageSet('pq-auto-equip-loot', state.settingsAutoEquipLoot ? '1' : '0')
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('gameplay.autoEquipLoot', !!on)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-auto-equip-loot', state.settingsAutoEquipLoot ? '1' : '0')
+                    }
                 } catch (e) {}
                 requestSave('legacy')
             }, 'Toggle auto-equip loot')
@@ -14516,6 +14577,16 @@ function setTheme(themeName) {
 // Load saved theme on startup
 ;(function loadTheme() {
     if (typeof document === 'undefined' || !document.body) return
+    // Prefer engine settings, fallback to legacy storage
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (settings && settings.get) {
+            const saved = settings.get('ui.theme', 'default')
+            setTheme(saved)
+            return
+        }
+    } catch (_) {}
+    // Legacy fallback
     const saved = safeStorageGet('pq-theme') || 'default'
     setTheme(saved)
 })()
