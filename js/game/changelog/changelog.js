@@ -3,6 +3,52 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.2.82",
+    "title": "Engine Enhancement & Documentation",
+    "sections": [
+      {
+        "heading": "Engine Improvements",
+        "items": [
+          {
+            "title": "Enhanced Locus Engine architecture and robustness",
+            "bullets": [
+              "Engine now provides more comprehensive services for game systems to leverage",
+              "Improved separation of concerns between engine (platform) and game (content) layers",
+              "Better plugin lifecycle management with clearer dependency resolution",
+              "Enhanced service registry pattern for reducing circular dependencies"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Documentation",
+        "items": [
+          {
+            "title": "Completely rewrote engine README with comprehensive documentation",
+            "bullets": [
+              "Added detailed architecture overview explaining the layered design philosophy",
+              "Documented all engine services with practical code examples",
+              "Created comprehensive plugin development guide with templates and patterns",
+              "Added service integration patterns showing best practices for using engine features",
+              "Included troubleshooting section for common engine-related issues",
+              "Added migration guide for moving from direct imports to engine services",
+              "Provided complete service capability map showing all engine and game plugin services"
+            ]
+          },
+          {
+            "title": "Developer experience improvements",
+            "bullets": [
+              "Clear examples for every engine service (state, events, scheduler, RNG, etc.)",
+              "Best practices section covering owner-based cleanup, deterministic RNG, and proper state management",
+              "Quick start guide for creating engine instances and registering plugins",
+              "Complete file map of all engine modules with descriptions"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.2.81",
     "title": "In-Game Settings Menu Enhancement",
     "sections": [
