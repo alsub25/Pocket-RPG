@@ -13228,6 +13228,9 @@ function openInGameSettingsModal() {
 
         // --- Display ----------------------------------------------------------
         const secDisplay = addSection('Display')
+        const engineSettings = (() => {
+            try { return _engine && _engine.getService ? _engine.getService('settings') : null } catch (_) { return null }
+        })()
 
         // UI theme
         {
@@ -13268,6 +13271,92 @@ function openInGameSettingsModal() {
             themeSelectInline.addEventListener('change', () => setTheme(themeSelectInline.value))
 
             control.appendChild(themeSelectInline)
+            row.appendChild(control)
+            secDisplay.appendChild(row)
+        }
+
+        // Color scheme
+        {
+            const row = makeRow('Color scheme', 'Light or dark mode for the UI.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sel = document.createElement('select')
+            sel.className = 'settings-select'
+            sel.setAttribute('aria-label', 'Color scheme')
+            ;[
+                { value: 'auto', label: 'Auto' },
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' }
+            ].forEach((o) => {
+                const opt = document.createElement('option')
+                opt.value = o.value
+                opt.textContent = o.label
+                sel.appendChild(opt)
+            })
+
+            // Hydrate from engine settings when present
+            try {
+                if (engineSettings && engineSettings.get) {
+                    sel.value = engineSettings.get('a11y.colorScheme', 'auto')
+                }
+            } catch (_) {}
+
+            sel.addEventListener('change', () => {
+                const v = String(sel.value || 'auto')
+                try {
+                    if (engineSettings && engineSettings.set) {
+                        engineSettings.set('a11y.colorScheme', v)
+                    }
+                } catch (_) {}
+                requestSave('legacy')
+            })
+
+            control.appendChild(sel)
+            row.appendChild(control)
+            secDisplay.appendChild(row)
+        }
+
+        // UI scale
+        {
+            const row = makeRow('UI scale', 'Adjusts the size of all UI elements.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sel = document.createElement('select')
+            sel.className = 'settings-select'
+            sel.setAttribute('aria-label', 'UI scale')
+            ;[
+                { value: '0.9', label: 'Small' },
+                { value: '1', label: 'Default' },
+                { value: '1.1', label: 'Large' },
+                { value: '1.2', label: 'Extra Large' }
+            ].forEach((o) => {
+                const opt = document.createElement('option')
+                opt.value = o.value
+                opt.textContent = o.label
+                sel.appendChild(opt)
+            })
+
+            // Hydrate from engine settings when present
+            try {
+                if (engineSettings && engineSettings.get) {
+                    const scale = Number(engineSettings.get('a11y.uiScale', 1))
+                    sel.value = String(scale)
+                }
+            } catch (_) {}
+
+            sel.addEventListener('change', () => {
+                const v = Number(sel.value) || 1
+                try {
+                    if (engineSettings && engineSettings.set) {
+                        engineSettings.set('a11y.uiScale', v)
+                    }
+                } catch (_) {}
+                requestSave('legacy')
+            })
+
+            control.appendChild(sel)
             row.appendChild(control)
             secDisplay.appendChild(row)
         }
@@ -13343,11 +13432,58 @@ function openInGameSettingsModal() {
             secGameplay.appendChild(row)
         }
 
+        // Show combat numbers
+        {
+            const row = makeRow('Show combat numbers', 'Display damage and healing numbers in combat.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sw = makeSwitch(null, state.settingsShowCombatNumbers !== false, (on) => {
+                state.settingsShowCombatNumbers = !!on
+                try {
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('gameplay.showCombatNumbers', !!on)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-show-combat-numbers', state.settingsShowCombatNumbers ? '1' : '0')
+                    }
+                } catch (e) {}
+                requestSave('legacy')
+            }, 'Toggle combat numbers')
+
+            control.appendChild(sw)
+            row.appendChild(control)
+            secGameplay.appendChild(row)
+        }
+
+        // Auto-save
+        {
+            const row = makeRow('Auto-save', 'Automatically save your progress periodically.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sw = makeSwitch(null, state.settingsAutoSave !== false, (on) => {
+                state.settingsAutoSave = !!on
+                try {
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('gameplay.autoSave', !!on)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-auto-save', state.settingsAutoSave ? '1' : '0')
+                    }
+                } catch (e) {}
+                requestSave('legacy')
+            }, 'Toggle auto-save')
+
+            control.appendChild(sw)
+            row.appendChild(control)
+            secGameplay.appendChild(row)
+        }
+
         // --- Accessibility ----------------------------------------------------
         const secAccess = addSection('Accessibility')
-        const engineSettings = (() => {
-            try { return _engine && _engine.getService ? _engine.getService('settings') : null } catch (_) { return null }
-        })()
         {
             const row = makeRow('Reduce motion', 'Turns off animated HUD effects.')
             const control = document.createElement('div')

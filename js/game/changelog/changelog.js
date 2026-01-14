@@ -3,6 +3,27 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.2.81",
+    "title": "In-Game Settings Menu Enhancement",
+    "sections": [
+      {
+        "heading": "Settings Menu Improvements",
+        "items": [
+          {
+            "title": "Complete settings parity between main menu and in-game settings",
+            "bullets": [
+              "Added Color Scheme setting (Auto/Light/Dark) to in-game settings menu, allowing users to override system preferences for UI appearance during gameplay.",
+              "Added UI Scale setting (Small/Default/Large/Extra Large) to in-game settings menu to adjust the size of all UI elements for better readability and accessibility.",
+              "Added Show Combat Numbers toggle to in-game settings menu to control display of damage and healing numbers in combat.",
+              "Added Auto-save toggle to in-game settings menu to allow users to enable or disable automatic periodic saving.",
+              "All settings now properly sync between the main menu settings screen and in-game settings modal, using the same engine settings service for consistency."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.2.80",
     "title": "The Blackbark Oath — Engine Integration: Single-Load Boot, Snapshot Schema Migration, Modal Escape & Motion A11y",
     "sections": [
