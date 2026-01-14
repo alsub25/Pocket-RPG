@@ -1755,7 +1755,8 @@ if (p.classId === 'warrior' && p.resourceKey === 'fury' && (p.resource || 0) >= 
 // (The Headshot finisher already consumes marks for a large payoff; this makes the meter matter between finishers.)
 try {
     const enemy = state.currentEnemy
-    if (p.classId === 'ranger' && enemy && (enemy.markedStacks || 0) > 0) {        const marks = Math.max(0, Math.min(5, enemy.markedStacks || 0))
+    if (p.classId === 'ranger' && enemy && (enemy.markedStacks || 0) > 0) {
+        const marks = Math.max(0, Math.min(5, enemy.markedStacks || 0))
         const perMark = 0.03 + (playerHasTalent(p, 'ranger_pinpoint') ? 0.01 : 0)
         ctx.dmgMult *= 1 + marks * perMark
     }
