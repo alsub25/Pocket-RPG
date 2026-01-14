@@ -13299,6 +13299,8 @@ function openInGameSettingsModal() {
             try {
                 if (engineSettings && engineSettings.get) {
                     sel.value = engineSettings.get('a11y.colorScheme', 'auto')
+                } else {
+                    sel.value = safeStorageGet('pq-color-scheme') || 'auto'
                 }
             } catch (_) {}
 
@@ -13307,6 +13309,9 @@ function openInGameSettingsModal() {
                 try {
                     if (engineSettings && engineSettings.set) {
                         engineSettings.set('a11y.colorScheme', v)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-color-scheme', v, { action: 'write color scheme' })
                     }
                 } catch (_) {}
                 requestSave('legacy')
@@ -13343,6 +13348,9 @@ function openInGameSettingsModal() {
                 if (engineSettings && engineSettings.get) {
                     const scale = Number(engineSettings.get('a11y.uiScale', 1))
                     sel.value = String(scale)
+                } else {
+                    const stored = safeStorageGet('pq-ui-scale')
+                    sel.value = stored || '1'
                 }
             } catch (_) {}
 
@@ -13351,6 +13359,9 @@ function openInGameSettingsModal() {
                 try {
                     if (engineSettings && engineSettings.set) {
                         engineSettings.set('a11y.uiScale', v)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-ui-scale', String(v), { action: 'write UI scale' })
                     }
                 } catch (_) {}
                 requestSave('legacy')
@@ -13358,6 +13369,8 @@ function openInGameSettingsModal() {
 
             control.appendChild(sel)
             row.appendChild(control)
+            secDisplay.appendChild(row)
+        }
             secDisplay.appendChild(row)
         }
 
