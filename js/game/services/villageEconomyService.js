@@ -168,9 +168,12 @@ export function createVillageEconomyService(engine) {
     // Only monsters outside the village affect trade route safety
     if (area !== 'forest' && area !== 'ruins') return;
 
-    const securityBonus = enemy && enemy.isBoss ? BOSS_SECURITY_BONUS : NORMAL_SECURITY_BONUS;
+    const isBoss = enemy && enemy.isBoss;
+    const securityBonus = isBoss ? BOSS_SECURITY_BONUS : NORMAL_SECURITY_BONUS;
+    const prosperityBonus = securityBonus * BOSS_PROSPERITY_MULTIPLIER;
+    
     const newSecurity = clamp((econ.security || 40) + securityBonus, 0, 100);
-    const newProsperity = clamp(econ.prosperity + securityBonus * BOSS_PROSPERITY_MULTIPLIER, 0, 100);
+    const newProsperity = clamp(econ.prosperity + prosperityBonus, 0, 100);
 
     const updatedEcon = {
       ...econ,
@@ -193,7 +196,7 @@ export function createVillageEconomyService(engine) {
       enemy,
       area,
       securityDelta: securityBonus,
-      prosperityDelta: securityBonus * BOSS_PROSPERITY_MULTIPLIER,
+      prosperityDelta: prosperityBonus,
       newTierId: updatedEcon.tierId
     });
   }
