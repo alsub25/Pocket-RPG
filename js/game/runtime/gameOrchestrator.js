@@ -50,6 +50,20 @@ import { createScreenAssetPreloadPlugin } from '../plugins/screenAssetPreloadPlu
 import { createVillageServicesPlugin } from '../plugins/villageServicesPlugin.js'
 import { createTimeServicePlugin } from '../plugins/timeServicePlugin.js'
 
+// Refactored modules (Patch 1.2.72 - Intensive Refactor & Hardening)
+import {
+    runDailyTicks as runDailyTicksImpl,
+    advanceWorldTime as advanceWorldTimeImpl,
+    advanceToNextMorning as advanceToNextMorningImpl,
+    advanceWorldDays as advanceWorldDaysImpl
+} from './dailyTickPipeline.js'
+import {
+    recordCrash,
+    getLastCrashReport,
+    initCrashCatcher,
+    copyFeedbackToClipboard
+} from './debugHelpers.js'
+
 /* =============================================================================
  * Emberwood Engine (engine.js)
  * Patch: 1.2.72 — The Blackbark Oath — Spell Book, Companions & Changelog UX

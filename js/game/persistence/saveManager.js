@@ -17,6 +17,7 @@ import { finiteNumber, clampFinite } from '../systems/safety.js'
 import { safeStorageGet, safeStorageSet, safeStorageRemove } from '../../engine/storageRuntime.js'
 import { _perfNow, perfWrap } from '../../engine/perf.js'
 import { scheduleAfter } from '../utils/timing.js'
+import { fnv1a32, stableStringify } from '../../engine/snapshots.js'
 
 function safe(fn, fallback = null) {
     try {
@@ -34,36 +35,10 @@ function safe(fn, fallback = null) {
 // loadGame() trusted the snapshot and skipped schema migrations; that made older
 // snapshots brittle across patches.
 //
-// We duplicate the checksum helpers from js/engine/snapshots.js here so we can:
+// We now use the shared checksum helpers from js/engine/snapshots.js to:
 // 1) validate the snapshot without mutating engine state, and
 // 2) treat snapshot.state as the *legacy* save blob input to migrateSaveData(),
 //    ensuring schema migrations always run.
-
-function _fnv1a32(str) {
-    let h = 0x811c9dc5
-    for (let i = 0; i < str.length; i++) {
-        h ^= str.charCodeAt(i)
-        h = Math.imul(h, 0x01000193)
-    }
-    return (h >>> 0).toString(16).padStart(8, '0')
-}
-
-function _stableStringify(obj) {
-    const seen = new WeakSet()
-    function walk(v) {
-        if (v && typeof v === 'object') {
-            if (seen.has(v)) return '[Circular]'
-            seen.add(v)
-            if (Array.isArray(v)) return v.map(walk)
-            const keys = Object.keys(v).sort()
-            const out = {}
-            for (let i = 0; i < keys.length; i++) out[keys[i]] = walk(v[keys[i]])
-            return out
-        }
-        return v
-    }
-    return JSON.stringify(walk(obj))
-}
 
 function _validateEngineSnapshot(snapshot) {
     try {
@@ -71,13 +46,13 @@ function _validateEngineSnapshot(snapshot) {
         if (!snapshot.state || typeof snapshot.state !== 'object') return { ok: false, reason: 'missing_state' }
         if (!snapshot.checksum || !snapshot.checksumAlg) return { ok: false, reason: 'missing_checksum' }
 
-        const json = _stableStringify({
+        const json = stableStringify({
             version: snapshot.version,
             state: snapshot.state,
             meta: snapshot.meta || {},
             savedAt: snapshot.savedAt || ''
         })
-        const expected = _fnv1a32(json)
+        const expected = fnv1a32(json)
         if (snapshot.checksum !== expected) return { ok: false, reason: 'checksum_mismatch', expected }
         return { ok: true }
     } catch (e) {

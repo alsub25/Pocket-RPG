@@ -158,9 +158,46 @@ let _autoTickLastT = 0
 
   // ---- Services ------------------------------------------------------------
 
-  function registerService(name, value) {
+  // Core services that should never be accidentally overwritten
+  const _coreServiceNames = new Set([
+    'log', 'events', 'clock', 'schedule', 'commands', 'migrations', 'snapshots',
+    'rng', 'perf', 'assets', 'settings', 'a11y', 'tween', 'input', 'uiRouter',
+    'errorBoundary', 'harness', 'flags', 'i18n', 'uiCompose', 'savePolicy',
+    'replay', 'telemetry', 'qa'
+  ])
+
+  function registerService(name, value, opts = {}) {
     if (!name) return
-    services[String(name)] = value
+    const key = String(name)
+    const { allowOverride = false } = opts || {}
+    
+    // Check for collision
+    const existing = services[key]
+    if (existing !== undefined && !allowOverride) {
+      const isCoreService = _coreServiceNames.has(key)
+      const msg = isCoreService
+        ? `Attempted to overwrite core service: ${key}. Use { allowOverride: true } to force.`
+        : `Service already registered: ${key}. Use { allowOverride: true } to replace.`
+      
+      try {
+        log.warn('services', msg, { name: key, isCoreService })
+      } catch (_) {}
+      
+      // Throw for core services to prevent silent failures
+      if (isCoreService) {
+        const err = new Error(msg)
+        err.code = 'SERVICE_COLLISION'
+        err.serviceName = key
+        throw err
+      } else {
+        // Warn but allow for non-core services (backward compatibility)
+        try {
+          console.warn('[Engine] ' + msg)
+        } catch (_) {}
+      }
+    }
+    
+    services[key] = value
   }
 
   function getService(name) {
@@ -475,9 +512,32 @@ function _stopAutoTickLoop() {
   // ---- State ---------------------------------------------------------------
 
   function getState() { return _state }
-  function setState(nextState) {
+  
+  /**
+   * Update the engine state with optional metadata for observability.
+   * @param {*} nextState - New state value
+   * @param {Object} [meta] - Optional metadata (reason, action, etc.)
+   * @param {string} [meta.reason] - Why the state changed (e.g., 'save:loaded', 'command:execute')
+   * @param {string} [meta.action] - What action triggered the change
+   */
+  function setState(nextState, meta = {}) {
     _state = nextState
-    emit('state:changed', { t: _nowIso() })
+    const payload = {
+      t: _nowIso(),
+      ...(meta && typeof meta === 'object' ? meta : {})
+    }
+    emit('state:changed', payload)
+  }
+  
+  /**
+   * Convenience helper that wraps setState with metadata.
+   * Useful for command handlers and critical paths.
+   * @param {*} nextState - New state value
+   * @param {string} reason - Why the state changed
+   * @param {Object} [extra] - Additional metadata
+   */
+  function commit(nextState, reason, extra = {}) {
+    setState(nextState, { reason, ...extra })
   }
 
   // ---- Engine services: clock + scheduler ---------------------------------
@@ -582,6 +642,7 @@ function _stopAutoTickLoop() {
     // state
     getState,
     setState,
+    commit,  // convenience helper for setState with metadata
     // events
     on,
     off,
