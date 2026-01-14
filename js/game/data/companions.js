@@ -5,9 +5,9 @@
 export const COMPANION_DEFS = {
     wolf: {
         id: 'wolf',
-        name: 'Ember Wolf',
+        name: 'Combat Hound',
         role: 'DPS',
-        description: 'A loyal hunter that tears into enemies.',
+        description: 'A loyal cyber-hound that tears into enemies.',
         baseAttack: 10,
         baseHpBonus: 0,
         behavior: 'aggressive',
@@ -15,9 +15,9 @@ export const COMPANION_DEFS = {
     },
     golem: {
         id: 'golem',
-        name: 'Stone Golem',
+        name: 'Defense Bot',
         role: 'Tank',
-        description: 'A sturdy construct that shields you from harm.',
+        description: 'A sturdy robot that shields you from harm.',
         baseAttack: 6,
         baseHpBonus: 20,
         behavior: 'protective',
@@ -25,9 +25,9 @@ export const COMPANION_DEFS = {
     },
     sprite: {
         id: 'sprite',
-        name: 'Moonlit Sprite',
+        name: 'Med-Drone',
         role: 'Healer',
-        description: 'A tiny spirit that mends your wounds.',
+        description: 'A small medical drone that mends your wounds.',
         baseAttack: 4,
         baseHpBonus: 0,
         behavior: 'healer',
@@ -40,9 +40,9 @@ export const COMPANION_DEFS = {
     },
     skeleton: {
         id: 'skeleton',
-        name: 'Bound Skeleton',
+        name: 'Combat Automaton',
         role: 'Bleed',
-        description: 'A reanimated warrior that inflicts bleeding wounds.',
+        description: 'A reanimated combat unit that inflicts bleeding wounds.',
         baseAttack: 8,
         baseHpBonus: 0,
         behavior: 'bleeder',
@@ -55,10 +55,10 @@ export const COMPANION_DEFS = {
     },
     falcon: {
         id: 'falcon',
-        name: 'Skyhunter Falcon',
+        name: 'Recon Drone',
         role: 'Ranged',
         description:
-            'A swift predator that harasses foes from above, often causing bleeding strikes.',
+            'A swift flying drone that harasses foes from above, often causing bleeding strikes.',
         baseAttack: 9,
         baseHpBonus: 0,
         behavior: 'ranged',
@@ -66,10 +66,10 @@ export const COMPANION_DEFS = {
     },
     treant: {
         id: 'treant',
-        name: 'Ancient Treant',
+        name: 'Heavy Mech',
         role: 'support-tank',
         description:
-            'A walking tree that shields you and slowly restores your vitality.',
+            'A walking mech that shields you and slowly restores your vitality.',
         baseAttack: 6,
         baseHpBonus: 25,
         behavior: 'guardian',
@@ -82,10 +82,10 @@ export const COMPANION_DEFS = {
     },
     familiar: {
         id: 'familiar',
-        name: 'Arcane Familiar',
+        name: 'Power Core',
         role: 'Battery',
         description:
-            'A floating mote of magic that replenishes your combat resources.',
+            'A floating energy core that replenishes your combat resources.',
         baseAttack: 5,
         baseHpBonus: 0,
         behavior: 'battery',
@@ -98,7 +98,7 @@ export const COMPANION_DEFS = {
     },
     mimic: {
         id: 'mimic',
-        name: 'Shadow Mimic',
+        name: 'Echo Unit',
         role: 'Mimic',
         description:
             'A copy of your fighting spirit that mirrors your power in attacks.',
