@@ -13348,7 +13348,7 @@ function openInGameSettingsModal() {
             // Hydrate from engine settings when present
             try {
                 if (engineSettings && engineSettings.get) {
-                    const scale = Number(engineSettings.get('a11y.uiScale', 1))
+                    const scale = Number(engineSettings.get('ui.scale', 1))
                     sel.value = String(scale)
                 } else {
                     const stored = safeStorageGet('pq-ui-scale')
@@ -13360,7 +13360,7 @@ function openInGameSettingsModal() {
                 const v = Number(sel.value) || 1
                 try {
                     if (engineSettings && engineSettings.set) {
-                        engineSettings.set('a11y.uiScale', v)
+                        engineSettings.set('ui.scale', v)
                     } else {
                         // Legacy fallback
                         safeStorageSet('pq-ui-scale', String(v), { action: 'write UI scale' })

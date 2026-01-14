@@ -7,6 +7,19 @@ export const CHANGELOG = [
     "title": "In-Game Settings Menu Enhancement",
     "sections": [
       {
+        "heading": "Bug Fixes",
+        "items": [
+          {
+            "title": "Fixed UI Scale selection in in-game settings menu",
+            "bullets": [
+              "Corrected the settings path for UI Scale from 'a11y.uiScale' to 'ui.scale' to match the engine settings service.",
+              "UI Scale changes from the in-game settings menu now properly apply and persist across sessions.",
+              "The in-game settings menu now correctly reads the current UI Scale value when opened."
+            ]
+          }
+        ]
+      },
+      {
         "heading": "Settings Menu Improvements",
         "items": [
           {
