@@ -85,6 +85,16 @@ export const CHANGELOG = [
               "Restored the Text size selector on the main-menu Settings screen and wired it to engine settings (a11y.textScale).",
               "In-game Settings modal now also includes Text size and High contrast controls, both wired to the same engine-wide accessibility settings so the two menus stay in sync."
             ]
+          },
+          {
+            "title": "Enhanced engine integration for settings and audio",
+            "bullets": [
+              "Migrated all settings controls (theme, volume, text speed, music, SFX, auto-equip) to consistently use the engine settings service with legacy storage fallbacks.",
+              "Theme selection now reads from engine settings (ui.theme) on startup instead of only legacy storage.",
+              "Audio initialization now checks engine settings first for music/SFX toggles before falling back to legacy storage.",
+              "In-game settings modal now uses engine settings for all controls, ensuring synchronization between main menu and in-game settings.",
+              "Both settings screens (main menu and in-game) are now fully synchronized through the unified engine settings service."
+            ]
           }
         ]
       }
