@@ -369,7 +369,7 @@ h3{ font-size:0.95rem; }
 }
 
 /* For touch devices, shimmer on tap/focus instead of active */
-@media (hover:none), (pointer:coarse){
+@media (hover:none) or (pointer:coarse){
   .btn:focus::before{
     transform:translateX(100%);
   }
@@ -598,9 +598,12 @@ h3{ font-size:0.95rem; }
   animation:selectPulse 0.35s var(--ease-smooth);
 }
 
-/* Remove focus outline on selected pills to avoid double ring */
+/* Remove focus outline on selected pills to avoid double ring
+   The existing inner glow (1.5px border + 12px glow) provides sufficient visual indication */
 .pill-option.selected:focus-visible{
   outline:none;
+  /* Slightly enhance the existing glow for keyboard focus */
+  box-shadow:0 0 0 1.5px rgba(79,195,247,0.5), 0 0 14px rgba(79,195,247,0.3);
 }
 
 @keyframes selectPulse{
