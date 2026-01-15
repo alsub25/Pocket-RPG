@@ -137,11 +137,25 @@ function _waitOrSkip(ms, shouldSkip) {
     let rafId = null;
     const startTime = Date.now();
     
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (rafId) {
+        try {
+          cancelAnimationFrame(rafId);
+        } catch (_) {}
+        rafId = null;
+      }
+    };
+    
     const check = () => {
       if (shouldSkip()) {
-        if (timeoutId) clearTimeout(timeoutId);
+        cleanup();
         resolve();
       } else if (Date.now() - startTime >= ms) {
+        cleanup();
         resolve();
       } else {
         // Use requestAnimationFrame for efficient checking
@@ -154,11 +168,7 @@ function _waitOrSkip(ms, shouldSkip) {
     
     // Also set a timeout as a fallback to guarantee completion
     timeoutId = setTimeout(() => {
-      if (rafId) {
-        try {
-          cancelAnimationFrame(rafId);
-        } catch (_) {}
-      }
+      cleanup();
       resolve();
     }, ms);
   });
