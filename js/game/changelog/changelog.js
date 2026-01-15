@@ -7,6 +7,61 @@ export const CHANGELOG = [
     "title": "Engine Integration Expansion - Kingdom, Loot & Quest Systems",
     "sections": [
       {
+        "heading": "UI/UX Enhancements - Styling Consistency & Vibrancy",
+        "items": [
+          {
+            "title": "Enhanced Interactive Feedback",
+            "bullets": [
+              "Added smooth cubic-bezier easing functions (ease-bounce, ease-smooth) for more natural animations",
+              "Enhanced button hover effects with improved lift (translateY -2px), scale (1.01), and glow effects",
+              "Added shimmer effect to all buttons that activates on hover for premium feel",
+              "Improved icon button hovers with enhanced scale (1.05), color accent, and larger glow radius",
+              "All interactive elements now have consistent, smooth transitions"
+            ]
+          },
+          {
+            "title": "Selection & Active State Improvements",
+            "bullets": [
+              "Added selectPulse animation to pill options and class cards for satisfying selection feedback",
+              "Enhanced selected state visuals with stronger glow (2px border + 16px glow radius)",
+              "Added tabActivate animation for character sheet tabs with bounce effect",
+              "Improved active log chip styling with subtle glow and shadow",
+              "All selection states now have consistent visual language"
+            ]
+          },
+          {
+            "title": "Modal & Card Animations",
+            "bullets": [
+              "Added smooth modalFadeIn animation for overlay with backdrop blur transition",
+              "Implemented modalSlideUp animation for modal panels (28px slide + scale 0.94)",
+              "Added cardFadeIn animation for all card elements throughout the game",
+              "Enhanced modal shadows for better depth perception (20px + 48px blur)",
+              "Improved modal backdrop blur effect for better focus on content"
+            ]
+          },
+          {
+            "title": "List Item Interactions",
+            "bullets": [
+              "Enhanced notice rows, spell rows with improved hover (scale 1.01, enhanced glow)",
+              "Added rowSelect animation for selected items with satisfying scale pulse",
+              "Improved shadows on hover (6px + 14px blur) and selection (2px border + 4px shadow)",
+              "All interactive list items now have consistent lift and glow on hover",
+              "Enhanced log filter chips with hover effects and active state glow"
+            ]
+          },
+          {
+            "title": "Animation Consistency",
+            "bullets": [
+              "Enhanced btnGlow animation with increased intensity (24px glow, brightness 1.12)",
+              "Improved panelDropIn animation with larger initial offset for better perception",
+              "All animations respect prefers-reduced-motion for accessibility",
+              "Consistent timing across all transitions (0.12s fast, 0.18s medium, 0.25s slow)",
+              "Added multiple new keyframe animations: selectPulse, tabActivate, rowSelect, modalFadeIn, modalSlideUp, cardFadeIn"
+            ]
+          }
+        ]
+      },
+      {
         "heading": "New Engine-Integrated Services",
         "items": [
           {
