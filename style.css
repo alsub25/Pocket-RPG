@@ -1256,6 +1256,25 @@ h3{ font-size:0.95rem; }
   /* Spell select list: remove hover movement/transition. */
   .spell-row{ transition:none !important; }
   .spell-row:hover{ transform:none !important; }
+
+  /* Disable all new animations for accessibility */
+  .pill-option.selected,
+  .class-card.selected,
+  .char-tab.active,
+  .notice-row.selected,
+  .spell-row.selected,
+  .card,
+  #modal,
+  #enemyModal,
+  #modalPanel,
+  #enemyModalPanel{
+    animation:none !important;
+  }
+
+  /* Disable button shimmer effect */
+  .btn::before{
+    display:none !important;
+  }
 }
 
 /* In-game setting: Reduce motion (also honors OS setting above). */
@@ -1290,6 +1309,25 @@ body.no-motion .spell-card.meter-buffed::after{
 }
 body.no-motion .spell-row{ transition:none !important; }
 body.no-motion .spell-row:hover{ transform:none !important; }
+
+/* Disable all new animations for in-game motion reduction setting */
+body.no-motion .pill-option.selected,
+body.no-motion .class-card.selected,
+body.no-motion .char-tab.active,
+body.no-motion .notice-row.selected,
+body.no-motion .spell-row.selected,
+body.no-motion .card,
+body.no-motion #modal,
+body.no-motion #enemyModal,
+body.no-motion #modalPanel,
+body.no-motion #enemyModalPanel{
+  animation:none !important;
+}
+
+/* Disable button shimmer effect */
+body.no-motion .btn::before{
+  display:none !important;
+}
 
 #hud-bottom{
   display:flex;
