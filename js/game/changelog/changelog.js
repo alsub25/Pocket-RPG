@@ -123,6 +123,16 @@ export const CHANGELOG = [
               "Event listeners properly cleaned up in stop() to prevent memory leaks",
               "Services properly unregistered in dispose() for clean shutdown"
             ]
+          },
+          {
+            "title": "Settings Storage Consolidation",
+            "bullets": [
+              "All settings controls now exclusively use locus_settings (engine.settings service) as the single source of truth",
+              "Removed all legacy localStorage fallback code from settings controls (volume, music, SFX, theme, text speed, etc.)",
+              "Settings are now only read from and written to the unified locus_settings_v1 storage key",
+              "Ensures consistent settings behavior and prevents data fragmentation across multiple localStorage keys",
+              "Legacy migration code in settingsPlugin continues to support existing users with old storage keys"
+            ]
           }
         ]
       }
