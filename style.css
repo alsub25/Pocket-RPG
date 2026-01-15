@@ -368,9 +368,9 @@ h3{ font-size:0.95rem; }
   }
 }
 
-/* For touch devices, shimmer on active/click instead */
-@media (hover:none) or (pointer:coarse){
-  .btn:active::before{
+/* For touch devices, shimmer on tap/focus instead of active */
+@media (hover:none), (pointer:coarse){
+  .btn:focus::before{
     transform:translateX(100%);
   }
 }
@@ -596,6 +596,11 @@ h3{ font-size:0.95rem; }
   color:var(--text);
   background:var(--surface-selected);
   animation:selectPulse 0.35s var(--ease-smooth);
+}
+
+/* Remove focus outline on selected pills to avoid double ring */
+.pill-option.selected:focus-visible{
+  outline:none;
 }
 
 @keyframes selectPulse{
