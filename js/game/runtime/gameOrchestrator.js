@@ -3237,25 +3237,14 @@ function initAudio() {
             audioState.sfxEnabled = state.sfxEnabled !== false
         } else {
             // Try engine settings first, then fall back to legacy storage
+            // Use engine settings service (locus_settings) to initialize audio toggles
             try {
                 const settings = _engine && _engine.getService ? _engine.getService('settings') : null
                 if (settings && typeof settings.get === 'function') {
                     audioState.musicEnabled = settings.get('audio.musicEnabled', true)
                     audioState.sfxEnabled = settings.get('audio.sfxEnabled', true)
-                } else {
-                    // Legacy fallback
-                    const m = safeStorageGet('pq-music-enabled')
-                    if (m !== null) audioState.musicEnabled = m === '1' || m === 'true'
-                    const s = safeStorageGet('pq-sfx-enabled')
-                    if (s !== null) audioState.sfxEnabled = s === '1' || s === 'true'
                 }
-            } catch (e) {
-                // Final fallback to legacy storage
-                const m = safeStorageGet('pq-music-enabled')
-                if (m !== null) audioState.musicEnabled = m === '1' || m === 'true'
-                const s = safeStorageGet('pq-sfx-enabled')
-                if (s !== null) audioState.sfxEnabled = s === '1' || s === 'true'
-            }
+            } catch (e) {}
         }
     } catch (e) {}
 
@@ -20314,6 +20303,7 @@ export function bootGame(engine) {
             uiBindingsApi: {
                 patchLabel: _patchLabel,
                 getState: () => state,
+                engine: _engine,
                 // boot/runtime
                 initCrashCatcher: initCrashCatcherWrapper,
                 // character creation / menu

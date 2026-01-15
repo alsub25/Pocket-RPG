@@ -43,14 +43,6 @@ export function createA11yBridgePlugin() {
           const uiScale = _clamp(settings.get('ui.scale', 1), 0.8, 1.3)
           const combinedScale = scale * uiScale
           try { document.documentElement.style.fontSize = String(16 * combinedScale) + 'px' } catch (_) {}
-
-          // Persist legacy keys for backwards compatibility with older builds.
-          try { safeStorageSet('pq-theme', theme, { action: 'write theme' }) } catch (_) {}
-          try {
-            const pref = settings.get('a11y.reduceMotion', 'auto')
-            if (pref === true) safeStorageSet('pq-reduce-motion', '1', { action: 'write reduce motion' })
-            else if (pref === false) safeStorageSet('pq-reduce-motion', '0', { action: 'write reduce motion' })
-          } catch (_) {}
         } catch (_) {}
       }
 

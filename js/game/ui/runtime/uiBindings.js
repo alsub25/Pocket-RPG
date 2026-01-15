@@ -217,6 +217,7 @@ export function initUIBindings(api) {
         patchLabel,
         initCrashCatcher,
         getState,
+        engine,
         randInt,
         resetDevCheatsCreationUI,
         buildCharacterCreationOptions,
@@ -384,13 +385,19 @@ export function initUIBindings(api) {
             })
         }
 
-        // Theme selector is storage-backed and independent of applySettingsChanges().
+        // Theme selector uses engine settings service (locus_settings)
         const themeSelect = document.getElementById('themeSelect')
         if (themeSelect) {
             try {
-                const savedTheme = typeof safeStorageGet === 'function' ? (safeStorageGet('pq-theme') || 'default') : 'default'
-                themeSelect.value = savedTheme
-            } catch (_) {}
+                const settings = engine && engine.getService ? engine.getService('settings') : null
+                if (settings && typeof settings.get === 'function') {
+                    themeSelect.value = settings.get('ui.theme', 'default')
+                } else {
+                    themeSelect.value = 'default'
+                }
+            } catch (_) {
+                themeSelect.value = 'default'
+            }
 
             themeSelect.addEventListener('change', () => {
                 try {
