@@ -10,54 +10,63 @@ export const CHANGELOG = [
         "heading": "UI/UX Enhancements - Styling Consistency & Vibrancy",
         "items": [
           {
+            "title": "Mobile-Optimized Interactive Feedback",
+            "bullets": [
+              "Refined animation timing for smoother mobile performance (0.15s fast, 0.20s med, 0.28s slow)",
+              "Reduced transform scale values (1.005-1.02 vs 1.01-1.05) to prevent button clipping on small screens",
+              "Smoother easing curve (cubic-bezier 0.34, 1.56, 0.64, 1) eliminates overshoot on mobile",
+              "Added hardware acceleration hints (will-change, backface-visibility) for 60fps animations",
+              "Reduced translateY values (-0.5px to -1px) to keep elements within safe bounds",
+              "Added overflow handling to #app container to prevent horizontal scrolling on animations"
+            ]
+          },
+          {
             "title": "Enhanced Interactive Feedback",
             "bullets": [
-              "Added smooth cubic-bezier easing functions (ease-bounce, ease-smooth) for more natural animations",
-              "Enhanced button hover effects with improved lift (translateY -2px), scale (1.01), and glow effects",
-              "Added shimmer effect to all buttons that activates on hover for premium feel",
-              "Improved icon button hovers with enhanced scale (1.05), color accent, and larger glow radius",
-              "All interactive elements now have consistent, smooth transitions"
+              "Enhanced button hover with subtle lift (-1px), minimal scale (1.005), and optimized glow",
+              "Added shimmer effect to buttons with smooth sweep on hover",
+              "Icon buttons: refined scale (1.02) and reduced shadow for cleaner mobile appearance",
+              "All interactive elements have consistent, smooth transitions without clipping"
             ]
           },
           {
             "title": "Selection & Active State Improvements",
             "bullets": [
-              "Added selectPulse animation to pill options and class cards for satisfying selection feedback",
-              "Enhanced selected state visuals with stronger glow (2px border + 16px glow radius)",
-              "Added tabActivate animation for character sheet tabs with bounce effect",
-              "Improved active log chip styling with subtle glow and shadow",
-              "All selection states now have consistent visual language"
+              "Refined selectPulse animation (1.03 max scale) prevents overflow on constrained layouts",
+              "Optimized selected state visuals (1.5px border + 12px glow) for mobile clarity",
+              "Smoother tabActivate animation (1.04 max scale) for character sheet tabs",
+              "Reduced log chip transforms to prevent clipping in scrollable areas",
+              "All selection states safe for touch targets on mobile devices"
             ]
           },
           {
             "title": "Modal & Card Animations",
             "bullets": [
-              "Added smooth modalFadeIn animation for overlay with backdrop blur transition",
-              "Implemented modalSlideUp animation for modal panels (28px slide + scale 0.94)",
-              "Added cardFadeIn animation for all card elements throughout the game",
-              "Enhanced modal shadows for better depth perception (20px + 48px blur)",
-              "Improved modal backdrop blur effect for better focus on content"
+              "Smooth modalFadeIn with backdrop blur transition optimized for mobile",
+              "Modal slide animations stay within viewport bounds",
+              "Card animations use minimal transforms to prevent clipping",
+              "Enhanced shadows optimized for mobile screens"
             ]
           },
           {
             "title": "List Item Interactions",
             "bullets": [
-              "Enhanced notice rows, spell rows with improved hover (scale 1.01, enhanced glow)",
-              "Added rowSelect animation for selected items with satisfying scale pulse",
-              "Improved shadows on hover (6px + 14px blur) and selection (2px border + 4px shadow)",
-              "All interactive list items now have consistent lift and glow on hover",
-              "Enhanced log filter chips with hover effects and active state glow"
+              "Notice/spell rows use minimal transforms (1.005 scale, -1px lift) for mobile safety",
+              "Refined rowSelect animation (1.02 max scale) prevents layout shifts",
+              "Optimized shadows (reduced blur radius) for better mobile performance",
+              "All list items remain fully visible during animations on small screens"
             ]
           },
           {
-            "title": "Animation Consistency",
+            "title": "Animation Consistency & Mobile Performance",
             "bullets": [
-              "Enhanced btnGlow animation with increased intensity (24px glow, brightness 1.12)",
-              "Improved panelDropIn animation with larger initial offset for better perception",
               "All animations respect prefers-reduced-motion for accessibility",
-              "Consistent timing across all transitions (0.12s fast, 0.18s medium, 0.25s slow)",
-              "Added multiple new keyframe animations: selectPulse, tabActivate, rowSelect, modalFadeIn, modalSlideUp, cardFadeIn"
+              "Consistent timing optimized for mobile: 0.15s/0.20s/0.28s",
+              "Hardware-accelerated transforms only (no layout-breaking properties)",
+              "Smooth 60fps performance on modern mobile devices",
+              "Safe transform boundaries prevent content clipping on phones"
             ]
+          }
           }
         ]
       },
