@@ -601,10 +601,10 @@ h3{ font-size:0.95rem; }
 }
 
 /* Keyboard focus on selected pills: enhanced glow without double ring
-   Uses enhanced glow + subtle outline for WCAG AA contrast compliance
+   Uses enhanced glow + outline for WCAG AA contrast compliance
    The inner glow provides primary indication, outline ensures visibility */
 .pill-option.selected:focus-visible{
-  outline:1px solid rgba(79,195,247,0.6);
+  outline:1px solid rgba(79,195,247,0.8);
   outline-offset:2px;
   /* Enhanced glow for better visibility */
   box-shadow:0 0 0 1.5px rgba(79,195,247,0.5), 0 0 14px rgba(79,195,247,0.35);
