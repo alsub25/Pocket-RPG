@@ -9860,10 +9860,10 @@ function getPlayerElementalBonusPct(elementType) {
 // Balance: resists have diminishing returns up to a hard cap. Lower-rarity gear needs
 // significantly more raw resist to approach the cap, while Legendary/Mythic gear
 // reaches the cap much more easily.
-var PLAYER_RESIST_CAP = 75
-var PLAYER_RESIST_SCALE_COMMON = 120
-var PLAYER_RESIST_SCALE_MYTHIC = 45
-var GEAR_RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']
+const PLAYER_RESIST_CAP = 75;
+const PLAYER_RESIST_SCALE_COMMON = 120;
+const PLAYER_RESIST_SCALE_MYTHIC = 45;
+const GEAR_RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
 
 function _gearRarityRank(r) {
     const order = Array.isArray(GEAR_RARITY_ORDER)
