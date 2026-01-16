@@ -48,6 +48,8 @@ import { createRngBridgePlugin } from '../plugins/rngBridgePlugin.js'
 import { createGameCommandsPlugin } from '../plugins/gameCommandsPlugin.js'
 import { createScreenAssetPreloadPlugin } from '../plugins/screenAssetPreloadPlugin.js'
 import { createVillageServicesPlugin } from '../plugins/villageServicesPlugin.js'
+import { createBankServicePlugin } from '../plugins/bankServicePlugin.js'
+import { createMerchantServicePlugin } from '../plugins/merchantServicePlugin.js'
 import { createTimeServicePlugin } from '../plugins/timeServicePlugin.js'
 import { createKingdomGovernmentPlugin } from '../plugins/kingdomGovernmentPlugin.js'
 import { createLootGeneratorPlugin } from '../plugins/lootGeneratorPlugin.js'
@@ -20625,13 +20627,19 @@ export function bootGame(engine) {
         // 14) Village services (economy, population) - Engine-integrated state management
         _engine.use(createVillageServicesPlugin())
 
-        // 15) Kingdom government service - Engine-integrated kingdom/government state management
+        // 15) Bank service - Engine-integrated banking operations (deposits, loans, investments)
+        _engine.use(createBankServicePlugin())
+
+        // 16) Merchant service - Engine-integrated commerce operations (buying, selling, restocking)
+        _engine.use(createMerchantServicePlugin())
+
+        // 17) Kingdom government service - Engine-integrated kingdom/government state management
         _engine.use(createKingdomGovernmentPlugin())
 
-        // 16) Loot generator service - Engine-integrated loot generation with event emissions
+        // 18) Loot generator service - Engine-integrated loot generation with event emissions
         _engine.use(createLootGeneratorPlugin())
 
-        // 17) Quest system service - Engine-integrated quest state management
+        // 19) Quest system service - Engine-integrated quest state management
         _engine.use(createQuestSystemPlugin())
 
         // 18) Replay recorder/player (records command dispatches)
