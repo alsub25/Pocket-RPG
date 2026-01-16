@@ -160,9 +160,9 @@ function openCheatMenu() {
             addStat('Level ' + p.level)
             addStat(p.gold + 'g')
             addStat(
-                state && state.time && typeof state.time.dayIndex === 'number'
+                (state && state.time && typeof state.time.dayIndex === 'number'
                     ? Math.floor(Number(state.time.dayIndex))
-                    : 0 + 'd'
+                    : 0) + 'd'
             )
             const part =
                 state && state.time && state.time.part
@@ -340,6 +340,13 @@ function openCheatMenu() {
         btnCrit.textContent = state.flags.alwaysCrit
             ? 'Normal Crits'
             : 'Always Crit'
+
+        const btnNeverCrit = document.createElement('button')
+        btnNeverCrit.className = 'btn small'
+        btnNeverCrit.textContent = state.flags.neverCrit
+            ? 'Allow Crits'
+            : 'Never Crit'
+
         btnCrit.addEventListener('click', () => {
             state.flags.alwaysCrit = !state.flags.alwaysCrit
             if (state.flags.alwaysCrit) state.flags.neverCrit = false
@@ -359,11 +366,6 @@ function openCheatMenu() {
             requestSave('legacy')
         })
 
-        const btnNeverCrit = document.createElement('button')
-        btnNeverCrit.className = 'btn small'
-        btnNeverCrit.textContent = state.flags.neverCrit
-            ? 'Allow Crits'
-            : 'Never Crit'
         btnNeverCrit.addEventListener('click', () => {
             state.flags.neverCrit = !state.flags.neverCrit
             if (state.flags.neverCrit) state.flags.alwaysCrit = false
