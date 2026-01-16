@@ -157,7 +157,7 @@ export function createInventoryModal(deps) {
 
             function equippedItemFor(item) {
                 const eq = p.equipment || {}
-                        if (!item) return null
+                if (!item) return null
                 if (item.type === 'weapon') return eq.weapon || null
                 if (item.type === 'armor') {
                     const slot = armorSlotFor(item)
@@ -441,25 +441,25 @@ export function createInventoryModal(deps) {
                         if (inVillage) {
                             if (item.questItem || item.noSell) {
                             } else {
-                            const btnSell = document.createElement('button')
-                            btnSell.className = 'btn small'
-                            btnSell.textContent = 'Sell'
-                            btnSell.addEventListener('click', (e) => {
-                                e.preventDefault()
-                                const dispatched = dispatchGameCommand('INVENTORY_SELL', {
-                                    index: idx,
-                                    context: 'village'
-                                })
+                                const btnSell = document.createElement('button')
+                                btnSell.className = 'btn small'
+                                btnSell.textContent = 'Sell'
+                                btnSell.addEventListener('click', (e) => {
+                                    e.preventDefault()
+                                    const dispatched = dispatchGameCommand('INVENTORY_SELL', {
+                                        index: idx,
+                                        context: 'village'
+                                    })
 
-                                if (!dispatched) {
-                                    sellItemFromInventory(idx, 'village')
+                                    if (!dispatched) {
+                                        sellItemFromInventory(idx, 'village')
+                                        renderList()
+                                        return
+                                    }
+
                                     renderList()
-                                    return
-                                }
-
-                                renderList()
-                            })
-                            actions.appendChild(btnSell)
+                                })
+                                actions.appendChild(btnSell)
                             }
                         }
                     }
