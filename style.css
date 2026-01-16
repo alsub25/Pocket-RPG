@@ -1204,6 +1204,22 @@ h3{ font-size:0.95rem; }
   /* Spell select list: remove hover movement/transition. */
   .spell-row{ transition:none !important; }
   .spell-row:hover{ transform:none !important; }
+  
+  /* Modal animations: instant show/hide for reduced motion */
+  #modal,
+  #enemyModal{
+    animation:none !important;
+  }
+  
+  #modalPanel,
+  #enemyModalPanel{
+    animation:none !important;
+  }
+  
+  #modal.modal-closing #modalPanel,
+  #enemyModal.modal-closing #enemyModalPanel{
+    animation:none !important;
+  }
 }
 
 /* In-game setting: Reduce motion (also honors OS setting above). */
@@ -1238,6 +1254,22 @@ body.no-motion .spell-card.meter-buffed::after{
 }
 body.no-motion .spell-row{ transition:none !important; }
 body.no-motion .spell-row:hover{ transform:none !important; }
+
+/* Modal animations: instant show/hide for reduced motion */
+body.no-motion #modal,
+body.no-motion #enemyModal{
+  animation:none !important;
+}
+
+body.no-motion #modalPanel,
+body.no-motion #enemyModalPanel{
+  animation:none !important;
+}
+
+body.no-motion #modal.modal-closing #modalPanel,
+body.no-motion #enemyModal.modal-closing #enemyModalPanel{
+  animation:none !important;
+}
 
 #hud-bottom{
   display:flex;

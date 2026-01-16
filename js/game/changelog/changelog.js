@@ -26,7 +26,9 @@ export const CHANGELOG = [
               "Modal panels animate with a subtle upward slide and scale effect on open",
               "Modal panels animate with a downward slide and scale effect on close",
               "All animations use custom cubic-bezier easing for a professional, polished feel",
-              "Animations apply to both the main modal (#modal) and enemy sheet modal (#enemyModal)"
+              "Animations apply to both the main modal (#modal) and enemy sheet modal (#enemyModal)",
+              "Animations respect user's reduced motion preferences (prefers-reduced-motion media query)",
+              "Animations are disabled when in-game 'Reduce motion' setting is enabled (body.no-motion class)"
             ]
           }
         ]
