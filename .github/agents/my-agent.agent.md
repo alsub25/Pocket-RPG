@@ -15,3 +15,5 @@ Please make sure that everything runs through the engine when either adding func
 Also please make sure you change the patch number if necessary
 
 alwasy update the changelog by either adding on to the current patch but if the feature or a big change bump up the patch number
+
+Also update the main directory readme as well as the engine readme if necessary
