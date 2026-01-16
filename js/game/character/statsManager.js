@@ -132,21 +132,26 @@ export function elementIcon(k) {
 }
 
 /**
+ * Standard element type order for consistent display
+ * @constant
+ */
+export const ELEMENT_ORDER = ['fire', 'frost', 'lightning', 'holy', 'shadow', 'arcane', 'poison', 'earth', 'nature']
+
+/**
  * Orders element keys in a standard sequence
  * @param {Array} keys - Element keys to order
  * @param {Function} normalizeElementTypeFn - Function to normalize element type strings
  * @returns {Array} Ordered element keys
  */
 export function orderedElementKeys(keys, normalizeElementTypeFn) {
-    const order = ['fire', 'frost', 'lightning', 'holy', 'shadow', 'arcane', 'poison', 'earth', 'nature']
     const uniq = {}
     ;(keys || []).forEach((k) => {
         const nk = (normalizeElementTypeFn ? normalizeElementTypeFn(k) : k) || (k !== null && k !== undefined ? String(k).trim() : null)
         if (nk) uniq[nk] = 1
     })
     return Object.keys(uniq).sort((a, b) => {
-        const ia = order.indexOf(a)
-        const ib = order.indexOf(b)
+        const ia = ELEMENT_ORDER.indexOf(a)
+        const ib = ELEMENT_ORDER.indexOf(b)
         if (ia < 0 && ib < 0) return String(a).localeCompare(String(b))
         if (ia < 0) return 1
         if (ib < 0) return -1

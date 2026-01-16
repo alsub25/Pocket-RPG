@@ -5,6 +5,12 @@
 // This module handles equipping/unequipping items and auto-equip logic.
 
 /**
+ * Standard equipment slots
+ * @constant
+ */
+export const EQUIPMENT_SLOTS = ['weapon', 'armor', 'head', 'hands', 'feet', 'belt', 'neck', 'ring']
+
+/**
  * Unequips an item if it's currently equipped
  * Prefers reference equality (prevents unequipping the wrong "copy" of an item),
  * but falls back to id matching for older saves that may have cloned equipment objects.
@@ -69,7 +75,7 @@ export function tryAutoEquipItem(state, item, addLogFn, recalcStatsFn) {
     const ensureSlot = (k) => {
         if (p.equipment[k] === undefined) p.equipment[k] = null
     }
-    ;['weapon','armor','head','hands','feet','belt','neck','ring'].forEach(ensureSlot)
+    EQUIPMENT_SLOTS.forEach(ensureSlot)
 
     const slot = item.slot || (item.type === 'weapon' ? 'weapon' : 'armor')
     ensureSlot(slot)
@@ -158,8 +164,7 @@ export function ensureEquipmentSlots(player) {
     if (!player) return
     if (!player.equipment) player.equipment = {}
     
-    const slots = ['weapon', 'armor', 'head', 'hands', 'feet', 'belt', 'neck', 'ring']
-    slots.forEach(slot => {
+    EQUIPMENT_SLOTS.forEach(slot => {
         if (player.equipment[slot] === undefined) {
             player.equipment[slot] = null
         }
