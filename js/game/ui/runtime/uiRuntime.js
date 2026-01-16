@@ -856,6 +856,11 @@ export function closeModalDom() {
     
     // Don't close if the modal is already hidden or closing
     if (modalEl.classList.contains('hidden') || modalEl.classList.contains('modal-closing')) return
+    
+    // Don't close if the modal isn't actually marked as open
+    try {
+        if (modalEl.dataset.open !== '1') return
+    } catch (_) {}
 
     // If another subsystem owns/locks the modal (e.g., user acceptance), don't close it.
     try {
@@ -1095,6 +1100,11 @@ export function closeEnemyModal() {
     
     // Don't close if the modal is already hidden or closing
     if (enemyModalEl.classList.contains('hidden') || enemyModalEl.classList.contains('modal-closing')) return
+    
+    // Don't close if the modal isn't actually marked as open
+    try {
+        if (enemyModalEl.dataset.open !== '1') return
+    } catch (_) {}
 
     // Cancel any outstanding tasks owned by this modal.
     const _closingOwner = (() => {
