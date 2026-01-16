@@ -20658,7 +20658,6 @@ export function bootGame(engine) {
     // =============================================================================
     // START ENGINE (Engine-First Architecture)
     // =============================================================================
-    
     // All plugins are now registered. Start the engine to initialize and activate
     // all systems. This ensures the engine is fully operational before returning
     // control to the game layer.

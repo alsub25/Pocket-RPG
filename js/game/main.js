@@ -29,5 +29,3 @@ try { window.__emberwoodEngine = engine } catch (_) {}
 // Boot the game orchestrator - this registers all game plugins AND starts the engine
 // After this call, the engine is fully operational with all systems running through it
 bootGame(engine)
-
-// Engine is now started and operational - all game systems run through it
