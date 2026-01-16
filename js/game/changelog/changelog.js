@@ -285,6 +285,16 @@ export const CHANGELOG = [
               "Game now loads successfully across all browsers including Safari, Chrome, Firefox, and mobile browsers",
               "Resolved issue where modal closing animation code was improperly scoped outside setTimeout callback"
             ]
+          },
+          {
+            "title": "Quest String Syntax Fix (Safari/iOS Compatibility)",
+            "bullets": [
+              "Fixed apostrophe syntax errors in questDefs.js that caused 'Unexpected identifier' errors on Safari/iOS",
+              "Converted 19 quest step strings containing apostrophes from single-quoted to double-quoted strings",
+              "Affected steps include new intermediate steps added in Chapters I-IV (e.g., 'corruption's origin', 'witch's trail')",
+              "Safari's strict JavaScript parser now correctly handles possessive forms and contractions in quest text",
+              "All quest definitions now parse successfully across all browsers including Safari, Chrome, Firefox, and mobile browsers"
+            ]
           }
         ]
       }
