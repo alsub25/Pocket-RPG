@@ -444,8 +444,8 @@ export function createEnemyCombatAi(dependencies) {
         // Track actual HP damage for affixes/rewards.
         const hpDamage = (state.flags && state.flags.godMode) ? 0 : Math.max(0, remaining)
     
-    	    if (remaining > 0) {
-    	        if (state.flags && state.flags.godMode) {
+            if (remaining > 0) {
+                if (state.flags && state.flags.godMode) {
                 addLog('God Mode: You ignore ' + remaining + ' damage.', 'system')
             } else {
                 p.hp -= remaining
