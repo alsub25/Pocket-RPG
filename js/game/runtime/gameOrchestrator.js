@@ -14675,7 +14675,7 @@ function openFeedbackModal() {
     const bodyHtml = `
     <div class="modal-subtitle">
       Help improve Emberwood: The Blackbark Oath by sending structured feedback. 
-      Copy this text and paste it wherever you’re tracking issues.
+      You can submit directly to GitHub or copy the text manually.
     </div>
 
     <div class="field">
@@ -14696,7 +14696,11 @@ function openFeedbackModal() {
       ></textarea>
     </div>
 
-    <button class="btn primary small" id="btnFeedbackCopy">
+    <button class="btn primary small" id="btnCreateGitHubIssue">
+      📝 Create GitHub Issue
+    </button>
+
+    <button class="btn small outline" id="btnFeedbackCopy" style="margin-top:8px;">
       Copy Feedback To Clipboard
     </button>
 
@@ -14712,6 +14716,11 @@ function openFeedbackModal() {
 
     openModal('Feedback / Bug Report', (bodyEl) => {
         bodyEl.innerHTML = bodyHtml
+
+        const btnCreateIssue = document.getElementById('btnCreateGitHubIssue')
+        if (btnCreateIssue) {
+            btnCreateIssue.addEventListener('click', handleCreateGitHubIssue)
+        }
 
         const btnCopy = document.getElementById('btnFeedbackCopy')
         if (btnCopy) {
@@ -14757,6 +14766,47 @@ function handleFeedbackCopy() {
     copyFeedbackToClipboard(payload)
         .then(() => (status.textContent = '✅ Copied! Paste this into your tracker.'))
         .catch(() => (status.textContent = '❌ Could not access clipboard.'))
+}
+
+function handleCreateGitHubIssue() {
+    const typeEl = document.getElementById('feedbackType')
+    const textEl = document.getElementById('feedbackText')
+    const status = document.getElementById('feedbackStatus')
+    if (!typeEl || !textEl || !status) return
+
+    const type = typeEl.value
+    const text = (textEl.value || '').trim()
+
+    if (!text) {
+        status.textContent = '⚠️ Please provide some details about your feedback.'
+        return
+    }
+
+    // Build issue title based on type
+    const typeLabels = {
+        'ui': '🎨 UI Issue',
+        'bug': '🐛 Bug Report',
+        'balance': '⚖️ Balance Issue',
+        'suggestion': '💡 Suggestion',
+        'other': '📝 Feedback'
+    }
+    const issueTitle = `${typeLabels[type] || 'Feedback'}: ${text.substring(0, 60)}${text.length > 60 ? '...' : ''}`
+
+    // Build issue body with all context
+    const payload = buildFeedbackPayload(type, text)
+    
+    // Encode for URL
+    const githubUrl = `https://github.com/alsub25/Emberwood-The-Blackbark-Oath/issues/new?` +
+        `title=${encodeURIComponent(issueTitle)}&` +
+        `body=${encodeURIComponent(payload)}`
+
+    // Open in new tab
+    try {
+        window.open(githubUrl, '_blank')
+        status.textContent = '✅ Opening GitHub issue page...'
+    } catch (error) {
+        status.textContent = '❌ Could not open GitHub. Please copy feedback manually.'
+    }
 }
 
 function buildFeedbackPayload(type, text) {
