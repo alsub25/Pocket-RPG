@@ -68,6 +68,32 @@ Handles inventory operations, item management, and equipment.
   - `unequipSlot(player, slot, ...)` - Unequip from a specific slot
   - `ensureEquipmentSlots(player)` - Initialize all equipment slots
 
+### UI Modals (`js/game/ui/modals/`)
+
+Modularized modal UI components with dependency injection.
+
+#### `inventoryModal.js` ✨ NEW
+- **Purpose**: Inventory modal UI with filtering, sorting, and item actions
+- **Exports**:
+  - `createInventoryModal(deps)` - Factory function that creates inventory modal instance
+- **Features**:
+  - Search and filter items by name, type, description
+  - Sort by power, type, rarity, level, or name
+  - Tab-based filtering (All, Potions, Weapons, Armor)
+  - Equip/unequip gear with power comparison
+  - Use potions with restoration effects
+  - Sell items in village
+  - Drop items with confirmation
+  - Quest item protection
+- **Dependencies**: Uses dependency injection for all game state access and operations
+- **Pattern**: Follows same architecture as `cheatMenuModal.js`
+
+#### `cheatMenuModal.js`
+- **Purpose**: Cheat menu for testing and debugging
+- **Exports**:
+  - `createCheatMenuModal(deps)` - Factory function for cheat menu
+- **Features**: Debug tools, item spawning, teleportation, etc.
+
 ### Helper Utilities (`js/game/helpers/`)
 
 Common utility functions used across the codebase.
@@ -155,6 +181,50 @@ unequipSlot(player, 'weapon', addLog, recalcPlayerStats)
 tryAutoEquipItem(state, newHelmet, addLog, recalcPlayerStats)
 ```
 
+### Using Inventory Modal
+
+```javascript
+import { createInventoryModal } from '../ui/modals/inventoryModal.js'
+
+// Initialize the modal factory with dependencies
+let _inventoryModal = null
+function getInventoryModal() {
+    if (_inventoryModal) return _inventoryModal
+    _inventoryModal = createInventoryModal({
+        getState: () => state,
+        openModal,
+        closeModal,
+        addLog,
+        updateHUD,
+        requestSave,
+        recalcPlayerStats,
+        getItemPowerScore,
+        formatRarityLabel,
+        dispatchGameCommand,
+        guardPlayerTurn,
+        endPlayerTurn,
+        unequipItemIfEquipped,
+        sellItemFromInventory
+    })
+    return _inventoryModal
+}
+
+// Open inventory modal (in combat or outside)
+function openInventoryModal(inCombat) {
+    return getInventoryModal().openInventoryModal(inCombat)
+}
+
+// Use a potion from inventory
+function usePotionFromInventory(index, inCombat, opts = {}) {
+    return getInventoryModal().usePotionFromInventory(index, inCombat, opts)
+}
+
+// Equip an item from inventory
+function equipItemFromInventory(index, opts = {}) {
+    return getInventoryModal().equipItemFromInventory(index, opts)
+}
+```
+
 ## Integration with gameOrchestrator.js
 
 The `gameOrchestrator.js` file will be updated to import and use these modules instead of containing all the logic inline. This maintains the same functionality while improving code organization.
@@ -196,18 +266,23 @@ const success = unlockTalent(p, talentId, TALENT_DEFS, addLog, onTalentUnlocked)
 - ✅ Character management modules (talents, stats, elemental)
 - ✅ Inventory management modules (inventory, equipment)
 - ✅ Helper utilities (number helpers)
+- ✅ **UI modal factories** (inventory modal - **581 lines extracted**)
 
 ### In Progress
 - 🔄 Combat orchestration modules
-- 🔄 UI modal factories
-- 🔄 Game lifecycle management
 
 ### Planned
 - ⏳ Combat ability execution
 - ⏳ Damage calculation
-- ⏳ Village modal handlers
 - ⏳ Character creation workflow
 - ⏳ Save/load operations
+
+### Already Modularized (Village Modals)
+These modals were already extracted in previous work:
+- ✅ `merchant.js` - Merchant modal for buying/selling
+- ✅ `tavern.js` - Tavern modal with rest and gambling
+- ✅ `bank.js` - Bank modal for deposits and investments
+- ✅ `townHall.js` - Town hall modal for governance
 
 ## Testing
 
