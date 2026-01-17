@@ -60,8 +60,8 @@ export async function initBackendUI() {
     console.warn('[BackendUI] Diagnostic info:', diagnosticInfo);
     hideBackendElements();
     
-    // Show diagnostic overlay
-    showDiagnosticOverlay(diagnosticInfo);
+    // Show diagnostic overlay for failures
+    showDiagnosticOverlay(diagnosticInfo, false);
     
     return { success: false, diagnosticInfo };
   }
@@ -80,6 +80,10 @@ export async function initBackendUI() {
   });
 
   console.log('[BackendUI] Backend UI initialized');
+  
+  // Show diagnostic overlay for successful initialization too
+  showDiagnosticOverlay(diagnosticInfo, true);
+  
   return { success: true, diagnosticInfo };
 }
 
@@ -419,17 +423,39 @@ export function shouldShowLoginScreen() {
 }
 
 /**
- * Show diagnostic overlay with backend initialization errors
+ * Show diagnostic overlay with backend initialization status
  */
-function showDiagnosticOverlay(diagnosticInfo) {
+function showDiagnosticOverlay(diagnosticInfo, isSuccess) {
   const overlay = document.getElementById('backendDiagnostic');
   const detailsDiv = document.getElementById('diagnosticDetails');
+  const titleElement = overlay?.querySelector('h2');
+  const panel = document.getElementById('diagnosticPanel');
+  const messageElement = document.getElementById('diagnosticMessage');
   
   if (!overlay || !detailsDiv) return;
 
+  // Update title, styling, and message based on success/failure
+  if (titleElement) {
+    if (isSuccess) {
+      titleElement.innerHTML = '✅ Backend Initialized Successfully';
+      titleElement.style.color = 'var(--accent)';
+      if (panel) panel.style.borderColor = 'var(--accent)';
+      if (messageElement) {
+        messageElement.textContent = 'Firebase backend is ready! You now have access to cloud saves and authentication features.';
+      }
+    } else {
+      titleElement.innerHTML = '⚠️ Backend Initialization Failed';
+      titleElement.style.color = 'var(--danger)';
+      if (panel) panel.style.borderColor = 'var(--danger)';
+      if (messageElement) {
+        messageElement.textContent = 'The Firebase backend failed to initialize. The game will continue to work with local saves only.';
+      }
+    }
+  }
+
   // Build detailed diagnostic message
   let details = '<div style="color: var(--text);">';
-  details += '<p><strong>Status:</strong> Backend initialization failed</p>';
+  details += `<p><strong>Status:</strong> Backend initialization ${isSuccess ? 'successful' : 'failed'}</p>`;
   details += `<p><strong>Time:</strong> ${new Date(diagnosticInfo.timestamp).toLocaleString()}</p>`;
   details += '<hr style="margin: 1rem 0; border-color: var(--border);">';
   
@@ -460,21 +486,35 @@ function showDiagnosticOverlay(diagnosticInfo) {
       if (diagnosticInfo.cloudResult.error) {
         details += `<p style="color: var(--danger); margin-left: 1rem;">Error: ${diagnosticInfo.cloudResult.error}</p>`;
       }
+      }
     }
   }
   
   details += '<hr style="margin: 1rem 0; border-color: var(--border);">';
-  details += '<p><strong>Common Issues:</strong></p>';
-  details += '<ul style="margin-left: 1.5rem; color: var(--muted);">';
-  details += '<li>Network connectivity issues</li>';
-  details += '<li>Firebase configuration errors</li>';
-  details += '<li>Firebase services not enabled in console</li>';
-  details += '<li>Incorrect API keys or project settings</li>';
-  details += '<li>CORS or domain authorization issues</li>';
-  details += '</ul>';
   
-  details += '<p style="margin-top: 1rem;"><strong>Browser Console:</strong></p>';
-  details += '<p style="color: var(--muted); font-size: 0.85rem;">Check the browser console (F12) for detailed error messages.</p>';
+  if (isSuccess) {
+    details += '<p><strong>Backend Features Available:</strong></p>';
+    details += '<ul style="margin-left: 1.5rem; color: var(--accent);">';
+    details += '<li>User authentication (sign in/sign up)</li>';
+    details += '<li>Cloud save backup and synchronization</li>';
+    details += '<li>Cross-device save access</li>';
+    details += '<li>Password reset via email</li>';
+    details += '</ul>';
+    details += '<p style="margin-top: 1rem; color: var(--muted); font-size: 0.9rem;">You can access these features from the "Cloud Saves" and "Account" buttons on the main menu.</p>';
+  } else {
+    details += '<p><strong>Common Issues:</strong></p>';
+    details += '<ul style="margin-left: 1.5rem; color: var(--muted);">';
+    details += '<li>Network connectivity issues</li>';
+    details += '<li>Firebase configuration errors</li>';
+    details += '<li>Firebase services not enabled in console</li>';
+    details += '<li>Incorrect API keys or project settings</li>';
+    details += '<li>CORS or domain authorization issues</li>';
+    details += '</ul>';
+    
+    details += '<p style="margin-top: 1rem;"><strong>Browser Console:</strong></p>';
+    details += '<p style="color: var(--muted); font-size: 0.85rem;">Check the browser console (F12) for detailed error messages.</p>';
+  }
+  
   details += '</div>';
   
   detailsDiv.innerHTML = details;
@@ -498,14 +538,24 @@ function showDiagnosticOverlay(diagnosticInfo) {
   }
   
   if (retryBtn) {
-    retryBtn.onclick = () => {
-      closeOverlay();
-      // Reload the page to retry initialization
-      window.location.reload();
-    };
+    if (isSuccess) {
+      retryBtn.style.display = 'none'; // Hide retry button on success
+    } else {
+      retryBtn.style.display = '';
+      retryBtn.onclick = () => {
+        closeOverlay();
+        // Reload the page to retry initialization
+        window.location.reload();
+      };
+    }
   }
   
   if (continueBtn) {
+    if (isSuccess) {
+      continueBtn.textContent = 'Continue to Game';
+    } else {
+      continueBtn.textContent = 'Continue Offline';
+    }
     continueBtn.onclick = closeOverlay;
   }
 }
