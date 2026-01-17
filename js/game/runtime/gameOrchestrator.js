@@ -2771,6 +2771,168 @@ let state = null
 // Engine Core handle (proprietary engine). The orchestrator uses it as a state/event backplane.
 let _engine = null
 
+// =============================================================================
+// ENGINE SERVICE ACCESSORS (Engine-First Architecture)
+// =============================================================================
+// These helper functions provide backwards-compatible access to engine services
+// for code that previously imported location modules directly.
+//
+// NOTE: The `state` parameter is kept for API compatibility but not passed to
+// services because services manage state internally via engine.getState() and
+// engine.setState(). This is by design in the engine-first architecture.
+
+// Village Economy Service
+const initVillageEconomyState = (state) => {
+    const service = _engine?.getService('village.economy')
+    return service?.initEconomy()
+}
+const getVillageEconomySummary = (state) => {
+    const service = _engine?.getService('village.economy')
+    return service?.getSummary()
+}
+const getMerchantPrice = (basePrice, state, context) => {
+    const service = _engine?.getService('village.economy')
+    return service?.getMerchantPrice(basePrice, context)
+}
+const getRestCost = (state) => {
+    const service = _engine?.getService('village.economy')
+    return service?.getRestCost()
+}
+const handleEconomyDayTick = (state, day) => {
+    const service = _engine?.getService('village.economy')
+    return service?.handleDayTick(day)
+}
+const handleEconomyAfterBattle = (state, enemy, area) => {
+    const service = _engine?.getService('village.economy')
+    return service?.handleAfterBattle(enemy, area)
+}
+const handleEconomyAfterPurchase = (state, goldSpent, context) => {
+    const service = _engine?.getService('village.economy')
+    return service?.handleAfterPurchase(goldSpent, context)
+}
+
+// Village Population Service
+const ensureVillagePopulation = (state) => {
+    const service = _engine?.getService('village.population')
+    return service?.getPopulation()
+}
+const handlePopulationDayTick = (state, day, hooks) => {
+    const service = _engine?.getService('village.population')
+    return service?.handleDayTick(day)
+}
+
+// Kingdom Government Service
+const initGovernmentState = (state, day) => {
+    const service = _engine?.getService('kingdom.government')
+    return service?.initGovernment(day)
+}
+const handleGovernmentDayTick = (state, day, hooks) => {
+    const service = _engine?.getService('kingdom.government')
+    return service?.handleDayTick(day)
+}
+const getGovernmentSummary = (state) => {
+    const service = _engine?.getService('kingdom.government')
+    return service?.getSummary()
+}
+const getVillageGovernmentEffect = (state, context) => {
+    const service = _engine?.getService('kingdom.government')
+    return service?.getVillageEffect(context)
+}
+
+// Bank Service
+const openBankModalImpl = (deps) => {
+    const service = _engine?.getService('bank')
+    return service?.openBankModal(deps)
+}
+const bankDeposit = (deps) => {
+    const service = _engine?.getService('bank')
+    return service?.deposit(deps)
+}
+const bankWithdraw = (deps) => {
+    const service = _engine?.getService('bank')
+    return service?.withdraw(deps)
+}
+const bankInvest = (deps) => {
+    const service = _engine?.getService('bank')
+    return service?.invest(deps)
+}
+const bankCashOut = (deps) => {
+    const service = _engine?.getService('bank')
+    return service?.cashOut(deps)
+}
+const bankBorrow = (deps) => {
+    const service = _engine?.getService('bank')
+    return service?.borrow(deps)
+}
+const bankRepay = (deps) => {
+    const service = _engine?.getService('bank')
+    return service?.repay(deps)
+}
+
+// Merchant Service
+const openMerchantModalImpl = (deps) => {
+    const service = _engine?.getService('merchant')
+    return service?.openMerchantModal(deps)
+}
+const handleMerchantDayTick = (state, day, cloneItemDef) => {
+    const service = _engine?.getService('merchant')
+    return service?.handleDayTick(day, cloneItemDef)
+}
+const ensureMerchantStock = (state) => {
+    const service = _engine?.getService('merchant')
+    return service?.ensureStock()
+}
+const executeMerchantBuy = (deps) => {
+    const service = _engine?.getService('merchant')
+    return service?.executeBuy(deps)
+}
+
+// Tavern Service
+const openTavernModalImpl = (deps) => {
+    const service = _engine?.getService('tavern')
+    return service?.openTavernModal(deps)
+}
+
+// Town Hall Service
+const openTownHallModalImpl = (deps) => {
+    const service = _engine?.getService('townHall')
+    return service?.openTownHallModal(deps)
+}
+const handleTownHallDayTick = (state, day, hooks) => {
+    const service = _engine?.getService('townHall')
+    return service?.handleDayTick(day)
+}
+const cleanupTownHallEffects = (state, today) => {
+    const service = _engine?.getService('townHall')
+    return service?.cleanupEffects(today)
+}
+
+// Loot Generator Service
+const generateLootDrop = (args) => {
+    const service = _engine?.getService('loot')
+    return service?.generateLootDrop(args)
+}
+const generateArmorForSlot = (args) => {
+    const service = _engine?.getService('loot')
+    return service?.generateArmorForSlot(args)
+}
+const getItemPowerScore = (item) => {
+    const service = _engine?.getService('loot')
+    return service?.getItemPowerScore(item)
+}
+const getSellValue = (item, context) => {
+    const service = _engine?.getService('loot')
+    return service?.getSellValue(item, context)
+}
+const formatRarityLabel = (rarity) => {
+    const service = _engine?.getService('loot')
+    return service?.formatRarityLabel(rarity)
+}
+const pickWeighted = (choices) => {
+    const service = _engine?.getService('loot')
+    return service?.pickWeighted(choices)
+}
+
 function _setState(next) {
     state = next
     try { syncGlobalStateRef() } catch (_) {}
@@ -20327,168 +20489,6 @@ export function bootGame(engine) {
     } else {
         // keep global debug ref in sync
         try { syncGlobalStateRef() } catch (_) {}
-    }
-
-    // =============================================================================
-    // ENGINE SERVICE ACCESSORS (Engine-First Architecture)
-    // =============================================================================
-    // These helper functions provide backwards-compatible access to engine services
-    // for code that previously imported location modules directly.
-    //
-    // NOTE: The `state` parameter is kept for API compatibility but not passed to
-    // services because services manage state internally via engine.getState() and
-    // engine.setState(). This is by design in the engine-first architecture.
-    
-    // Village Economy Service
-    const initVillageEconomyState = (state) => {
-        const service = _engine?.getService('village.economy')
-        return service?.initEconomy()
-    }
-    const getVillageEconomySummary = (state) => {
-        const service = _engine?.getService('village.economy')
-        return service?.getSummary()
-    }
-    const getMerchantPrice = (basePrice, state, context) => {
-        const service = _engine?.getService('village.economy')
-        return service?.getMerchantPrice(basePrice, context)
-    }
-    const getRestCost = (state) => {
-        const service = _engine?.getService('village.economy')
-        return service?.getRestCost()
-    }
-    const handleEconomyDayTick = (state, day) => {
-        const service = _engine?.getService('village.economy')
-        return service?.handleDayTick(day)
-    }
-    const handleEconomyAfterBattle = (state, enemy, area) => {
-        const service = _engine?.getService('village.economy')
-        return service?.handleAfterBattle(enemy, area)
-    }
-    const handleEconomyAfterPurchase = (state, goldSpent, context) => {
-        const service = _engine?.getService('village.economy')
-        return service?.handleAfterPurchase(goldSpent, context)
-    }
-    
-    // Village Population Service
-    const ensureVillagePopulation = (state) => {
-        const service = _engine?.getService('village.population')
-        return service?.getPopulation()
-    }
-    const handlePopulationDayTick = (state, day, hooks) => {
-        const service = _engine?.getService('village.population')
-        return service?.handleDayTick(day)
-    }
-    
-    // Kingdom Government Service
-    const initGovernmentState = (state, day) => {
-        const service = _engine?.getService('kingdom.government')
-        return service?.initGovernment(day)
-    }
-    const handleGovernmentDayTick = (state, day, hooks) => {
-        const service = _engine?.getService('kingdom.government')
-        return service?.handleDayTick(day)
-    }
-    const getGovernmentSummary = (state) => {
-        const service = _engine?.getService('kingdom.government')
-        return service?.getSummary()
-    }
-    const getVillageGovernmentEffect = (state, context) => {
-        const service = _engine?.getService('kingdom.government')
-        return service?.getVillageEffect(context)
-    }
-    
-    // Bank Service
-    const openBankModalImpl = (deps) => {
-        const service = _engine?.getService('bank')
-        return service?.openBankModal(deps)
-    }
-    const bankDeposit = (deps) => {
-        const service = _engine?.getService('bank')
-        return service?.deposit(deps)
-    }
-    const bankWithdraw = (deps) => {
-        const service = _engine?.getService('bank')
-        return service?.withdraw(deps)
-    }
-    const bankInvest = (deps) => {
-        const service = _engine?.getService('bank')
-        return service?.invest(deps)
-    }
-    const bankCashOut = (deps) => {
-        const service = _engine?.getService('bank')
-        return service?.cashOut(deps)
-    }
-    const bankBorrow = (deps) => {
-        const service = _engine?.getService('bank')
-        return service?.borrow(deps)
-    }
-    const bankRepay = (deps) => {
-        const service = _engine?.getService('bank')
-        return service?.repay(deps)
-    }
-    
-    // Merchant Service
-    const openMerchantModalImpl = (deps) => {
-        const service = _engine?.getService('merchant')
-        return service?.openMerchantModal(deps)
-    }
-    const handleMerchantDayTick = (state, day, cloneItemDef) => {
-        const service = _engine?.getService('merchant')
-        return service?.handleDayTick(day, cloneItemDef)
-    }
-    const ensureMerchantStock = (state) => {
-        const service = _engine?.getService('merchant')
-        return service?.ensureStock()
-    }
-    const executeMerchantBuy = (deps) => {
-        const service = _engine?.getService('merchant')
-        return service?.executeBuy(deps)
-    }
-    
-    // Tavern Service
-    const openTavernModalImpl = (deps) => {
-        const service = _engine?.getService('tavern')
-        return service?.openTavernModal(deps)
-    }
-    
-    // Town Hall Service
-    const openTownHallModalImpl = (deps) => {
-        const service = _engine?.getService('townHall')
-        return service?.openTownHallModal(deps)
-    }
-    const handleTownHallDayTick = (state, day, hooks) => {
-        const service = _engine?.getService('townHall')
-        return service?.handleDayTick(day)
-    }
-    const cleanupTownHallEffects = (state, today) => {
-        const service = _engine?.getService('townHall')
-        return service?.cleanupEffects(today)
-    }
-    
-    // Loot Generator Service
-    const generateLootDrop = (args) => {
-        const service = _engine?.getService('loot')
-        return service?.generateLootDrop(args)
-    }
-    const generateArmorForSlot = (args) => {
-        const service = _engine?.getService('loot')
-        return service?.generateArmorForSlot(args)
-    }
-    const getItemPowerScore = (item) => {
-        const service = _engine?.getService('loot')
-        return service?.getItemPowerScore(item)
-    }
-    const getSellValue = (item, context) => {
-        const service = _engine?.getService('loot')
-        return service?.getSellValue(item, context)
-    }
-    const formatRarityLabel = (rarity) => {
-        const service = _engine?.getService('loot')
-        return service?.formatRarityLabel(rarity)
-    }
-    const pickWeighted = (choices) => {
-        const service = _engine?.getService('loot')
-        return service?.pickWeighted(choices)
     }
 
     // =============================================================================
