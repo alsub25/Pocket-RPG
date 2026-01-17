@@ -37,10 +37,11 @@
 </td>
 <td width="50%">
 
-#### 🏘️ **Living Village**
+#### 🏘️ **Living Village & Kingdom**
 - Dynamic economy simulation
 - Merchant stock management
 - Banking system with loans & interest
+- Kingdom government with monarch & council
 - Town hall governance & decrees
 - Population mood tracking
 - Tavern games & gambling
@@ -129,6 +130,7 @@
   - [Loot Generation](#loot-generation)
   - [Enemies, Rarity & Affixes](#enemies-rarity--affixes)
   - [Quest System](#quest-system)
+  - [Kingdom Government System](#kingdom-government-system)
   - [Village Simulation](#village-simulation)
   - [Logging & UI](#logging--ui)
   - [Diagnostics & QA Tools](#diagnostics--qa-tools)
@@ -408,13 +410,26 @@ Emberwood-The-Blackbark-Oath/
         │   └── postTurnSequence.js # Turn cleanup logic
         │
         ├── systems/            # Core game systems
-        │   ├── time/               # Time management
-        │   ├── rng/                # RNG system
-        │   ├── loot/               # Loot generation
         │   ├── enemy/              # Enemy creation
-        │   ├── government/         # Governance system
-        │   ├── safety/             # Data validation
+        │   ├── assertState.js      # State validation
+        │   ├── kingdomGovernment.js # Kingdom government logic
+        │   ├── lootGenerator.js    # Loot generation
+        │   ├── rng.js              # RNG system
+        │   ├── safety.js           # Data validation
+        │   ├── timeSystem.js       # Time management
         │   └── version.js          # Version info
+        │
+        ├── services/           # Engine-integrated services
+        │   ├── bankService.js          # Banking service
+        │   ├── kingdomGovernmentService.js # Kingdom government service
+        │   ├── lootGeneratorService.js     # Loot service
+        │   ├── merchantService.js      # Merchant service
+        │   ├── questSystemService.js   # Quest service
+        │   ├── tavernService.js        # Tavern service
+        │   ├── timeService.js          # Time service
+        │   ├── townHallService.js      # Town hall service
+        │   ├── villageEconomyService.js    # Economy service
+        │   └── villagePopulationService.js # Population service
         │
         ├── locations/          # Game locations
         │   └── village/
@@ -614,6 +629,21 @@ The **Engine Core** (`js/engine/engine.js`) provides core services:
 | **Assets** | Asset management | `engine.assets.get('icon')` |
 | **Errors** | Error boundary | `engine.onError(handler)` |
 
+**Game Services** registered with the engine:
+
+| Service | Access Path | Purpose |
+|---------|-------------|---------|
+| **Time Service** | `engine.get('time')` | Time advancement & day/night cycle |
+| **Village Economy** | `engine.get('village.economy')` | Economic simulation & pricing |
+| **Village Population** | `engine.get('village.population')` | Population dynamics & mood |
+| **Kingdom Government** | `engine.get('kingdom.government')` | Realm politics & policies |
+| **Loot Generator** | `engine.get('loot.generator')` | Procedural loot creation |
+| **Quest System** | `engine.get('quest.system')` | Quest lifecycle & progress |
+| **Merchant Service** | `engine.get('merchant')` | Shop & inventory |
+| **Bank Service** | `engine.get('bank')` | Banking & loans |
+| **Tavern Service** | `engine.get('tavern')` | Rest & social activities |
+| **Town Hall Service** | `engine.get('townhall')` | Local governance & decrees |
+
 The **Game Orchestrator** (`js/game/runtime/gameOrchestrator.js`) coordinates:
 - Building/initializing game state
 - Delegating to game systems
@@ -661,9 +691,16 @@ const state = {
     completed: [ /* quest ids */ ]
   },
   
-  // Governance
+  // Governance & Kingdom
   government: {
-    decrees: [ /* active decrees */ ],
+    realmName: "Kingdom of Emberfall",
+    capitalName: "Emberkeep",
+    monarch: { /* name, age, title, children */ },
+    council: [ /* 7-member council */ ],
+    villages: { /* village leaders & attitudes */ },
+    metrics: { /* stability, prosperity, popularity */ },
+    currentPolicies: { /* tax, military, justice */ },
+    decrees: [ /* active town hall decrees */ ],
     petitions: [ /* available petitions */ ]
   },
   
@@ -773,7 +810,7 @@ The game uses a single top-level `state` object representing the entire game wor
 | `combat` | Battle state | enemies, turn count, intent (only present during combat) |
 | `quests` | Quest tracking | active quests, completed quests, progress |
 | `village` | Settlement state | economy, merchant stock, population mood |
-| `government` | Governance | decrees, petitions, king relationship |
+| `government` | Governance & Kingdom | monarch, council, village leaders, policies, realm metrics, decrees, petitions |
 | `bank` | Financial system | deposits, loans, interest timing |
 | `flags` | Feature toggles | dev cheats, deterministic RNG, debug modes |
 | `log` | Event history | structured log entries, filters |
@@ -1455,9 +1492,117 @@ Data-driven quest system split across multiple modules.
 Quest Defined → Initialized → Started → Step 1 → Step 2 → ... → Completed → Rewards
 ```
 
+### Kingdom Government System
+
+Autonomous kingdom-level government that evolves over time and influences the game world.
+
+**Kingdom Structure:**
+
+The kingdom consists of:
+- **Monarch**: King or Queen with title, spouse, and potential heirs
+- **Royal Council**: 7-member advisory council with unique roles and personalities
+- **Village Leaders**: Local leaders with attitudes toward the crown
+- **Realm Metrics**: Stability, prosperity, royal popularity, and corruption levels
+- **Policies**: Current kingdom policies on taxation, military, and justice
+
+**Council Roles:**
+
+| Role | Responsibility | Influence Area |
+|------|----------------|----------------|
+| **Chancellor** | Internal affairs | Domestic policy & administration |
+| **Marshal** | Military | Defense & warfare |
+| **Spymaster** | Intelligence | Information & espionage |
+| **High Priest** | Faith & morale | Religion & public sentiment |
+| **Treasurer** | Coin & trade | Economy & taxation |
+| **Archmage** | Magic & research | Magical advancement |
+| **Justiciar** | Law & justice | Legal system & enforcement |
+
+**Council Member Attributes:**
+
+Each council member has:
+- **Loyalty**: Allegiance to the crown (0-100)
+- **Competence**: Effectiveness at their role (0-100)
+- **Ideology**: Political stance (traditionalist, reformer, populist, hawk, dove, pragmatist)
+- **Mood**: Current attitude (calm, uneasy, pleased, resentful)
+- **Age**: Used for natural succession events
+
+**Kingdom Policies:**
+
+```javascript
+{
+  taxRate: "low" | "normal" | "high",
+  militaryPosture: "peace" | "tense" | "war",
+  justiceStyle: "lenient" | "balanced" | "harsh"
+}
+```
+
+**Village Governance:**
+
+Each village has:
+- **Leader**: Local authority figure
+- **Loyalty**: Trust in the crown (0-100)
+- **Fear**: Fear of royal punishment (0-100)
+- **Unrest**: Rebellion likelihood (0-100)
+- **Modifiers**: Prosperity, safety, and culture modifiers that affect gameplay
+
+**Daily Tick System:**
+
+The kingdom government evolves daily:
+
+```
+New Day
+  ↓
+┌────────────────────┐
+│  Council Actions   │ ← Council members make recommendations
+└────────┬───────────┘
+         ↓
+┌────────────────────┐
+│  Metric Updates    │ ← Stability, prosperity, popularity drift
+└────────┬───────────┘
+         ↓
+┌────────────────────┐
+│  Policy Effects    │ ← Current policies affect realm
+└────────┬───────────┘
+         ↓
+┌────────────────────┐
+│  Village Reactions │ ← Villages respond to kingdom changes
+└────────┬───────────┘
+         ↓
+   Kingdom Updated
+```
+
+**Realm Metrics:**
+
+- **Stability**: How likely the realm remains peaceful (affects random events)
+- **Prosperity**: Overall wealth of the kingdom (affects economy)
+- **Royal Popularity**: Public sentiment toward the monarch (affects village loyalty)
+- **Corruption**: Level of corruption in government (affects effectiveness)
+
+**Game Integration:**
+
+The kingdom government system influences:
+- **Economy**: Prosperity affects merchant prices and stock quality
+- **Combat**: Military posture affects enemy difficulty
+- **Village Mood**: Kingdom policies affect population happiness
+- **Events**: Realm stability affects random event frequency
+- **Decrees**: Kingdom context influences available town hall decrees
+
+**API Access:**
+
+```javascript
+// Get kingdom summary
+const summary = getGovernmentSummary(state);
+
+// Get village-specific effects
+const effects = getVillageGovernmentEffect(state, "village");
+
+// Kingdom state is automatically updated daily
+// through the engine-integrated service
+```
+
 ### Village Simulation
 
-Living village with interconnected economy, population, and governance.
+Living village with interconnected economy, population, and local governance. Village systems are influenced by the broader kingdom government (see Kingdom Government System above).
 
 **Village Modules:**
 
@@ -1511,12 +1656,13 @@ Player Actions
 - Late payment penalties
 - Investment opportunities (future)
 
-**Governance:**
+**Local Governance (Town Hall):**
 
 - Petition system (request decrees)
 - Active decrees (time-limited effects)
 - Decree types: Tax cuts, bounties, festivals, restrictions
-- Relationship with ruler affects available options
+- Local relationship with village leadership
+- Influenced by kingdom policies and realm stability
 
 ### Logging & UI
 
