@@ -9068,14 +9068,14 @@ function _getIntegrityScannersModule() {
         isUiDisabled,
         setUiDisabled,
         
-        // Global state references (using getters for live values)
-        get state() { return state },
-        get saveGame() { return saveGame },
-        get updateHUD() { return updateHUD },
-        get recordInput() { return recordInput },
-        get quests() { return quests },
-        get lastSaveError() { return lastSaveError },
-        get _engine() { return _engine }
+        // Global state references (pass directly, not getters to avoid Safari parsing issues)
+        state,
+        saveGame,
+        updateHUD,
+        recordInput,
+        quests,
+        lastSaveError,
+        _engine
     })
     
     return _integrityScanners
