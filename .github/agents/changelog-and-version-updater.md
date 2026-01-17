@@ -10,6 +10,7 @@ After making any code changes, you **MUST** update the changelog at `/js/game/ch
 
 **Changelog Structure:**
 - Each entry is a JavaScript object with `version`, `title`, and `sections` fields
+- Use JSON-compatible syntax with quoted property names (e.g., `"version"`, `"title"`)
 - The `version` field should follow semantic versioning (e.g., "1.2.86")
 - The `title` field should be a concise description of the changes
 - The `sections` array contains categorized changes with `heading` and `items`
