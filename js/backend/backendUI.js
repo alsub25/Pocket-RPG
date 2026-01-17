@@ -61,7 +61,10 @@ export async function initBackendUI() {
     hideBackendElements();
     
     // Show diagnostic overlay for failures
-    showDiagnosticOverlay(diagnosticInfo, false);
+    // Use setTimeout to ensure DOM is fully ready
+    setTimeout(() => {
+      showDiagnosticOverlay(diagnosticInfo, false);
+    }, 100);
     
     return { success: false, diagnosticInfo };
   }
@@ -82,7 +85,10 @@ export async function initBackendUI() {
   console.log('[BackendUI] Backend UI initialized');
   
   // Show diagnostic overlay for successful initialization too
-  showDiagnosticOverlay(diagnosticInfo, true);
+  // Use setTimeout to ensure DOM is fully ready
+  setTimeout(() => {
+    showDiagnosticOverlay(diagnosticInfo, true);
+  }, 100);
   
   return { success: true, diagnosticInfo };
 }
@@ -519,9 +525,16 @@ function showDiagnosticOverlay(diagnosticInfo, isSuccess) {
   
   detailsDiv.innerHTML = details;
   
+  // Ensure DOM is ready and elements exist
+  console.log('[BackendUI] Showing diagnostic overlay, isSuccess:', isSuccess);
+  console.log('[BackendUI] Overlay element:', overlay);
+  console.log('[BackendUI] Details div:', detailsDiv);
+  
   // Show the overlay
   overlay.classList.remove('hidden');
   overlay.style.display = 'flex';
+  
+  console.log('[BackendUI] Overlay display set to flex, classList:', overlay.classList.toString());
   
   // Setup button handlers
   const closeBtn = document.getElementById('closeDiagnostic');
