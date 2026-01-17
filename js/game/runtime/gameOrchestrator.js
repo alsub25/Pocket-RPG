@@ -2791,86 +2791,124 @@ let _engine = null
 
 // Village Economy Service
 const initVillageEconomyState = (state) => {
-    const service = _engine?.getService('village.economy')
-    return service?.initEconomy()
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.initEconomy()
 }
 const getVillageEconomySummary = (state) => {
-    const service = _engine?.getService('village.economy')
-    return service?.getSummary()
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.getSummary()
 }
 const getMerchantPrice = (basePrice, state, context) => {
-    const service = _engine?.getService('village.economy')
-    return service?.getMerchantPrice(basePrice, context)
+    if (!_engine) return basePrice
+    const service = _engine.getService('village.economy')
+    if (!service) return basePrice
+    return service.getMerchantPrice(basePrice, context)
 }
 const getRestCost = (state) => {
-    const service = _engine?.getService('village.economy')
-    return service?.getRestCost()
+    if (!_engine) return 0
+    const service = _engine.getService('village.economy')
+    if (!service) return 0
+    return service.getRestCost()
 }
 const handleEconomyDayTick = (state, day) => {
-    const service = _engine?.getService('village.economy')
-    return service?.handleDayTick(day)
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.handleDayTick(day)
 }
 const handleEconomyAfterBattle = (state, enemy, area) => {
-    const service = _engine?.getService('village.economy')
-    return service?.handleAfterBattle(enemy, area)
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.handleAfterBattle(enemy, area)
 }
 const handleEconomyAfterPurchase = (state, goldSpent, context) => {
-    const service = _engine?.getService('village.economy')
-    return service?.handleAfterPurchase(goldSpent, context)
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.handleAfterPurchase(goldSpent, context)
 }
 
 // Village Population Service
 const ensureVillagePopulation = (state) => {
-    const service = _engine?.getService('village.population')
-    return service?.getPopulation()
+    if (!_engine) return
+    const service = _engine.getService('village.population')
+    if (!service) return
+    return service.getPopulation()
 }
 const handlePopulationDayTick = (state, day, hooks) => {
-    const service = _engine?.getService('village.population')
-    return service?.handleDayTick(day)
+    if (!_engine) return
+    const service = _engine.getService('village.population')
+    if (!service) return
+    return service.handleDayTick(day)
 }
 
 // Kingdom Government Service
 const initGovernmentState = (state, day) => {
-    const service = _engine?.getService('kingdom.government')
-    return service?.initGovernment(day)
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.initGovernment(day)
 }
 const handleGovernmentDayTick = (state, day, hooks) => {
-    const service = _engine?.getService('kingdom.government')
-    return service?.handleDayTick(day)
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.handleDayTick(day)
 }
 const getGovernmentSummary = (state) => {
-    const service = _engine?.getService('kingdom.government')
-    return service?.getSummary()
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.getSummary()
 }
 const getVillageGovernmentEffect = (state, context) => {
-    const service = _engine?.getService('kingdom.government')
-    return service?.getVillageEffect(context)
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.getVillageEffect(context)
 }
 
 // Loot Generator Service
 const generateLootDrop = (args) => {
-    const service = _engine?.getService('loot.generator')
-    return service?.generateLootDrop(args)
+    if (!_engine) return null
+    const service = _engine.getService('loot.generator')
+    if (!service) return null
+    return service.generateLootDrop(args)
 }
 const generateArmorForSlot = (args) => {
-    const service = _engine?.getService('loot.generator')
-    return service?.generateArmorForSlot(args)
+    if (!_engine) return null
+    const service = _engine.getService('loot.generator')
+    if (!service) return null
+    return service.generateArmorForSlot(args)
 }
 const getItemPowerScore = (item) => {
-    const service = _engine?.getService('loot.generator')
-    return service?.getItemPowerScore(item)
+    if (!_engine) return 0
+    const service = _engine.getService('loot.generator')
+    if (!service) return 0
+    return service.getItemPowerScore(item)
 }
 const getSellValue = (item, context) => {
-    const service = _engine?.getService('loot.generator')
-    return service?.getSellValue(item, context)
+    if (!_engine) return 0
+    const service = _engine.getService('loot.generator')
+    if (!service) return 0
+    return service.getSellValue(item, context)
 }
 const formatRarityLabel = (rarity) => {
-    const service = _engine?.getService('loot.generator')
-    return service?.formatRarityLabel(rarity)
+    if (!_engine) return rarity
+    const service = _engine.getService('loot.generator')
+    if (!service) return rarity
+    return service.formatRarityLabel(rarity)
 }
 const pickWeighted = (choices) => {
-    const service = _engine?.getService('loot.generator')
-    return service?.pickWeighted(choices)
+    if (!_engine) return null
+    const service = _engine.getService('loot.generator')
+    if (!service) return null
+    return service.pickWeighted(choices)
 }
 
 function _setState(next) {
