@@ -14,7 +14,7 @@
 
 // Firebase configuration
 // Your web app's Firebase configuration
-export const firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyCDW_uDqS3bo9MgJDbUoRUJlTSn_OzSeUo",
   authDomain: "emberwood-game.firebaseapp.com",
   projectId: "emberwood-game",
