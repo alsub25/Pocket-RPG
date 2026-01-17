@@ -128,26 +128,34 @@ If you fix a bug in the combat system:
    ```markdown
    [![Version](https://img.shields.io/badge/version-1.2.86-blue.svg)]
    ```
-5. Add to top of `/js/game/changelog/changelog.js`:
+5. Add to top of `/js/game/changelog/changelog.js` (right after `export const CHANGELOG = [`):
    ```javascript
-   {
-     "version": "1.2.86",
-     "title": "Combat Bug Fixes",
-     "sections": [
-       {
-         "heading": "Bug Fixes",
-         "items": [
-           {
-             "title": "Fixed Combat System Issue",
-             "bullets": [
-               "Fixed issue where status effects weren't applying correctly",
-               "Resolved edge case with turn order calculation"
-             ]
-           }
-         ]
-       }
-     ]
-   },
+   export const CHANGELOG = [
+     // Add your new entry here at the top:
+     {
+       "version": "1.2.86",
+       "title": "Combat Bug Fixes",
+       "sections": [
+         {
+           "heading": "Bug Fixes",
+           "items": [
+             {
+               "title": "Fixed Combat System Issue",
+               "bullets": [
+                 "Fixed issue where status effects weren't applying correctly",
+                 "Resolved edge case with turn order calculation"
+               ]
+             }
+           ]
+         }
+       ]
+     },
+     // Existing entries follow below...
+     {
+       "version": "1.2.85",
+       // ... rest of existing entries
+     }
+   ];
    ```
 6. Check if READMEs need updates (probably not for a simple bug fix)
 7. Commit all changes together
