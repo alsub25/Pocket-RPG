@@ -20334,6 +20334,10 @@ export function bootGame(engine) {
     // =============================================================================
     // These helper functions provide backwards-compatible access to engine services
     // for code that previously imported location modules directly.
+    //
+    // NOTE: The `state` parameter is kept for API compatibility but not passed to
+    // services because services manage state internally via engine.getState() and
+    // engine.setState(). This is by design in the engine-first architecture.
     
     // Village Economy Service
     const initVillageEconomyState = (state) => {
