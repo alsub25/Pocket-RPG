@@ -18,21 +18,52 @@ let uiState = {
  * Initialize backend UI components
  */
 export async function initBackendUI() {
+  const diagnosticInfo = {
+    backendEnabled: BACKEND_ENABLED,
+    authResult: null,
+    cloudResult: null,
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent
+  };
+
   if (!BACKEND_ENABLED) {
     console.log('[BackendUI] Backend disabled, skipping UI initialization');
+    diagnosticInfo.reason = 'Backend disabled (BACKEND_ENABLED = false)';
     // Hide all backend-related UI elements
     hideBackendElements();
-    return { success: true, offline: true };
+    return { success: true, offline: true, diagnosticInfo };
   }
 
   // Initialize auth and cloud saves
-  const authResult = await initAuth();
-  const cloudResult = await initCloudSaves();
+  try {
+    diagnosticInfo.authResult = await initAuth();
+  } catch (error) {
+    diagnosticInfo.authResult = { 
+      success: false, 
+      error: error.message,
+      stack: error.stack 
+    };
+  }
 
-  if (!authResult.success || !cloudResult.success) {
+  try {
+    diagnosticInfo.cloudResult = await initCloudSaves();
+  } catch (error) {
+    diagnosticInfo.cloudResult = { 
+      success: false, 
+      error: error.message,
+      stack: error.stack 
+    };
+  }
+
+  if (!diagnosticInfo.authResult?.success || !diagnosticInfo.cloudResult?.success) {
     console.warn('[BackendUI] Backend initialization failed, falling back to offline mode');
+    console.warn('[BackendUI] Diagnostic info:', diagnosticInfo);
     hideBackendElements();
-    return { success: false };
+    
+    // Show diagnostic overlay
+    showDiagnosticOverlay(diagnosticInfo);
+    
+    return { success: false, diagnosticInfo };
   }
 
   // Backend initialized successfully - show UI elements
@@ -49,7 +80,7 @@ export async function initBackendUI() {
   });
 
   console.log('[BackendUI] Backend UI initialized');
-  return { success: true };
+  return { success: true, diagnosticInfo };
 }
 
 /**
@@ -385,6 +416,98 @@ export function shouldShowLoginScreen() {
   // Show login screen if backend is enabled and user wants cloud features
   // For now, default to not showing it to maintain existing behavior
   return false;
+}
+
+/**
+ * Show diagnostic overlay with backend initialization errors
+ */
+function showDiagnosticOverlay(diagnosticInfo) {
+  const overlay = document.getElementById('backendDiagnostic');
+  const detailsDiv = document.getElementById('diagnosticDetails');
+  
+  if (!overlay || !detailsDiv) return;
+
+  // Build detailed diagnostic message
+  let details = '<div style="color: var(--text);">';
+  details += '<p><strong>Status:</strong> Backend initialization failed</p>';
+  details += `<p><strong>Time:</strong> ${new Date(diagnosticInfo.timestamp).toLocaleString()}</p>`;
+  details += '<hr style="margin: 1rem 0; border-color: var(--border);">';
+  
+  if (diagnosticInfo.authResult) {
+    details += '<p><strong>Authentication Service:</strong></p>';
+    if (diagnosticInfo.authResult.success) {
+      details += '<p style="color: var(--accent);">✓ Initialized successfully</p>';
+    } else if (diagnosticInfo.authResult.offline) {
+      details += '<p style="color: var(--muted);">⊘ Backend disabled</p>';
+    } else {
+      details += `<p style="color: var(--danger);">✗ Failed</p>`;
+      if (diagnosticInfo.authResult.error) {
+        details += `<p style="color: var(--danger); margin-left: 1rem;">Error: ${diagnosticInfo.authResult.error}</p>`;
+      }
+    }
+  }
+  
+  details += '<br>';
+  
+  if (diagnosticInfo.cloudResult) {
+    details += '<p><strong>Cloud Save Service:</strong></p>';
+    if (diagnosticInfo.cloudResult.success) {
+      details += '<p style="color: var(--accent);">✓ Initialized successfully</p>';
+    } else if (diagnosticInfo.cloudResult.offline) {
+      details += '<p style="color: var(--muted);">⊘ Backend disabled</p>';
+    } else {
+      details += `<p style="color: var(--danger);">✗ Failed</p>`;
+      if (diagnosticInfo.cloudResult.error) {
+        details += `<p style="color: var(--danger); margin-left: 1rem;">Error: ${diagnosticInfo.cloudResult.error}</p>`;
+      }
+    }
+  }
+  
+  details += '<hr style="margin: 1rem 0; border-color: var(--border);">';
+  details += '<p><strong>Common Issues:</strong></p>';
+  details += '<ul style="margin-left: 1.5rem; color: var(--muted);">';
+  details += '<li>Network connectivity issues</li>';
+  details += '<li>Firebase configuration errors</li>';
+  details += '<li>Firebase services not enabled in console</li>';
+  details += '<li>Incorrect API keys or project settings</li>';
+  details += '<li>CORS or domain authorization issues</li>';
+  details += '</ul>';
+  
+  details += '<p style="margin-top: 1rem;"><strong>Browser Console:</strong></p>';
+  details += '<p style="color: var(--muted); font-size: 0.85rem;">Check the browser console (F12) for detailed error messages.</p>';
+  details += '</div>';
+  
+  detailsDiv.innerHTML = details;
+  
+  // Show the overlay
+  overlay.classList.remove('hidden');
+  overlay.style.display = 'flex';
+  
+  // Setup button handlers
+  const closeBtn = document.getElementById('closeDiagnostic');
+  const retryBtn = document.getElementById('retryBackend');
+  const continueBtn = document.getElementById('continueOffline');
+  
+  const closeOverlay = () => {
+    overlay.classList.add('hidden');
+    overlay.style.display = 'none';
+  };
+  
+  if (closeBtn) {
+    closeBtn.onclick = closeOverlay;
+  }
+  
+  if (retryBtn) {
+    retryBtn.onclick = () => {
+      closeOverlay();
+      // Reload the page to retry initialization
+      window.location.reload();
+    };
+  }
+  
+  if (continueBtn) {
+    continueBtn.onclick = closeOverlay;
+  }
 }
 
 /**
