@@ -278,7 +278,8 @@ export function installBootDiagnostics() {
             locText.style.padding = '8px'
             locText.style.borderRadius = '4px'
             locText.style.fontFamily = 'monospace'
-            locText.style.wordBreak = 'break-all'
+            locText.style.wordBreak = 'break-word'
+            locText.style.overflowWrap = 'anywhere'
             
             const file = err.src || err.filename || 'unknown'
             const line = err.lineno ? `:${err.lineno}` : ''
