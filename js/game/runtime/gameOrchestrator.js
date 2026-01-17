@@ -168,7 +168,9 @@ import { validateState, formatIssues } from '../systems/assertState.js'
 // Merchant: _engine.getService('merchant')
 // Tavern: _engine.getService('tavern')
 // Town Hall: _engine.getService('townHall')
-// Loot: _engine.getService('loot')
+// Loot: _engine.getService('loot.generator')
+// Quest System: _engine.getService('quest.system')
+// Time: _engine.getService('time')
 //
 // UI-specific modal functions are still imported from location modules:
 import { openBankModalImpl, bankDeposit, bankWithdraw, bankInvest, bankCashOut, bankBorrow, bankRepay } from '../locations/village/bank.js'
@@ -2847,27 +2849,27 @@ const getVillageGovernmentEffect = (state, context) => {
 
 // Loot Generator Service
 const generateLootDrop = (args) => {
-    const service = _engine?.getService('loot')
+    const service = _engine?.getService('loot.generator')
     return service?.generateLootDrop(args)
 }
 const generateArmorForSlot = (args) => {
-    const service = _engine?.getService('loot')
+    const service = _engine?.getService('loot.generator')
     return service?.generateArmorForSlot(args)
 }
 const getItemPowerScore = (item) => {
-    const service = _engine?.getService('loot')
+    const service = _engine?.getService('loot.generator')
     return service?.getItemPowerScore(item)
 }
 const getSellValue = (item, context) => {
-    const service = _engine?.getService('loot')
+    const service = _engine?.getService('loot.generator')
     return service?.getSellValue(item, context)
 }
 const formatRarityLabel = (rarity) => {
-    const service = _engine?.getService('loot')
+    const service = _engine?.getService('loot.generator')
     return service?.formatRarityLabel(rarity)
 }
 const pickWeighted = (choices) => {
-    const service = _engine?.getService('loot')
+    const service = _engine?.getService('loot.generator')
     return service?.pickWeighted(choices)
 }
 
