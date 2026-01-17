@@ -95,11 +95,189 @@ export function installBootDiagnostics() {
     })
   })
 
+  // Enhanced system diagnostics
+  diag.getSystemInfo = () => {
+    const info = {
+      timestamp: _pqNowIso(),
+      url: typeof location !== 'undefined' ? location.href : '',
+      protocol: typeof location !== 'undefined' ? location.protocol : '',
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      platform: typeof navigator !== 'undefined' ? navigator.platform : '',
+      language: typeof navigator !== 'undefined' ? navigator.language : '',
+      cookiesEnabled: typeof navigator !== 'undefined' ? navigator.cookieEnabled : false,
+      onLine: typeof navigator !== 'undefined' ? navigator.onLine : false,
+      screenSize: typeof window !== 'undefined' && window.screen ? `${window.screen.width}x${window.screen.height}` : '',
+      viewportSize: typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '',
+    }
+
+    // Browser detection
+    const ua = info.userAgent.toLowerCase()
+    if (ua.includes('chrome') && !ua.includes('edge')) info.browser = 'Chrome'
+    else if (ua.includes('safari') && !ua.includes('chrome')) info.browser = 'Safari'
+    else if (ua.includes('firefox')) info.browser = 'Firefox'
+    else if (ua.includes('edge')) info.browser = 'Edge'
+    else info.browser = 'Unknown'
+
+    // Check for critical features
+    info.features = {
+      localStorage: (() => {
+        try {
+          const test = '__test__'
+          localStorage.setItem(test, test)
+          localStorage.removeItem(test)
+          return 'Available'
+        } catch (e) {
+          return `Unavailable: ${e.message || 'Unknown error'}`
+        }
+      })(),
+      esModules: typeof import === 'function' ? 'Supported' : 'Not supported',
+      fetch: typeof fetch === 'function' ? 'Available' : 'Not available',
+      promises: typeof Promise !== 'undefined' ? 'Supported' : 'Not supported',
+      performance: typeof performance !== 'undefined' && typeof performance.now === 'function' ? 'Available' : 'Not available',
+    }
+
+    return info
+  }
+
+  // Categorize errors by type
+  diag.categorizeErrors = () => {
+    const categories = {
+      storage: [],
+      network: [],
+      module: [],
+      script: [],
+      runtime: [],
+      other: []
+    }
+
+    diag.errors.forEach(err => {
+      const msg = (err.message || '').toLowerCase()
+      const kind = (err.kind || '').toLowerCase()
+
+      if (msg.includes('storage') || msg.includes('quota') || msg.includes('localstorage')) {
+        categories.storage.push(err)
+      } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('cors') || kind === 'preflight') {
+        categories.network.push(err)
+      } else if (msg.includes('module') || msg.includes('import') || kind === 'scriptloaderror') {
+        categories.module.push(err)
+      } else if (kind === 'error' && (err.filename || '').endsWith('.js')) {
+        categories.script.push(err)
+      } else if (kind === 'unhandledrejection' || kind === 'error') {
+        categories.runtime.push(err)
+      } else {
+        categories.other.push(err)
+      }
+    })
+
+    return categories
+  }
+
+  // Provide troubleshooting suggestions based on errors
+  diag.getSuggestions = () => {
+    const suggestions = []
+    const systemInfo = diag.getSystemInfo()
+    const categories = diag.categorizeErrors()
+
+    // Storage issues
+    if (categories.storage.length > 0 || systemInfo.features.localStorage.includes('Unavailable')) {
+      suggestions.push({
+        category: 'Storage',
+        severity: 'critical',
+        problem: 'Browser storage is not available or has reached its limit',
+        solutions: [
+          'Exit private/incognito browsing mode',
+          'Check browser settings to ensure cookies and site data are allowed',
+          'Clear some browser data to free up storage quota',
+          'Try a different browser'
+        ]
+      })
+    }
+
+    // File protocol issues
+    if (systemInfo.protocol === 'file:') {
+      suggestions.push({
+        category: 'Protocol',
+        severity: 'warning',
+        problem: 'Running from file:// protocol can cause module loading issues',
+        solutions: [
+          'Use a local web server (run "python -m http.server 8000" from the game directory)',
+          'Use npx serve or similar HTTP server',
+          'Deploy to a web host'
+        ]
+      })
+    }
+
+    // Network/CORS issues
+    if (categories.network.length > 0) {
+      suggestions.push({
+        category: 'Network',
+        severity: 'critical',
+        problem: 'Failed to load required game files',
+        solutions: [
+          'Check your internet connection',
+          'Disable browser extensions that might block requests',
+          'Try clearing browser cache and reloading',
+          'Check if a firewall or security software is blocking the site'
+        ]
+      })
+    }
+
+    // Module loading issues
+    if (categories.module.length > 0 || systemInfo.features.esModules !== 'Supported') {
+      suggestions.push({
+        category: 'Browser Compatibility',
+        severity: 'critical',
+        problem: 'Your browser does not support ES modules or failed to load them',
+        solutions: [
+          'Update your browser to the latest version',
+          'Use a modern browser (Chrome 87+, Firefox 78+, Safari 14+)',
+          'Check if JavaScript is enabled in browser settings'
+        ]
+      })
+    }
+
+    // Missing or problematic files (from preflight)
+    const problematicFiles = diag.errors.filter(e => e.kind === 'preflight' && (e.missing?.length > 0 || e.bad?.length > 0))
+    if (problematicFiles.length > 0) {
+      suggestions.push({
+        category: 'Missing Files',
+        severity: 'critical',
+        problem: 'Some game files are missing or could not be loaded',
+        solutions: [
+          'Refresh the page (Ctrl+R or Cmd+R)',
+          'Clear browser cache and reload',
+          'Check if the deployment is complete and all files are present',
+          'Report this issue with a screenshot to the developer'
+        ]
+      })
+    }
+
+    // Generic runtime errors
+    if (categories.runtime.length > 0 && suggestions.length === 0) {
+      suggestions.push({
+        category: 'Runtime Error',
+        severity: 'critical',
+        problem: 'An unexpected error occurred while starting the game',
+        solutions: [
+          'Refresh the page and try again',
+          'Clear browser cache and cookies',
+          'Try using an incognito/private browsing window',
+          'Report this issue with a screenshot to the developer'
+        ]
+      })
+    }
+
+    return suggestions
+  }
+
   diag.buildReport = () => ({
     startedAt: diag.startedAt,
     url: (typeof location !== 'undefined' ? location.href : ''),
     ua: (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
-    errors: diag.errors
+    errors: diag.errors,
+    systemInfo: diag.getSystemInfo(),
+    categorizedErrors: diag.categorizeErrors(),
+    suggestions: diag.getSuggestions()
   })
 
   diag.renderOverlay = () => {
@@ -107,80 +285,283 @@ export function installBootDiagnostics() {
       const id = 'pq-boot-diag-overlay'
       if (document.getElementById(id)) return
 
+      const report = diag.buildReport()
+      const systemInfo = report.systemInfo
+      const categories = report.categorizedErrors
+      const suggestions = report.suggestions
+
       const overlay = document.createElement('div')
       overlay.id = id
-      overlay.style.position = 'fixed'
-      overlay.style.inset = '0'
-      overlay.style.zIndex = '999999'
-      overlay.style.background = 'rgba(0,0,0,0.86)'
-      overlay.style.color = '#fff'
-      overlay.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif'
-      overlay.style.padding = '16px'
-      overlay.style.overflow = 'auto'
+      overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(0,0,0,0.95);
+        color: #fff;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        overflow: auto;
+        padding: 20px;
+      `
 
+      // Header
+      const header = document.createElement('div')
+      header.style.cssText = 'margin-bottom: 20px; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 16px;'
+      
       const title = document.createElement('div')
-      title.style.fontSize = '18px'
-      title.style.fontWeight = '700'
-      title.style.marginBottom = '10px'
-      title.textContent = `Boot Diagnostics (Patch ${GAME_PATCH})`
-      overlay.appendChild(title)
+      title.style.cssText = 'font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #ff6b6b;'
+      title.textContent = `🔧 Boot Diagnostics`
+      header.appendChild(title)
 
-      const sub = document.createElement('div')
-      sub.style.fontSize = '12px'
-      sub.style.opacity = '0.85'
-      sub.style.marginBottom = '12px'
-      sub.textContent = 'If the game fails to load, screenshot this overlay. Use Copy Report for a text bug report.'
-      overlay.appendChild(sub)
+      const subtitle = document.createElement('div')
+      subtitle.style.cssText = 'font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 4px;'
+      subtitle.textContent = `Game Patch: ${GAME_PATCH}`
+      header.appendChild(subtitle)
 
+      const helpText = document.createElement('div')
+      helpText.style.cssText = 'font-size: 12px; color: rgba(255,255,255,0.6);'
+      helpText.textContent = 'The game encountered errors during startup. Screenshot this page or use "Copy Report" to share with support.'
+      header.appendChild(helpText)
+
+      overlay.appendChild(header)
+
+      // Action buttons
       const actions = document.createElement('div')
-      actions.style.display = 'flex'
-      actions.style.gap = '8px'
-      actions.style.marginBottom = '12px'
+      actions.style.cssText = 'display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;'
 
-      const mkBtn = (label) => {
+      const mkBtn = (label, variant = 'default') => {
         const b = document.createElement('button')
         b.textContent = label
-        b.style.padding = '8px 10px'
-        b.style.cursor = 'pointer'
+        const bgColor = variant === 'primary' ? '#4CAF50' : variant === 'danger' ? '#f44336' : '#555'
+        b.style.cssText = `
+          padding: 10px 16px;
+          cursor: pointer;
+          background: ${bgColor};
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 600;
+          transition: opacity 0.2s;
+        `
+        b.onmouseover = () => b.style.opacity = '0.8'
+        b.onmouseout = () => b.style.opacity = '1'
         return b
       }
 
-      const btnCopy = mkBtn('Copy Report')
+      const btnCopy = mkBtn('📋 Copy Report', 'primary')
       btnCopy.addEventListener('click', async () => {
         try {
-          const payload = JSON.stringify(diag.buildReport(), null, 2)
+          const payload = JSON.stringify(report, null, 2)
           await navigator.clipboard.writeText(payload)
-          btnCopy.textContent = 'Copied!'
-          setTimeout(() => (btnCopy.textContent = 'Copy Report'), 900)
+          btnCopy.textContent = '✅ Copied!'
+          setTimeout(() => (btnCopy.textContent = '📋 Copy Report'), 1500)
         } catch (_) {
-          btnCopy.textContent = 'Copy failed'
-          setTimeout(() => (btnCopy.textContent = 'Copy Report'), 1200)
+          btnCopy.textContent = '❌ Copy failed'
+          setTimeout(() => (btnCopy.textContent = '📋 Copy Report'), 1500)
         }
       })
 
-      const btnClear = mkBtn('Clear')
+      const btnClear = mkBtn('🗑️ Clear & Close', 'danger')
       btnClear.addEventListener('click', () => {
         diag.errors = []
         try { localStorage.removeItem('pq-last-boot-errors') } catch (_) {}
         overlay.remove()
       })
 
-      const btnClose = mkBtn('Close')
+      const btnClose = mkBtn('✖️ Close')
       btnClose.addEventListener('click', () => overlay.remove())
 
+      const btnRefresh = mkBtn('🔄 Refresh Page')
+      btnRefresh.addEventListener('click', () => location.reload())
+
       actions.appendChild(btnCopy)
+      actions.appendChild(btnRefresh)
       actions.appendChild(btnClear)
       actions.appendChild(btnClose)
       overlay.appendChild(actions)
 
+      // Troubleshooting section (if suggestions exist)
+      if (suggestions.length > 0) {
+        const troubleshootSection = document.createElement('div')
+        troubleshootSection.style.cssText = 'margin-bottom: 20px; background: rgba(255,107,107,0.15); border-left: 4px solid #ff6b6b; padding: 16px; border-radius: 6px;'
+        
+        const troubleshootTitle = document.createElement('div')
+        troubleshootTitle.style.cssText = 'font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #ff6b6b;'
+        troubleshootTitle.textContent = '⚠️ Issues Detected & Solutions'
+        troubleshootSection.appendChild(troubleshootTitle)
+
+        suggestions.forEach(suggestion => {
+          const item = document.createElement('div')
+          item.style.cssText = 'margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);'
+          
+          const severityColor = suggestion.severity === 'critical' ? '#ff6b6b' : suggestion.severity === 'warning' ? '#ffa500' : '#4CAF50'
+          const severityIcon = suggestion.severity === 'critical' ? '🔴' : suggestion.severity === 'warning' ? '⚠️' : 'ℹ️'
+          
+          const header = document.createElement('div')
+          header.style.cssText = `font-weight: 700; margin-bottom: 6px; color: ${severityColor}; font-size: 14px;`
+          header.textContent = `${severityIcon} ${suggestion.category}: ${suggestion.problem}`
+          item.appendChild(header)
+
+          const solutionsList = document.createElement('ul')
+          solutionsList.style.cssText = 'margin: 8px 0 0 20px; padding: 0;'
+          suggestion.solutions.forEach(solution => {
+            const li = document.createElement('li')
+            li.style.cssText = 'margin-bottom: 4px; font-size: 13px; color: rgba(255,255,255,0.9);'
+            li.textContent = solution
+            solutionsList.appendChild(li)
+          })
+          item.appendChild(solutionsList)
+
+          troubleshootSection.appendChild(item)
+        })
+
+        overlay.appendChild(troubleshootSection)
+      }
+
+      // System Information
+      const sysInfoSection = document.createElement('div')
+      sysInfoSection.style.cssText = 'margin-bottom: 20px; background: rgba(76,175,80,0.15); border-left: 4px solid #4CAF50; padding: 16px; border-radius: 6px;'
+      
+      const sysInfoTitle = document.createElement('div')
+      sysInfoTitle.style.cssText = 'font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #4CAF50;'
+      sysInfoTitle.textContent = '💻 System Information'
+      sysInfoSection.appendChild(sysInfoTitle)
+
+      const sysInfoGrid = document.createElement('div')
+      sysInfoGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; font-size: 13px;'
+      
+      const addSysInfoItem = (label, value, status) => {
+        const item = document.createElement('div')
+        item.style.cssText = 'display: flex; justify-content: space-between; padding: 6px; background: rgba(0,0,0,0.3); border-radius: 4px;'
+        
+        const labelEl = document.createElement('span')
+        labelEl.style.cssText = 'color: rgba(255,255,255,0.7); font-weight: 600;'
+        labelEl.textContent = label + ':'
+        
+        const valueEl = document.createElement('span')
+        const statusColor = status === 'ok' ? '#4CAF50' : status === 'error' ? '#ff6b6b' : 'rgba(255,255,255,0.9)'
+        valueEl.style.cssText = `color: ${statusColor}; font-family: monospace;`
+        valueEl.textContent = value
+        
+        item.appendChild(labelEl)
+        item.appendChild(valueEl)
+        sysInfoGrid.appendChild(item)
+      }
+
+      addSysInfoItem('Browser', systemInfo.browser || 'Unknown', 'info')
+      addSysInfoItem('Platform', systemInfo.platform || 'Unknown', 'info')
+      addSysInfoItem('Protocol', systemInfo.protocol || 'Unknown', systemInfo.protocol === 'file:' ? 'error' : 'ok')
+      addSysInfoItem('Online', systemInfo.onLine ? 'Yes' : 'No', systemInfo.onLine ? 'ok' : 'error')
+      addSysInfoItem('Viewport', systemInfo.viewportSize || 'Unknown', 'info')
+      const localStorageAvailable = systemInfo.features.localStorage.includes('Available')
+      addSysInfoItem('LocalStorage', localStorageAvailable ? 'Available' : 'Unavailable', localStorageAvailable ? 'ok' : 'error')
+      addSysInfoItem('ES Modules', systemInfo.features.esModules, systemInfo.features.esModules === 'Supported' ? 'ok' : 'error')
+      addSysInfoItem('Fetch API', systemInfo.features.fetch, systemInfo.features.fetch === 'Available' ? 'ok' : 'error')
+
+      sysInfoSection.appendChild(sysInfoGrid)
+      overlay.appendChild(sysInfoSection)
+
+      // Error Details (categorized)
+      const totalErrors = diag.errors.length
+      if (totalErrors > 0) {
+        const errorSection = document.createElement('div')
+        errorSection.style.cssText = 'margin-bottom: 20px;'
+        
+        const errorTitle = document.createElement('div')
+        errorTitle.style.cssText = 'font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #ffa500;'
+        errorTitle.textContent = `⚡ Error Details (${totalErrors} total)`
+        errorSection.appendChild(errorTitle)
+
+        const renderErrorCategory = (categoryName, errors, icon, color) => {
+          if (errors.length === 0) return
+
+          const categoryDiv = document.createElement('details')
+          categoryDiv.open = true
+          categoryDiv.style.cssText = `margin-bottom: 12px; background: rgba(${color},0.15); border-left: 4px solid rgb(${color}); padding: 12px; border-radius: 6px;`
+
+          const summary = document.createElement('summary')
+          summary.style.cssText = `cursor: pointer; font-weight: 700; margin-bottom: 8px; color: rgb(${color}); font-size: 14px;`
+          summary.textContent = `${icon} ${categoryName} (${errors.length})`
+          categoryDiv.appendChild(summary)
+
+          errors.forEach((err, idx) => {
+            const errDiv = document.createElement('div')
+            errDiv.style.cssText = 'margin-bottom: 8px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; font-size: 12px;'
+            
+            const time = document.createElement('div')
+            time.style.cssText = 'color: rgba(255,255,255,0.5); font-size: 11px; margin-bottom: 4px;'
+            time.textContent = `[${err.t || 'Unknown time'}] ${err.kind || 'error'}`
+            errDiv.appendChild(time)
+
+            const msg = document.createElement('div')
+            msg.style.cssText = 'color: rgba(255,255,255,0.9); margin-bottom: 4px; word-break: break-word;'
+            msg.textContent = err.message || 'No message'
+            errDiv.appendChild(msg)
+
+            if (err.filename) {
+              const file = document.createElement('div')
+              file.style.cssText = 'color: rgba(255,255,255,0.6); font-size: 11px; font-family: monospace;'
+              file.textContent = `📄 ${err.filename}:${err.lineno || '?'}:${err.colno || '?'}`
+              errDiv.appendChild(file)
+            }
+
+            if (err.stack) {
+              const stack = document.createElement('details')
+              stack.style.cssText = 'margin-top: 6px;'
+              const stackSummary = document.createElement('summary')
+              stackSummary.style.cssText = 'cursor: pointer; color: rgba(255,255,255,0.6); font-size: 11px;'
+              stackSummary.textContent = 'Stack trace'
+              stack.appendChild(stackSummary)
+              const stackPre = document.createElement('pre')
+              stackPre.style.cssText = 'margin-top: 4px; font-size: 10px; color: rgba(255,255,255,0.5); overflow-x: auto;'
+              stackPre.textContent = err.stack
+              stack.appendChild(stackPre)
+              errDiv.appendChild(stack)
+            }
+
+            if (err.missing && err.missing.length > 0) {
+              const missing = document.createElement('div')
+              missing.style.cssText = 'margin-top: 6px; color: #ff6b6b; font-size: 11px;'
+              missing.textContent = `Missing files: ${err.missing.map(m => m.url).join(', ')}`
+              errDiv.appendChild(missing)
+            }
+
+            categoryDiv.appendChild(errDiv)
+          })
+
+          errorSection.appendChild(categoryDiv)
+        }
+
+        renderErrorCategory('Storage Errors', categories.storage, '💾', '255,152,0')
+        renderErrorCategory('Network Errors', categories.network, '🌐', '255,107,107')
+        renderErrorCategory('Module Errors', categories.module, '📦', '156,39,176')
+        renderErrorCategory('Script Errors', categories.script, '📜', '255,193,7')
+        renderErrorCategory('Runtime Errors', categories.runtime, '⚡', '244,67,54')
+        renderErrorCategory('Other Errors', categories.other, '❓', '158,158,158')
+
+        overlay.appendChild(errorSection)
+      }
+
+      // Raw JSON (collapsible)
+      const jsonSection = document.createElement('details')
+      jsonSection.style.cssText = 'margin-top: 20px; background: rgba(0,0,0,0.5); padding: 12px; border-radius: 6px;'
+      
+      const jsonSummary = document.createElement('summary')
+      jsonSummary.style.cssText = 'cursor: pointer; font-weight: 700; color: rgba(255,255,255,0.8); margin-bottom: 8px;'
+      jsonSummary.textContent = '📊 Raw JSON Report (for developers)'
+      jsonSection.appendChild(jsonSummary)
+
       const pre = document.createElement('pre')
-      pre.style.whiteSpace = 'pre-wrap'
-      pre.style.fontSize = '12px'
-      pre.textContent = JSON.stringify(diag.buildReport(), null, 2)
-      overlay.appendChild(pre)
+      pre.style.cssText = 'white-space: pre-wrap; font-size: 11px; color: rgba(255,255,255,0.7); overflow-x: auto; margin: 0;'
+      pre.textContent = JSON.stringify(report, null, 2)
+      jsonSection.appendChild(pre)
+
+      overlay.appendChild(jsonSection)
 
       document.body.appendChild(overlay)
-    } catch (_) {}
+    } catch (e) {
+      console.error('Failed to render boot diagnostics overlay:', e)
+    }
   }
 
   // Convenience: expose for quick console access.

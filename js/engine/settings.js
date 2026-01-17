@@ -127,15 +127,32 @@ export function createSettingsService({
 
   function set(key, value, { persist = true } = {}) {
     const k = String(key || '').trim()
-    if (!k) return
+    if (!k) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Settings] set() called with empty key')
+      }
+      return
+    }
+    
+    // Validate value is JSON-serializable
+    try {
+      JSON.stringify(value)
+    } catch (e) {
+      if (typeof console !== 'undefined' && console.error) {
+        console.error(`[Settings] Value for key "${k}" is not JSON-serializable, skipping`, e)
+      }
+      return
+    }
+    
     const prev = get(k, undefined)
     // Avoid noisy churn.
     const same = (() => {
       try { return JSON.stringify(prev) === JSON.stringify(value) } catch (_) { return prev === value }
     })()
     if (same) return
+    
     _setPath(_values, k, value)
-    try { if (emit) emit('settings:changed', { key: k, value }) } catch (_) {}
+    try { if (emit) emit('settings:changed', { key: k, value, previous: prev }) } catch (_) {}
     if (persist) save()
   }
 

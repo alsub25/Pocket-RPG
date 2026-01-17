@@ -5,7 +5,12 @@ function _nowIso() {
   try { return new Date().toISOString() } catch (_) { return '' }
 }
 
-function _fnv1a32(str) {
+/**
+ * FNV-1a 32-bit hash function
+ * @param {string} str - String to hash
+ * @returns {string} - Hex string representation of hash
+ */
+export function fnv1a32(str) {
   let h = 0x811c9dc5
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i)
@@ -14,7 +19,12 @@ function _fnv1a32(str) {
   return (h >>> 0).toString(16).padStart(8, '0')
 }
 
-function _stableStringify(obj) {
+/**
+ * Deterministic JSON stringify with key sorting
+ * @param {*} obj - Object to stringify
+ * @returns {string} - Deterministic JSON string
+ */
+export function stableStringify(obj) {
   // Deterministic JSON stringify with key sorting.
   const seen = new WeakSet()
 
@@ -34,6 +44,15 @@ function _stableStringify(obj) {
   }
 
   return JSON.stringify(walk(obj))
+}
+
+// Keep internal versions for backward compatibility
+function _fnv1a32(str) {
+  return fnv1a32(str)
+}
+
+function _stableStringify(obj) {
+  return stableStringify(obj)
 }
 
 export function createSnapshotManager({
@@ -70,6 +89,14 @@ export function createSnapshotManager({
   }
 
   function load(snapshot, { allowMigrate = true } = {}) {
+    // Validate snapshot parameter
+    if (!snapshot || typeof snapshot !== 'object') {
+      const err = new Error('load() requires a valid snapshot object')
+      err.code = 'INVALID_SNAPSHOT'
+      err.details = { snapshotType: typeof snapshot }
+      throw err
+    }
+    
     const v = validate(snapshot)
     if (!v.ok) {
       _log('warn', 'Snapshot validation failed', v)
@@ -90,11 +117,34 @@ export function createSnapshotManager({
         _log('info', 'Migrated snapshot state', { from, to })
       } catch (e) {
         _log('error', 'Migration failed', { from, to, e })
-        throw e
+        const err = new Error(`Migration failed: ${e.message}`)
+        err.code = 'MIGRATION_FAILED'
+        err.details = { from, to, originalError: { message: e.message, stack: e.stack } }
+        throw err
       }
     }
 
-    if (typeof setState === 'function') setState(nextState)
+    // Validate state after migration
+    if (!nextState || typeof nextState !== 'object') {
+      const err = new Error('Migrated state is not a valid object')
+      err.code = 'INVALID_STATE'
+      err.details = { stateType: typeof nextState, from, to }
+      throw err
+    }
+
+    if (typeof setState === 'function') {
+      try {
+        // Use metadata-enhanced setState if available (engine.setState accepts 2nd param)
+        setState(nextState, { reason: 'save:loaded', fromVersion: from, toVersion: to })
+      } catch (e) {
+        _log('error', 'setState failed after migration', { from, to, e })
+        const err = new Error(`Failed to set state after migration: ${e.message}`)
+        err.code = 'SETSTATE_FAILED'
+        err.details = { from, to, originalError: { message: e.message, stack: e.stack } }
+        throw err
+      }
+    }
+    
     try { if (emit) emit('save:loaded', { fromVersion: from, toVersion: to }) } catch (_) {}
     return nextState
   }

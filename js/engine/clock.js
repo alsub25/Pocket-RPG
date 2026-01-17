@@ -23,7 +23,25 @@ export function createClock({
      */
     tick(dtMs) {
       const raw = (fixedDtMs == null) ? Number(dtMs) : Number(fixedDtMs)
-      const step = (Number.isFinite(raw) ? raw : 0) * scale
+      
+      // Validate and clamp raw value
+      if (!Number.isFinite(raw)) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn(`[Clock] tick() received non-finite dtMs: ${dtMs}, using 0`)
+        }
+        nowMs += 0
+        return 0
+      }
+      
+      if (raw < 0) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn(`[Clock] tick() received negative dtMs: ${raw}, using 0`)
+        }
+        nowMs += 0
+        return 0
+      }
+      
+      const step = raw * scale
       nowMs += step
       return step
     }

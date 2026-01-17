@@ -18,7 +18,20 @@ export function createAssetRegistry({ emit = null, logger = null } = {}) {
 
   function register(key, url) {
     const k = String(key || '').trim()
-    if (!k) return
+    if (!k) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Assets] register() called with empty key')
+      }
+      return
+    }
+    
+    // Warn if overwriting existing asset
+    if (map.has(k)) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn(`[Assets] Overwriting asset "${k}": ${map.get(k)} -> ${url}`)
+      }
+    }
+    
     map.set(k, String(url || ''))
   }
 
@@ -107,9 +120,20 @@ export function createAssetRegistry({ emit = null, logger = null } = {}) {
 
   async function preloadGroup(groupId, opts = {}) {
     const g = String(groupId || '').trim()
-    if (!g) return []
+    if (!g) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Assets] preloadGroup() called with empty groupId')
+      }
+      return []
+    }
+    
     const set = groups.get(g)
-    const keys = set ? Array.from(set) : []
+    if (!set || set.size === 0) {
+      _log('info', 'preloadGroup called for empty or non-existent group', { group: g })
+      return []
+    }
+    
+    const keys = Array.from(set)
     return preload(keys, { ...opts, group: g })
   }
 

@@ -47,28 +47,63 @@ import { createAudioBridgePlugin } from '../plugins/audioBridgePlugin.js'
 import { createRngBridgePlugin } from '../plugins/rngBridgePlugin.js'
 import { createGameCommandsPlugin } from '../plugins/gameCommandsPlugin.js'
 import { createScreenAssetPreloadPlugin } from '../plugins/screenAssetPreloadPlugin.js'
+import { createVillageServicesPlugin } from '../plugins/villageServicesPlugin.js'
+import { createBankServicePlugin } from '../plugins/bankServicePlugin.js'
+import { createMerchantServicePlugin } from '../plugins/merchantServicePlugin.js'
+import { createTavernServicePlugin } from '../plugins/tavernServicePlugin.js'
+import { createTownHallServicePlugin } from '../plugins/townHallServicePlugin.js'
+import { createTimeServicePlugin } from '../plugins/timeServicePlugin.js'
+import { createKingdomGovernmentPlugin } from '../plugins/kingdomGovernmentPlugin.js'
+import { createLootGeneratorPlugin } from '../plugins/lootGeneratorPlugin.js'
+import { createQuestSystemPlugin } from '../plugins/questSystemPlugin.js'
+
+// Refactored modules (Patch 1.2.72 - Intensive Refactor & Hardening)
+import {
+    runDailyTicks as runDailyTicksImpl,
+    advanceWorldTime as advanceWorldTimeImpl,
+    advanceToNextMorning as advanceToNextMorningImpl,
+    advanceWorldDays as advanceWorldDaysImpl
+} from './dailyTickPipeline.js'
+import {
+    recordCrash,
+    getLastCrashReport,
+    initCrashCatcher,
+    copyFeedbackToClipboard
+} from './debugHelpers.js'
 
 /* =============================================================================
- * Emberwood Engine (engine.js)
+ * Emberwood Game Orchestrator (gameOrchestrator.js)
  * Patch: 1.2.72 — The Blackbark Oath — Spell Book, Companions & Changelog UX
  *
- * WHAT THIS FILE DOES IN-GAME
- * - Boots the game runtime after the UI shell loads.
- * - Owns the single `state` object (new game, load, save, migrations).
- * - Wires UI buttons/modals to gameplay actions.
- * - Runs the “daily tick” simulation pipeline (quests → government → economy → merchants → bank → population).
+ * ENGINE-FIRST ARCHITECTURE
+ * This module implements engine-first architecture where the Locus Engine is
+ * the central orchestrator and all game systems run through it.
+ *
+ * WHAT THIS FILE DOES
+ * - Registers game-specific plugins with the engine
+ * - Starts the engine (making all systems operational)
+ * - Wires UI buttons/modals to gameplay actions via engine services
+ * - Coordinates the "daily tick" simulation pipeline through engine events
+ * - Manages state through engine's state management system
+ *
+ * BOOT FLOW (Engine-First)
+ * 1. Engine created (core services ready: clock, scheduler, events, etc.)
+ * 2. bootGame() called - registers all game plugins with engine
+ * 3. engine.start() called within bootGame - initializes and starts all systems
+ * 4. Game fully operational - everything runs through the engine
  *
  * ADDING A NEW SYSTEM (quick checklist)
  * 1) Create your module in js/game/systems/ (or a Location module).
- * 2) Hook it into the engine:
+ * 2) Register it as an engine plugin or hook into existing plugins:
  *    - Daily simulation: add ONE entry to `DAILY_STEPS` inside `runDailyTicks()`.
  *    - New save defaults: add ONE entry to `NEW_GAME_INIT_STEPS` inside `startNewGameFromCreation()`.
  *    - Load repair (missing fields): add ONE entry to `LOAD_REPAIR_STEPS` inside `loadGame()`.
- * 3) If it needs UI: add a modal/open function and wire it in the UI section.
+ * 3) If it needs UI: add a modal/open function and wire it through engine commands/events.
  *
  * NOTE
- * This file is intentionally “single file orchestration”. Core logic lives in
- * js/game/systems/* and js/game/locations/* modules.
+ * This file orchestrates the game layer. Core logic lives in js/game/systems/*
+ * and js/game/locations/* modules. The engine (js/engine/*) provides the
+ * infrastructure for all systems to communicate and coordinate.
  * ============================================================================= */
 
 import { CHANGELOG } from '../changelog/changelog.js'
@@ -461,6 +496,23 @@ function advanceWorldDays(stateArg, days, hooks = {}) {
 const GAME_PATCH = CURRENT_PATCH // current patch/version
 const GAME_PATCH_NAME = CURRENT_PATCH_NAME
 const SAVE_SCHEMA = 7 // bump when the save structure changes (migrations run on load)
+const GITHUB_REPO_URL = 'https://github.com/alsub25/Emberwood-The-Blackbark-Oath' // repository URL for issue creation
+const GITHUB_ISSUE_TITLE_MAX_LENGTH = 60 // max characters for issue title preview (GitHub supports longer)
+const GITHUB_URL_MAX_LENGTH = 2000 // conservative browser URL length limit
+
+/**
+ * Detect if the game is running on GitHub Pages
+ * @returns {boolean} true if running on GitHub Pages
+ */
+function isRunningOnGitHubPages() {
+    try {
+        const hostname = window.location.hostname.toLowerCase()
+        // GitHub Pages domains: username.github.io or custom domains
+        return hostname.endsWith('.github.io')
+    } catch (error) {
+        return false
+    }
+}
 
 /* =============================================================================
  * SAFETY HELPERS
@@ -511,87 +563,21 @@ function sanitizeCoreState() {
  * CRASH CATCHER
  * Captures last-crash info so “black screen” bugs can be debugged from saves.
  * ============================================================================= */
-let lastCrashReport = null
 // Track the most recent save failure so the "Copy Bug Report" bundle can include it.
 // (Safari iOS will throw if a non-declared global is referenced.)
 let lastSaveError = null
 
-function recordCrash(kind, err, extra = {}) {
-    try {
-        const message =
-            (err && err.message) ||
-            (typeof err === 'string' ? err : '') ||
-            'Unknown error'
-        const stack = err && err.stack ? String(err.stack) : ''
-        lastCrashReport = {
-            kind,
-            message: String(message),
-            stack: stack,
-            time: Date.now(),
-            patch: GAME_PATCH,
-            schema: SAVE_SCHEMA,
-            area: state && state.area ? state.area : null,
-            player:
-                state && state.player
-                    ? {
-                          name: state.player.name,
-                          classId: state.player.classId,
-                          level: state.player.level
-                      }
-                    : null,
-            extra
-        }
-
-
-        try {
-            safeStorageSet(_STORAGE_DIAG_KEY_LAST_CRASH, JSON.stringify(lastCrashReport), { action: 'write crash report' })
-        } catch (_) {}
-
-        // Keep a short in-game breadcrumb too.
-        try {
-            if (typeof addLog === 'function') {
-                addLog('⚠️ An error occurred. Use Feedback to copy a report.', 'danger')
-            }
-        } catch (_) {}
-    } catch (_) {
-        // ignore
-    }
-}
-
-function initCrashCatcher() {
-    if (window.__pqCrashCatcherInstalled) return
-    window.__pqCrashCatcherInstalled = true
-
-    // Restore the last crash report (if any) so Feedback can include it after reload.
-    // To reduce confusion, we auto-expire stale crash reports (e.g., from prior patches/sessions).
-    try {
-        const raw = safeStorageGet(_STORAGE_DIAG_KEY_LAST_CRASH)
-        if (raw) {
-            const parsed = JSON.parse(raw)
-            const now = Date.now()
-            const tooOld = parsed && typeof parsed.time === 'number' ? (now - parsed.time) > 1000 * 60 * 60 * 12 : false
-            const wrongPatch = parsed && parsed.patch && typeof GAME_PATCH === 'string' ? parsed.patch !== GAME_PATCH : false
-            if (parsed && typeof parsed === 'object' && !tooOld && !wrongPatch) {
-                lastCrashReport = parsed
-            } else {
-                safeStorageRemove(_STORAGE_DIAG_KEY_LAST_CRASH)
-            }
-        }
-    } catch (_) {}
-
-    window.addEventListener('error', (e) => {
-        recordCrash(
-            'error',
-            e && e.error ? e.error : new Error(e && e.message ? e.message : 'Script error'),
-            { filename: e && e.filename, lineno: e && e.lineno, colno: e && e.colno }
-        )
-    })
-
-    window.addEventListener('unhandledrejection', (e) => {
-        const reason = e && e.reason ? e.reason : new Error('Unhandled promise rejection')
-        recordCrash('unhandledrejection', reason)
+// Wrapper function to initialize crash catcher with game context
+// This is called by uiBindings.js during boot
+function initCrashCatcherWrapper() {
+    initCrashCatcher({
+        GAME_PATCH,
+        SAVE_SCHEMA,
+        getState: () => state,
+        addLog
     })
 }
+
 
 
 // --- Progression / special encounters --------------------------------------
@@ -1753,7 +1739,8 @@ if (p.classId === 'warrior' && p.resourceKey === 'fury' && (p.resource || 0) >= 
 // (The Headshot finisher already consumes marks for a large payoff; this makes the meter matter between finishers.)
 try {
     const enemy = state.currentEnemy
-    if (p.classId === 'ranger' && enemy && (enemy.markedStacks || 0) > 0) {        const marks = Math.max(0, Math.min(5, enemy.markedStacks || 0))
+    if (p.classId === 'ranger' && enemy && (enemy.markedStacks || 0) > 0) {
+        const marks = Math.max(0, Math.min(5, enemy.markedStacks || 0))
         const perMark = 0.03 + (playerHasTalent(p, 'ranger_pinpoint') ? 0.01 : 0)
         ctx.dmgMult *= 1 + marks * perMark
     }
@@ -3227,7 +3214,11 @@ function setMusicEnabled(enabled, { persist = true } = {}) {
     audioState.musicEnabled = on
     if (persist) {
         try {
-            safeStorageSet('pq-music-enabled', on ? '1' : '0', { action: 'write music toggle' })
+            // Use engine settings service (locus_settings)
+            const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+            if (settings && settings.set) {
+                settings.set('audio.musicEnabled', on)
+            }
         } catch (e) {}
     }
     initAudio()
@@ -3242,7 +3233,11 @@ function setSfxEnabled(enabled, { persist = true } = {}) {
     audioState.sfxEnabled = on
     if (persist) {
         try {
-            safeStorageSet('pq-sfx-enabled', on ? '1' : '0', { action: 'write sfx toggle' })
+            // Use engine settings service (locus_settings)
+            const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+            if (settings && settings.set) {
+                settings.set('audio.sfxEnabled', on)
+            }
         } catch (e) {}
     }
     initAudio()
@@ -3274,10 +3269,15 @@ function initAudio() {
             audioState.musicEnabled = state.musicEnabled !== false
             audioState.sfxEnabled = state.sfxEnabled !== false
         } else {
-            const m = safeStorageGet('pq-music-enabled')
-            if (m !== null) audioState.musicEnabled = m === '1' || m === 'true'
-            const s = safeStorageGet('pq-sfx-enabled')
-            if (s !== null) audioState.sfxEnabled = s === '1' || s === 'true'
+            // Try engine settings first, then fall back to legacy storage
+            // Use engine settings service (locus_settings) to initialize audio toggles
+            try {
+                const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                if (settings && typeof settings.get === 'function') {
+                    audioState.musicEnabled = settings.get('audio.musicEnabled', true)
+                    audioState.sfxEnabled = settings.get('audio.sfxEnabled', true)
+                }
+            } catch (e) {}
         }
     } catch (e) {}
 
@@ -13121,6 +13121,11 @@ function openInGameSettingsModal() {
             return wrap
         }
 
+        // Get engine settings service once for use across all sections
+        const engineSettings = (() => {
+            try { return _engine && _engine.getService ? _engine.getService('settings') : null } catch (_) { return null }
+        })()
+
         // --- Audio ------------------------------------------------------------
         const secAudio = addSection('Audio')
 
@@ -13146,8 +13151,12 @@ function openInGameSettingsModal() {
             slider.addEventListener('input', () => {
                 const v = Number(slider.value) || 0
                 state.settingsVolume = v
+                // Use engine settings service (locus_settings)
                 try {
-                    safeStorageSet('pq-master-volume', String(v), { action: 'write volume' })
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('audio.masterVolume', v)
+                    }
                 } catch (e) {}
                 value.textContent = v + '%'
                 setMasterVolumePercent(v)
@@ -13217,10 +13226,104 @@ function openInGameSettingsModal() {
                 themeSelectInline.appendChild(opt)
             })
 
-            themeSelectInline.value = safeStorageGet('pq-theme') || 'default'
+            // Hydrate from engine settings when present
+            try {
+                const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                if (settings && typeof settings.get === 'function') {
+                    themeSelectInline.value = settings.get('ui.theme', 'default')
+                }
+            } catch (_) {
+                themeSelectInline.value = 'default'
+            }
             themeSelectInline.addEventListener('change', () => setTheme(themeSelectInline.value))
 
             control.appendChild(themeSelectInline)
+            row.appendChild(control)
+            secDisplay.appendChild(row)
+        }
+
+        // Color scheme
+        {
+            const row = makeRow('Color scheme', 'Light or dark mode for the UI.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sel = document.createElement('select')
+            sel.className = 'settings-select'
+            sel.setAttribute('aria-label', 'Color scheme')
+            ;[
+                { value: 'auto', label: 'Auto' },
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' }
+            ].forEach((o) => {
+                const opt = document.createElement('option')
+                opt.value = o.value
+                opt.textContent = o.label
+                sel.appendChild(opt)
+            })
+
+            // Hydrate from engine settings when present
+            try {
+                if (engineSettings && engineSettings.get) {
+                    sel.value = engineSettings.get('a11y.colorScheme', 'auto')
+                }
+            } catch (_) {}
+
+            sel.addEventListener('change', () => {
+                const v = String(sel.value || 'auto')
+                try {
+                    if (engineSettings && engineSettings.set) {
+                        engineSettings.set('a11y.colorScheme', v)
+                    }
+                } catch (_) {}
+                requestSave('legacy')
+            })
+
+            control.appendChild(sel)
+            row.appendChild(control)
+            secDisplay.appendChild(row)
+        }
+
+        // UI scale
+        {
+            const row = makeRow('UI scale', 'Adjusts the size of all UI elements.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sel = document.createElement('select')
+            sel.className = 'settings-select'
+            sel.setAttribute('aria-label', 'UI scale')
+            ;[
+                { value: '0.9', label: 'Small' },
+                { value: '1', label: 'Default' },
+                { value: '1.1', label: 'Large' },
+                { value: '1.2', label: 'Extra Large' }
+            ].forEach((o) => {
+                const opt = document.createElement('option')
+                opt.value = o.value
+                opt.textContent = o.label
+                sel.appendChild(opt)
+            })
+
+            // Hydrate from engine settings when present
+            try {
+                if (engineSettings && engineSettings.get) {
+                    const scale = Number(engineSettings.get('ui.scale', 1))
+                    sel.value = String(scale)
+                }
+            } catch (_) {}
+
+            sel.addEventListener('change', () => {
+                const v = Number(sel.value) || 1
+                try {
+                    if (engineSettings && engineSettings.set) {
+                        engineSettings.set('ui.scale', v)
+                    }
+                } catch (_) {}
+                requestSave('legacy')
+            })
+
+            control.appendChild(sel)
             row.appendChild(control)
             secDisplay.appendChild(row)
         }
@@ -13246,8 +13349,12 @@ function openInGameSettingsModal() {
                 const v = Number(slider.value) || 100
                 state.settingsTextSpeed = v
                 value.textContent = String(v)
+                // Use engine settings service (locus_settings)
                 try {
-                    safeStorageSet('pq-text-speed', String(v), { action: 'write text speed' })
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('ui.textSpeed', v)
+                    }
                 } catch (e) {}
             })
 
@@ -13289,11 +13396,56 @@ function openInGameSettingsModal() {
             secGameplay.appendChild(row)
         }
 
+        // Show combat numbers
+        {
+            const row = makeRow('Show combat numbers', 'Display damage and healing numbers in combat.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sw = makeSwitch(null, state.settingsShowCombatNumbers !== false, (on) => {
+                state.settingsShowCombatNumbers = !!on
+                try {
+                    if (engineSettings && engineSettings.set) {
+                        engineSettings.set('gameplay.showCombatNumbers', !!on)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-show-combat-numbers', state.settingsShowCombatNumbers ? '1' : '0')
+                    }
+                } catch (e) {}
+                requestSave('legacy')
+            }, 'Toggle combat numbers')
+
+            control.appendChild(sw)
+            row.appendChild(control)
+            secGameplay.appendChild(row)
+        }
+
+        // Auto-save
+        {
+            const row = makeRow('Auto-save', 'Automatically save your progress periodically.')
+            const control = document.createElement('div')
+            control.className = 'settings-control'
+
+            const sw = makeSwitch(null, state.settingsAutoSave !== false, (on) => {
+                state.settingsAutoSave = !!on
+                try {
+                    if (engineSettings && engineSettings.set) {
+                        engineSettings.set('gameplay.autoSave', !!on)
+                    } else {
+                        // Legacy fallback
+                        safeStorageSet('pq-auto-save', state.settingsAutoSave ? '1' : '0')
+                    }
+                } catch (e) {}
+                requestSave('legacy')
+            }, 'Toggle auto-save')
+
+            control.appendChild(sw)
+            row.appendChild(control)
+            secGameplay.appendChild(row)
+        }
+
         // --- Accessibility ----------------------------------------------------
         const secAccess = addSection('Accessibility')
-        const engineSettings = (() => {
-            try { return _engine && _engine.getService ? _engine.getService('settings') : null } catch (_) { return null }
-        })()
         {
             const row = makeRow('Reduce motion', 'Turns off animated HUD effects.')
             const control = document.createElement('div')
@@ -13408,8 +13560,12 @@ function openInGameSettingsModal() {
 
             const sw = makeSwitch(null, !!state.settingsAutoEquipLoot, (on) => {
                 state.settingsAutoEquipLoot = !!on
+                // Use engine settings service (locus_settings)
                 try {
-                    safeStorageSet('pq-auto-equip-loot', state.settingsAutoEquipLoot ? '1' : '0')
+                    const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+                    if (settings && settings.set) {
+                        settings.set('gameplay.autoEquipLoot', !!on)
+                    }
                 } catch (e) {}
                 requestSave('legacy')
             }, 'Toggle auto-equip loot')
@@ -13595,9 +13751,10 @@ function showCorruptSaveModal(details = '') {
 
             const pre = document.createElement('pre')
             pre.className = 'code-block'
+            const crashReport = getLastCrashReport()
             pre.textContent =
                 'Tip: Open Feedback to copy a report if one exists.\n\n' +
-                (lastCrashReport ? JSON.stringify(lastCrashReport, null, 2) : '(no crash report recorded)')
+                (crashReport ? JSON.stringify(crashReport, null, 2) : '(no crash report recorded)')
             body.appendChild(pre)
 
             const actions = document.createElement('div')
@@ -14193,9 +14350,13 @@ function initSettingsFromState() {
     const autoEquipLootEl = document.getElementById('settingsAutoEquipLootToggle')
     const highContrastEl = document.getElementById('settingsHighContrast')
     const textSizeEl = document.getElementById('settingsTextSize')
+    const colorSchemeEl = document.getElementById('settingsColorScheme')
+    const uiScaleEl = document.getElementById('settingsUiScale')
+    const showCombatNumbersEl = document.getElementById('settingsShowCombatNumbers')
+    const autoSaveEl = document.getElementById('settingsAutoSave')
 
     // If controls aren't present, nothing to do
-    if (!volumeSlider && !textSpeedSlider && !settingsDifficulty && !autoEquipLootEl && !highContrastEl && !textSizeEl) return
+    if (!volumeSlider && !textSpeedSlider && !settingsDifficulty && !autoEquipLootEl && !highContrastEl && !textSizeEl && !colorSchemeEl && !uiScaleEl && !showCombatNumbersEl && !autoSaveEl) return
 
     // If state doesn't exist, bail
     if (typeof state === 'undefined' || !state) return
@@ -14239,6 +14400,26 @@ function initSettingsFromState() {
     if (autoEquipLootEl && !autoEquipLootEl.dataset.pqWired) {
         autoEquipLootEl.dataset.pqWired = '1'
         autoEquipLootEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (colorSchemeEl && !colorSchemeEl.dataset.pqWired) {
+        colorSchemeEl.dataset.pqWired = '1'
+        colorSchemeEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (uiScaleEl && !uiScaleEl.dataset.pqWired) {
+        uiScaleEl.dataset.pqWired = '1'
+        uiScaleEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (showCombatNumbersEl && !showCombatNumbersEl.dataset.pqWired) {
+        showCombatNumbersEl.dataset.pqWired = '1'
+        showCombatNumbersEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    if (autoSaveEl && !autoSaveEl.dataset.pqWired) {
+        autoSaveEl.dataset.pqWired = '1'
+        autoSaveEl.addEventListener('change', () => applySettingsChanges())
     }
 
     // Text speed should apply live (and avoid stacked listeners)
@@ -14286,6 +14467,27 @@ function initSettingsFromState() {
     } catch (_) {}
 
     if (autoEquipLootEl) autoEquipLootEl.checked = !!state.settingsAutoEquipLoot
+
+    if (showCombatNumbersEl) showCombatNumbersEl.checked = (state.settingsShowCombatNumbers !== false)
+    if (autoSaveEl) autoSaveEl.checked = (state.settingsAutoSave !== false)
+
+    // Color scheme is stored in unified engine settings
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (colorSchemeEl && settings && typeof settings.get === 'function') {
+            const scheme = settings.get('ui.colorScheme', 'auto')
+            colorSchemeEl.value = String(scheme)
+        }
+    } catch (_) {}
+
+    // UI scale is stored in unified engine settings
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (uiScaleEl && settings && typeof settings.get === 'function') {
+            const scale = Number(settings.get('ui.scale', 1))
+            uiScaleEl.value = String(scale)
+        }
+    } catch (_) {}
 
     if (settingsDifficulty && state.difficulty) {
         settingsDifficulty.value = state.difficulty
@@ -14370,6 +14572,35 @@ function applySettingsChanges() {
         try { engineSettings && engineSettings.set && engineSettings.set('gameplay.autoEquipLoot', !!state.settingsAutoEquipLoot) } catch (_) {}
     }
 
+    // Color scheme
+    const colorSchemeEl = document.getElementById('settingsColorScheme')
+    if (colorSchemeEl) {
+        const scheme = String(colorSchemeEl.value || 'auto')
+        try { engineSettings && engineSettings.set && engineSettings.set('ui.colorScheme', scheme) } catch (_) {}
+    }
+
+    // UI scale
+    const uiScaleEl = document.getElementById('settingsUiScale')
+    if (uiScaleEl) {
+        const scale = Number(uiScaleEl.value) || 1
+        try { engineSettings && engineSettings.set && engineSettings.set('ui.scale', scale) } catch (_) {}
+        // The a11y bridge plugin will apply the scale to the DOM
+    }
+
+    // Show combat numbers
+    const showCombatNumbersEl = document.getElementById('settingsShowCombatNumbers')
+    if (showCombatNumbersEl) {
+        state.settingsShowCombatNumbers = !!showCombatNumbersEl.checked
+        try { engineSettings && engineSettings.set && engineSettings.set('gameplay.showCombatNumbers', !!state.settingsShowCombatNumbers) } catch (_) {}
+    }
+
+    // Auto-save
+    const autoSaveEl = document.getElementById('settingsAutoSave')
+    if (autoSaveEl) {
+        state.settingsAutoSave = !!autoSaveEl.checked
+        try { engineSettings && engineSettings.set && engineSettings.set('gameplay.autoSave', !!state.settingsAutoSave) } catch (_) {}
+    }
+
     // Apply audio settings immediately
     setMasterVolumePercent(state.settingsVolume)
     updateAreaMusic()
@@ -14409,13 +14640,14 @@ function setReduceMotionEnabled(enabled) {
     if (typeof state === 'undefined' || !state) return
     state.settingsReduceMotion = !!enabled
     try {
+        // Use engine settings service (locus_settings)
         const settings = _engine && _engine.getService ? _engine.getService('settings') : null
         if (settings && settings.set) settings.set('a11y.reduceMotion', state.settingsReduceMotion)
     } catch (_) {}
     applyMotionPreference()
 }
 function setTheme(themeName) {
-    // Prefer the unified settings service; a11y bridge will apply to DOM.
+    // Use the unified settings service (locus_settings); a11y bridge will apply to DOM.
     try {
         const settings = _engine && _engine.getService ? _engine.getService('settings') : null
         if (settings && settings.set) {
@@ -14424,7 +14656,7 @@ function setTheme(themeName) {
         }
     } catch (_) {}
 
-    // Fallback: legacy direct DOM handling.
+    // Fallback: if settings service is not available, apply theme directly to DOM.
     if (typeof document === 'undefined' || !document.body) return
     document.body.classList.remove(
         'theme-arcane',
@@ -14442,16 +14674,38 @@ function setTheme(themeName) {
 // Load saved theme on startup
 ;(function loadTheme() {
     if (typeof document === 'undefined' || !document.body) return
-    const saved = safeStorageGet('pq-theme') || 'default'
-    setTheme(saved)
+    // Use engine settings (locus_settings)
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (settings && settings.get) {
+            const saved = settings.get('ui.theme', 'default')
+            setTheme(saved)
+            return
+        }
+    } catch (_) {}
+    // If settings not available, use default
+    setTheme('default')
 })()
 // --- FEEDBACK / BUG REPORT -----------------------------------------------------
 
 function openFeedbackModal() {
+    const isGitHubPages = isRunningOnGitHubPages()
+    
+    // Build GitHub issue button HTML only if on GitHub Pages
+    const githubButtonHtml = isGitHubPages ? `
+    <button class="btn primary small" id="btnCreateGitHubIssue">
+      📝 Create GitHub Issue
+    </button>
+    ` : ''
+    
+    // Adjust subtitle based on where the game is running
+    const subtitle = isGitHubPages 
+        ? 'Help improve Emberwood: The Blackbark Oath by sending structured feedback. You can submit directly to GitHub or copy the text manually.'
+        : 'Help improve Emberwood: The Blackbark Oath by sending structured feedback. Copy this text and paste it wherever you\'re tracking issues.'
+    
     const bodyHtml = `
     <div class="modal-subtitle">
-      Help improve Emberwood: The Blackbark Oath by sending structured feedback. 
-      Copy this text and paste it wherever you’re tracking issues.
+      ${subtitle}
     </div>
 
     <div class="field">
@@ -14472,7 +14726,9 @@ function openFeedbackModal() {
       ></textarea>
     </div>
 
-    <button class="btn primary small" id="btnFeedbackCopy">
+    ${githubButtonHtml}
+
+    <button class="btn ${isGitHubPages ? 'small outline' : 'primary small'}" id="btnFeedbackCopy" style="${isGitHubPages ? 'margin-top:8px;' : ''}">
       Copy Feedback To Clipboard
     </button>
 
@@ -14488,6 +14744,11 @@ function openFeedbackModal() {
 
     openModal('Feedback / Bug Report', (bodyEl) => {
         bodyEl.innerHTML = bodyHtml
+
+        const btnCreateIssue = document.getElementById('btnCreateGitHubIssue')
+        if (btnCreateIssue) {
+            btnCreateIssue.addEventListener('click', handleCreateGitHubIssue)
+        }
 
         const btnCopy = document.getElementById('btnFeedbackCopy')
         if (btnCopy) {
@@ -14535,6 +14796,53 @@ function handleFeedbackCopy() {
         .catch(() => (status.textContent = '❌ Could not access clipboard.'))
 }
 
+function handleCreateGitHubIssue() {
+    const typeEl = document.getElementById('feedbackType')
+    const textEl = document.getElementById('feedbackText')
+    const status = document.getElementById('feedbackStatus')
+    if (!typeEl || !textEl || !status) return
+
+    const type = typeEl.value
+    const text = (textEl.value || '').trim()
+
+    if (!text) {
+        status.textContent = '⚠️ Please provide some details about your feedback.'
+        return
+    }
+
+    // Build issue title based on type
+    const typeLabels = {
+        'ui': '🎨 UI Issue',
+        'bug': '🐛 Bug Report',
+        'balance': '⚖️ Balance Issue',
+        'suggestion': '💡 Suggestion',
+        'other': '📝 Feedback'
+    }
+    const issueTitle = `${typeLabels[type] || 'Feedback'}: ${text.substring(0, GITHUB_ISSUE_TITLE_MAX_LENGTH)}${text.length > GITHUB_ISSUE_TITLE_MAX_LENGTH ? '...' : ''}`
+
+    // Build issue body with all context
+    const payload = buildFeedbackPayload(type, text)
+    
+    // Encode for URL
+    const githubUrl = `${GITHUB_REPO_URL}/issues/new?` +
+        `title=${encodeURIComponent(issueTitle)}&` +
+        `body=${encodeURIComponent(payload)}`
+
+    // Validate URL length (conservative browser limit)
+    if (githubUrl.length > GITHUB_URL_MAX_LENGTH) {
+        status.textContent = '⚠️ Feedback too long for URL. Please use "Copy to Clipboard" instead.'
+        return
+    }
+
+    // Open in new tab
+    try {
+        window.open(githubUrl, '_blank')
+        status.textContent = '✅ Opening GitHub issue page...'
+    } catch (error) {
+        status.textContent = '❌ Could not open GitHub. Please copy feedback manually.'
+    }
+}
+
 function buildFeedbackPayload(type, text) {
     const lines = []
     lines.push('Emberwood: The Blackbark Oath RPG Feedback')
@@ -14568,14 +14876,15 @@ function buildFeedbackPayload(type, text) {
         lines.push('')
     }
 
-    if (lastCrashReport) {
+    const crashReport = getLastCrashReport()
+    if (crashReport) {
         lines.push('Last Crash:')
-        lines.push(`- Kind: ${lastCrashReport.kind}`)
-        lines.push(`- Time: ${new Date(lastCrashReport.time).toISOString()}`)
-        lines.push(`- Message: ${lastCrashReport.message}`)
-        if (lastCrashReport.stack) {
+        lines.push(`- Kind: ${crashReport.kind}`)
+        lines.push(`- Time: ${new Date(crashReport.time).toISOString()}`)
+        lines.push(`- Message: ${crashReport.message}`)
+        if (crashReport.stack) {
             lines.push('- Stack:')
-            lines.push(String(lastCrashReport.stack))
+            lines.push(String(crashReport.stack))
         }
         lines.push('')
     }
@@ -15447,7 +15756,7 @@ function buildBugReportBundle() {
     const scanners = qaCollectBugScannerFindings(state)
 
     const diag = {
-        lastCrashReport: lastCrashReport || null,
+        lastCrashReport: getLastCrashReport() || null,
         lastSaveError: lastSaveError || null,
         perfSnapshot: (() => { try { return qaCollectPerfSnapshotSync(state) } catch (_) { return null } })(),
         logTail: (state && Array.isArray(state.log)) ? state.log.slice(-200) : [],
@@ -19857,28 +20166,6 @@ section('State Invariants')
     }
 }
 
-function copyFeedbackToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text)
-    }
-
-    return new Promise((resolve, reject) => {
-        try {
-            const temp = document.createElement('textarea')
-            temp.value = text
-            temp.style.position = 'fixed'
-            temp.style.left = '-9999px'
-            document.body.appendChild(temp)
-            temp.select()
-            const OK = document.execCommand('copy')
-            document.body.removeChild(temp)
-            OK ? resolve() : reject()
-        } catch (e) {
-            reject(e)
-        }
-    })
-}
-
 // --- CHANGELOG MODAL --------------------------------------------------------
 
 function openChangelogModal(opts = {}) {
@@ -20086,7 +20373,8 @@ export function bootGame(engine) {
     // =============================================================================
 
     // Register Emberwood runtime systems as Engine plugins.
-    // NOTE: init/start happens during engine.start() (main.js) immediately after bootGame().
+    // NOTE: Plugins are registered here, then engine.start() is called at the end
+    // of this function to initialize and start all systems in dependency order.
     try {
         const _patchLabel = `Emberwood Patch V${GAME_PATCH} — ${GAME_PATCH_NAME}`
 
@@ -20116,8 +20404,9 @@ export function bootGame(engine) {
             uiBindingsApi: {
                 patchLabel: _patchLabel,
                 getState: () => state,
+                engine: _engine,
                 // boot/runtime
-                initCrashCatcher,
+                initCrashCatcher: initCrashCatcherWrapper,
                 // character creation / menu
                 resetDevCheatsCreationUI,
                 buildCharacterCreationOptions,
@@ -20418,7 +20707,34 @@ export function bootGame(engine) {
 	        // 12) Deterministic game RNG exposed as a service
 	        _engine.use(createRngBridgePlugin({ getState: () => state }))
 
-        // 13) Replay recorder/player (records command dispatches)
+        // 13) Time service - Engine-integrated time management
+        _engine.use(createTimeServicePlugin())
+
+        // 14) Village services (economy, population) - Engine-integrated state management
+        _engine.use(createVillageServicesPlugin())
+
+        // 15) Bank service - Engine-integrated banking operations (deposits, loans, investments)
+        _engine.use(createBankServicePlugin())
+
+        // 16) Merchant service - Engine-integrated commerce operations (buying, selling, restocking)
+        _engine.use(createMerchantServicePlugin())
+
+        // 17) Tavern service - Engine-integrated tavern operations (resting, rumors)
+        _engine.use(createTavernServicePlugin())
+
+        // 18) Town Hall service - Engine-integrated town hall operations (announcements, proposals)
+        _engine.use(createTownHallServicePlugin())
+
+        // 19) Kingdom government service - Engine-integrated kingdom/government state management
+        _engine.use(createKingdomGovernmentPlugin())
+
+        // 20) Loot generator service - Engine-integrated loot generation with event emissions
+        _engine.use(createLootGeneratorPlugin())
+
+        // 21) Quest system service - Engine-integrated quest state management
+        _engine.use(createQuestSystemPlugin())
+
+        // 18) Replay recorder/player (records command dispatches)
         _engine.use(createReplayBridgePlugin({ getState: () => state }))
 
         // Cache service handles as soon as plugins start.
@@ -20437,6 +20753,21 @@ export function bootGame(engine) {
         })
     } catch (e) {
         try { console.error('[bootGame] plugin registration failed', e) } catch (_) {}
+    }
+
+    // =============================================================================
+    // START ENGINE (Engine-First Architecture)
+    // =============================================================================
+    // All plugins are now registered. Start the engine to initialize and activate
+    // all systems. This ensures the engine is fully operational before returning
+    // control to the game layer.
+    try {
+        if (_engine && typeof _engine.start === 'function') {
+            _engine.start()
+            console.log('[bootGame] Engine started successfully')
+        }
+    } catch (e) {
+        try { console.error('[bootGame] Engine start failed', e) } catch (_) {}
     }
 
     // Emit an initial area enter event once the engine loop starts so plugins

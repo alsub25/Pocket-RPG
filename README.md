@@ -4,7 +4,7 @@
 
 ### A Browser-Based Fantasy RPG & Living Village Simulator
 
-[![Version](https://img.shields.io/badge/version-1.2.72-blue.svg)](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
+[![Version](https://img.shields.io/badge/version-1.2.85-blue.svg)](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
 [![License](https://img.shields.io/badge/license-See%20License%20Section-green.svg)](#-license)
 [![No Build Required](https://img.shields.io/badge/build-none-brightgreen.svg)](#%EF%B8%8F-architecture-overview)
 [![ES Modules](https://img.shields.io/badge/modules-native%20ES-orange.svg)](#%EF%B8%8F-architecture-overview)
@@ -82,7 +82,7 @@
 - **Forward Compatible**: Migration system ensures old saves work with new versions
 - **Developer-Friendly**: Modular architecture with clear separation of concerns
 
-> **Current Patch:** v1.2.72 — *The Blackbark Oath — Locus Wiring: Events, Input & Autosave*  
+> **Current Patch:** v1.2.85 — *Engine Integration Expansion - Kingdom, Loot & Quest Systems*  
 > **In-Game Changelog:** Open the **Changelog** button from the main menu for detailed patch notes
 
 ---
@@ -449,17 +449,19 @@ Emberwood-The-Blackbark-Oath/
 
 ### Module Organization
 
-The codebase follows a **layered architecture** to prevent circular dependencies and maintain clear boundaries:
+The codebase follows an **engine-first layered architecture** to ensure modularity and clear boundaries:
 
 ```
 ┌─────────────────────────────────────────┐
 │         Game Layer (js/game/)           │
+│  - Registers as Engine plugins          │
 │  - Game-specific logic & content        │
 │  - Depends on: Engine, Shared           │
 └─────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────┐
 │       Engine Layer (js/engine/)         │
+│  - Central orchestrator (runs first)    │
 │  - Platform-agnostic game engine        │
 │  - State, events, plugins, services     │
 │  - Depends on: Shared                   │
@@ -474,7 +476,7 @@ The codebase follows a **layered architecture** to prevent circular dependencies
 ┌─────────────────────────────────────────┐
 │        Boot Layer (js/boot/)            │
 │  - First code to execute                │
-│  - Minimal dependencies                 │
+│  - Loads and initializes engine         │
 │  - Depends on: Shared only              │
 └─────────────────────────────────────────┘
 ```
@@ -485,6 +487,7 @@ The codebase follows a **layered architecture** to prevent circular dependencies
    - Executes before game engine loads
    - Handles storage checks and user acceptance
    - Shows loading screen
+   - Creates and hands off to engine
    - Minimal dependencies for fast startup
 
 2. **Shared Layer** (`js/shared/`)
@@ -492,16 +495,20 @@ The codebase follows a **layered architecture** to prevent circular dependencies
    - No dependencies on other layers
    - Safe for import anywhere
 
-3. **Engine Layer** (`js/engine/`)
+3. **Engine Layer** (`js/engine/`) - **RUNS FIRST**
    - Generic game engine (not Emberwood-specific)
+   - Central orchestrator for all systems
    - State management, events, services
-   - Plugin architecture
+   - Plugin architecture with dependency resolution
+   - Initializes and starts before game systems
    - Could theoretically power other games
 
 4. **Game Layer** (`js/game/`)
    - All Emberwood-specific content
+   - Registers as engine plugins
    - Game rules, data, UI
    - Organized by feature domain
+   - Systems communicate through engine
 
 ### File Naming Conventions
 
@@ -533,9 +540,9 @@ import { rollDice } from '~/systems/rng';
 
 ## 🏗️ Architecture Overview
 
-Emberwood uses a **single authoritative state object** combined with modular systems that read and update it. This architecture provides predictability, testability, and easy save/load functionality.
+Emberwood uses an **engine-first architecture** where the Locus Engine serves as the central orchestrator for all game systems. This provides modularity, predictability, testability, and ensures all systems communicate through well-defined engine services.
 
-### Boot Sequence
+### Boot Sequence (Engine-First)
 
 ```
 User Opens Page
@@ -556,18 +563,30 @@ User Opens Page
 ┌─────────────────────────────┐
 │  game/main.js loads         │
 │  - Creates Engine instance  │
-│  - Initializes orchestrator │
+│  - Core services initialized│
 └─────────────────────────────┘
       ↓
 ┌─────────────────────────────┐
-│  Engine.start() called      │
-│  - Loads/creates save       │
+│  bootGame() called          │
+│  - Registers game plugins   │
 │  - Wires UI bindings        │
+│  - Starts engine            │
+└─────────────────────────────┘
+      ↓
+┌─────────────────────────────┐
+│  Engine fully operational   │
+│  - All systems running      │
 │  - Shows main menu          │
 └─────────────────────────────┘
       ↓
     Game Ready!
 ```
+
+**Key Architecture Principles:**
+- **Engine-First**: Engine initializes and starts before game systems become active
+- **Plugin-Based**: All game systems register as engine plugins with dependency management
+- **Service-Oriented**: Systems communicate through engine services (events, commands, state)
+- **Modular**: Clear separation between engine (generic) and game (Emberwood-specific) layers
 
 **Boot Timing Targets:**
 - Storage check: < 50ms
@@ -765,7 +784,7 @@ The game uses a single top-level `state` object representing the entire game wor
 ```javascript
 // Save format
 {
-  version: "1.2.72",
+  version: "1.2.85",
   timestamp: 1234567890,
   player: { /* player state */ },
   time: { /* time state */ },
@@ -1613,7 +1632,7 @@ Exports comprehensive debugging information:
 
 ```javascript
 {
-  patch: "1.2.72",
+  patch: "1.2.85",
   timestamp: "2026-01-13T22:00:00Z",
   userAgent: "...",
   saveSchema: { /* save structure */ },
@@ -1915,7 +1934,25 @@ Simulates extended gameplay to catch edge cases.
 
 Export detailed debugging information for issue reports.
 
-**Steps to Create Reproducible Bug Report:**
+**Quick GitHub Issue Creation:**
+
+The game now features a one-click GitHub issue creation button in the Feedback modal:
+
+1. Click "Feedback / Bug Report" from the main menu
+2. Select feedback type (Bug, UI Issue, Balance, Suggestion, Other)
+3. Describe the issue in the details box
+4. Click "📝 Create GitHub Issue" to open a pre-filled GitHub issue form
+
+The GitHub issue will automatically include:
+- Feedback type and description
+- Game version and patch information
+- Player context (level, class, location, combat status)
+- System information (timestamp, user agent)
+- Any recent crash reports
+
+**Manual Bug Report Creation:**
+
+For more detailed reports or offline submission:
 
 1. Enable Dev Cheats during character creation
 2. Enable "Deterministic RNG" in Cheat Menu
@@ -1928,7 +1965,7 @@ Export detailed debugging information for issue reports.
 
 ```json
 {
-  "patch": "1.2.72",
+  "patch": "1.2.85",
   "timestamp": "2026-01-13T22:00:00Z",
   "userAgent": "Mozilla/5.0...",
   "saveSchema": { /* structure */ },
@@ -2125,8 +2162,8 @@ export { DEFAULT_VALUE };
 Version information lives in `js/game/systems/version.js`:
 
 ```javascript
-export const GAME_PATCH = "1.2.72";
-export const GAME_PATCH_NAME = "The Blackbark Oath";
+export const GAME_PATCH = "1.2.85";
+export const GAME_PATCH_NAME = "Engine Integration Expansion - Kingdom, Loot & Quest Systems";
 export const GAME_FULL_LABEL = `v${GAME_PATCH} — ${GAME_PATCH_NAME}`;
 ```
 
@@ -2143,9 +2180,9 @@ Changelog entries in `js/game/changelog/changelog.js`:
 ```javascript
 export const CHANGELOG = [
   {
-    version: "1.2.72",
-    date: "2026-01-13",
-    title: "Locus Wiring: Events, Input & Autosave",
+    version: "1.2.85",
+    date: "2026-01-14",
+    title: "Engine Integration Expansion - Kingdom, Loot & Quest Systems",
     changes: [
       {
         category: "Features",
@@ -2513,7 +2550,7 @@ To add a license, create a `LICENSE` file in the repository root.
 ### Development
 
 - **Creator**: alsub25
-- **Version**: 1.2.72 - The Blackbark Oath
+- **Version**: 1.2.85 - Engine Integration Expansion - Kingdom, Loot & Quest Systems
 - **Repository**: [Emberwood-The-Blackbark-Oath](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
 
 ### Inspiration

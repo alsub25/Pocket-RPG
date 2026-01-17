@@ -46,11 +46,28 @@ export function createRngService({ seed = null } = {}) {
       int(minInclusive, maxInclusive) {
         const min = Number(minInclusive) || 0
         const max = Number(maxInclusive) || 0
-        if (max < min) return min
+        // Warn if max < min (potential logic error)
+        if (max < min) {
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn(`[RNG] int() called with max < min (${max} < ${min}), returning min`)
+          }
+          return min
+        }
         return min + Math.floor(next() * (max - min + 1))
       },
       pick(arr) {
-        if (!Array.isArray(arr) || arr.length === 0) return null
+        // Validate array parameter
+        if (!Array.isArray(arr)) {
+          const err = new Error('rng.pick() requires an array')
+          err.code = 'INVALID_ARRAY'
+          err.details = { receivedType: typeof arr }
+          throw err
+        }
+        if (arr.length === 0) {
+          const err = new Error('rng.pick() cannot pick from empty array')
+          err.code = 'EMPTY_ARRAY'
+          throw err
+        }
         return arr[Math.floor(next() * arr.length)]
       }
     }

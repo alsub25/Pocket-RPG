@@ -19,8 +19,22 @@ export function createInputRouter({ emit = null, logger = null } = {}) {
   }
 
   function bindKey(key, action) {
-    if (!key || !action) return
-    keyBindings.set(_normKey(key), String(action))
+    if (!key || !action) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Input] bindKey() called with empty key or action', { key, action })
+      }
+      return
+    }
+    
+    const normalizedKey = _normKey(key)
+    if (!normalizedKey) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn(`[Input] bindKey() resulted in empty key after normalization: "${key}"`)
+      }
+      return
+    }
+    
+    keyBindings.set(normalizedKey, String(action))
   }
 
   function _normKey(key) {
@@ -29,8 +43,21 @@ export function createInputRouter({ emit = null, logger = null } = {}) {
 
   function pushContext(ctx = {}) {
     try {
+      if (!ctx || typeof ctx !== 'object') {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[Input] pushContext() called with invalid context', ctx)
+        }
+        return null
+      }
+      
       const id = String(ctx && ctx.id ? ctx.id : '').trim()
-      if (!id) return null
+      if (!id) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[Input] pushContext() called without id')
+        }
+        return null
+      }
+      
       removeContext(id)
 
       const kmap = new Map()
@@ -42,7 +69,9 @@ export function createInputRouter({ emit = null, logger = null } = {}) {
             if (nk && v) kmap.set(nk, String(v))
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        _log('warn', 'Error processing context bindings', { id, error: e })
+      }
 
       const hmap = new Map()
       try {
@@ -54,12 +83,20 @@ export function createInputRouter({ emit = null, logger = null } = {}) {
             const set = hmap.get(a) || new Set()
             if (typeof fns === 'function') set.add(fns)
             else if (Array.isArray(fns)) {
-              for (const fn of fns) if (typeof fn === 'function') set.add(fn)
+              for (const fn of fns) {
+                if (typeof fn === 'function') {
+                  set.add(fn)
+                } else {
+                  _log('warn', 'Non-function handler in context', { context: id, action: a })
+                }
+              }
             }
             if (set.size) hmap.set(a, set)
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        _log('warn', 'Error processing context handlers', { id, error: e })
+      }
 
       contexts.push({
         id,
@@ -68,8 +105,11 @@ export function createInputRouter({ emit = null, logger = null } = {}) {
         consume: ctx.consume !== false,
         meta: ctx.meta || null,
       })
+      
+      _log('info', 'Context pushed', { id, bindings: kmap.size, handlers: hmap.size })
       return id
-    } catch (_) {
+    } catch (e) {
+      _log('error', 'pushContext failed', { error: e })
       return null
     }
   }

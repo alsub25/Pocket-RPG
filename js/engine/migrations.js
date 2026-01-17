@@ -44,6 +44,14 @@ export function createMigrationRegistry() {
   }
 
   function migrateState(state, fromVersion, toVersion) {
+    // Validate state parameter
+    if (!state || typeof state !== 'object') {
+      const err = new Error('migrateState() requires a valid state object')
+      err.code = 'INVALID_STATE'
+      err.details = { stateType: typeof state }
+      throw err
+    }
+    
     const path = _findPath(fromVersion, toVersion)
     if (path == null) {
       const err = new Error(`No migration path from ${fromVersion} to ${toVersion}`)
@@ -51,10 +59,35 @@ export function createMigrationRegistry() {
       err.details = { fromVersion, toVersion }
       throw err
     }
+    
     let s = state
     for (let i = 0; i < path.length; i++) {
       const step = path[i]
-      s = step.migrate(s)
+      
+      // Validate migrate function before calling
+      if (typeof step.migrate !== 'function') {
+        const err = new Error(`Migration step ${step.from} -> ${step.to} has invalid migrate function`)
+        err.code = 'INVALID_MIGRATION'
+        err.details = { from: step.from, to: step.to }
+        throw err
+      }
+      
+      try {
+        s = step.migrate(s)
+      } catch (e) {
+        const err = new Error(`Migration failed at step ${step.from} -> ${step.to}: ${e.message}`)
+        err.code = 'MIGRATION_ERROR'
+        err.details = { from: step.from, to: step.to, originalError: { message: e.message, stack: e.stack } }
+        throw err
+      }
+      
+      // Validate migrated state is still an object
+      if (!s || typeof s !== 'object') {
+        const err = new Error(`Migration step ${step.from} -> ${step.to} returned invalid state`)
+        err.code = 'INVALID_MIGRATED_STATE'
+        err.details = { from: step.from, to: step.to, returnedType: typeof s }
+        throw err
+      }
     }
     return s
   }

@@ -24,8 +24,20 @@ export function createCommandBus({
   }
 
   function dispatch(command) {
+    // Validate command parameter
+    if (!command) {
+      const err = new Error('dispatch() requires a command')
+      err.code = 'INVALID_COMMAND'
+      throw err
+    }
+    
     const cmd = command && typeof command === 'object' ? command : { type: String(command) }
-    if (!cmd.type) cmd.type = 'UNKNOWN'
+    if (!cmd.type) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Commands] Command dispatched without type, using UNKNOWN')
+      }
+      cmd.type = 'UNKNOWN'
+    }
 
     const entry = {
       t: _nowIso(),
@@ -48,10 +60,38 @@ export function createCommandBus({
       idx++
       const mw = middlewares[idx]
       if (!mw) return
-      return mw(ctx, next)
+      
+      // Validate middleware before calling
+      if (typeof mw !== 'function') {
+        if (typeof console !== 'undefined' && console.error) {
+          console.error('[Commands] Invalid middleware found, skipping:', mw)
+        }
+        return next()
+      }
+      
+      try {
+        return mw(ctx, next)
+      } catch (e) {
+        // Log middleware errors instead of silently swallowing
+        if (typeof console !== 'undefined' && console.error) {
+          console.error('[Commands] Middleware error:', e)
+        }
+        if (ctx.emit) {
+          try {
+            ctx.emit('command:middleware:error', { middleware: mw, error: e, command: cmd })
+          } catch (_) {}
+        }
+        // Continue with next middleware despite error
+        return next()
+      }
     }
 
-    try { next() } catch (_) {}
+    try { next() } catch (e) {
+      // Log top-level dispatch errors
+      if (typeof console !== 'undefined' && console.error) {
+        console.error('[Commands] Dispatch error:', e)
+      }
+    }
 
     _push(entry)
     try { ctx.emit('command:dispatched', entry) } catch (_) {}

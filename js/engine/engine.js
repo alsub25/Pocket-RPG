@@ -60,6 +60,12 @@ function _errInfo(e) {
 
 function _normId(v) {
   const s = String(v || '').trim()
+  // Warn if ID normalization could cause collisions
+  if (s && s !== String(v)) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn(`[Engine] ID normalized from "${v}" to "${s}" - ensure this is intentional`)
+    }
+  }
   return s
 }
 
@@ -158,9 +164,46 @@ let _autoTickLastT = 0
 
   // ---- Services ------------------------------------------------------------
 
-  function registerService(name, value) {
+  // Core services that should never be accidentally overwritten
+  const _coreServiceNames = new Set([
+    'log', 'events', 'clock', 'schedule', 'commands', 'migrations', 'snapshots',
+    'rng', 'perf', 'assets', 'settings', 'a11y', 'tween', 'input', 'uiRouter',
+    'errorBoundary', 'harness', 'flags', 'i18n', 'uiCompose', 'savePolicy',
+    'replay', 'telemetry', 'qa'
+  ])
+
+  function registerService(name, value, opts = {}) {
     if (!name) return
-    services[String(name)] = value
+    const key = String(name)
+    const { allowOverride = false } = opts || {}
+    
+    // Check for collision
+    const existing = services[key]
+    if (existing !== undefined && !allowOverride) {
+      const isCoreService = _coreServiceNames.has(key)
+      const msg = isCoreService
+        ? `Attempted to overwrite core service: ${key}. Use { allowOverride: true } to force.`
+        : `Service already registered: ${key}. Use { allowOverride: true } to replace.`
+      
+      try {
+        log.warn('services', msg, { name: key, isCoreService })
+      } catch (_) {}
+      
+      // Throw for core services to prevent silent failures
+      if (isCoreService) {
+        const err = new Error(msg)
+        err.code = 'SERVICE_COLLISION'
+        err.serviceName = key
+        throw err
+      } else {
+        // Warn but allow for non-core services (backward compatibility)
+        try {
+          console.warn('[Engine] ' + msg)
+        } catch (_) {}
+      }
+    }
+    
+    services[key] = value
   }
 
   function getService(name) {
@@ -181,7 +224,13 @@ let _autoTickLastT = 0
 
   function disposeOwner(owner) {
     const o = String(owner || '').trim()
-    if (!o) return
+    if (!o) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Engine] disposeOwner() called with empty owner name')
+      }
+      return
+    }
+    
     const set = _ownerDisposables.get(o)
     if (!set || set.size === 0) {
       _ownerDisposables.delete(o)
@@ -189,9 +238,25 @@ let _autoTickLastT = 0
     }
 
     const arr = Array.from(set)
+    // Remove from map first to prevent duplicate disposal
     _ownerDisposables.delete(o)
+    
+    let errors = []
     for (let i = 0; i < arr.length; i++) {
-      try { arr[i]() } catch (_) {}
+      try { 
+        if (typeof arr[i] === 'function') {
+          arr[i]()
+        } else if (typeof console !== 'undefined' && console.warn) {
+          console.warn(`[Engine] Non-function disposer found for owner "${o}"`)
+        }
+      } catch (e) {
+        errors.push(e)
+      }
+    }
+    
+    // Log if any disposers failed
+    if (errors.length > 0 && typeof console !== 'undefined' && console.warn) {
+      console.warn(`[Engine] ${errors.length} disposer(s) failed for owner "${o}"`, errors)
     }
   }
 
@@ -355,7 +420,15 @@ let _autoTickLastT = 0
     }
   }
 function _startAutoTickLoop() {
-  if (!_autoTickEnabled || _autoTickRunning) return
+  // Atomic check and set to prevent race conditions
+  if (!_autoTickEnabled) return
+  if (_autoTickRunning) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[Engine] Auto-tick loop already running, skipping start')
+    }
+    return
+  }
+  
   _autoTickRunning = true
   try { _autoTickLastT = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now() } catch (_) { _autoTickLastT = Date.now() }
 
@@ -363,7 +436,9 @@ function _startAutoTickLoop() {
   const useRaf = (_autoTickMode === 'raf') && hasRaf
 
   function step(now) {
+    // Double-check running flag to prevent stale callbacks
     if (!_autoTickRunning) return
+    
     const t = (typeof now === 'number') ? now : (() => {
       try { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now() } catch (_) { return Date.now() }
     })()
@@ -371,14 +446,24 @@ function _startAutoTickLoop() {
     _autoTickLastT = t
     // Clamp absurd deltas (background tabs / iOS resume) to avoid huge catch-up bursts.
     if (!Number.isFinite(dt) || dt < 0) dt = 0
-    if (dt > 250) dt = 250
+    if (dt > 250) {
+      // Log warning for large time jumps
+      try { 
+        if (emit) emit('engine:warn', { where: 'autoTick', message: 'Large time delta clamped', dt, clamped: 250 }) 
+      } catch (_) {}
+      dt = 250
+    }
     try { tick(dt) } catch (e) {
       try { emit('engine:error', { where: 'autoTick', e: String(e && e.message ? e.message : e) }) } catch (_) {}
     }
-    if (useRaf) {
-      try { _autoTickHandle = requestAnimationFrame(step) } catch (_) { _autoTickHandle = setTimeout(step, 16) }
-    } else {
-      _autoTickHandle = setTimeout(step, 16)
+    
+    // Only schedule next tick if still running
+    if (_autoTickRunning) {
+      if (useRaf) {
+        try { _autoTickHandle = requestAnimationFrame(step) } catch (_) { _autoTickHandle = setTimeout(step, 16) }
+      } else {
+        _autoTickHandle = setTimeout(step, 16)
+      }
     }
   }
 
@@ -475,9 +560,32 @@ function _stopAutoTickLoop() {
   // ---- State ---------------------------------------------------------------
 
   function getState() { return _state }
-  function setState(nextState) {
+  
+  /**
+   * Update the engine state with optional metadata for observability.
+   * @param {*} nextState - New state value
+   * @param {Object} [meta] - Optional metadata (reason, action, etc.)
+   * @param {string} [meta.reason] - Why the state changed (e.g., 'save:loaded', 'command:execute')
+   * @param {string} [meta.action] - What action triggered the change
+   */
+  function setState(nextState, meta = {}) {
     _state = nextState
-    emit('state:changed', { t: _nowIso() })
+    const payload = {
+      t: _nowIso(),
+      ...(meta && typeof meta === 'object' ? meta : {})
+    }
+    emit('state:changed', payload)
+  }
+  
+  /**
+   * Convenience helper that wraps setState with metadata.
+   * Useful for command handlers and critical paths.
+   * @param {*} nextState - New state value
+   * @param {string} reason - Why the state changed
+   * @param {Object} [extra] - Additional metadata
+   */
+  function commit(nextState, reason, extra = {}) {
+    setState(nextState, { reason, ...extra })
   }
 
   // ---- Engine services: clock + scheduler ---------------------------------
@@ -486,6 +594,14 @@ function _stopAutoTickLoop() {
   const scheduler = createScheduler(clockSvc)
 
   function tick(dtMs = 16) {
+    // Validate dtMs is a valid number
+    if (!Number.isFinite(dtMs) || dtMs < 0) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn(`[Engine] tick() called with invalid dtMs: ${dtMs}, using 0`)
+      }
+      dtMs = 0
+    }
+    
     const used = clockSvc.tick(dtMs)
     try { scheduler.pump() } catch (_) {}
     emit('clock:tick', { dtMs: used, nowMs: clockSvc.nowMs })
@@ -582,6 +698,7 @@ function _stopAutoTickLoop() {
     // state
     getState,
     setState,
+    commit,  // convenience helper for setState with metadata
     // events
     on,
     off,

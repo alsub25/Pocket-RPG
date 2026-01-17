@@ -36,6 +36,13 @@ export function createScheduler(clock, { maxTasks = 10000 } = {}) {
   }
 
   function after(ms, fn, opts = null) {
+    // Validate function parameter
+    if (typeof fn !== 'function') {
+      const err = new Error('scheduler.after() requires a function callback')
+      err.code = 'INVALID_CALLBACK'
+      throw err
+    }
+    
     const delay = Math.max(0, Number(ms) || 0)
     const owner = (opts && typeof opts === 'object' && opts.owner != null) ? String(opts.owner) : ''
     const id = _newId()
@@ -44,13 +51,20 @@ export function createScheduler(clock, { maxTasks = 10000 } = {}) {
       type: 'after',
       due: clock.nowMs + delay,
       interval: 0,
-      fn: (typeof fn === 'function') ? fn : null,
+      fn,
       owner,
       canceled: false
     })
   }
 
   function every(ms, fn, { immediate = false, owner = '' } = {}) {
+    // Validate function parameter
+    if (typeof fn !== 'function') {
+      const err = new Error('scheduler.every() requires a function callback')
+      err.code = 'INVALID_CALLBACK'
+      throw err
+    }
+    
     const interval = Math.max(1, Number(ms) || 1)
     const id = _newId()
     return _add({
@@ -58,7 +72,7 @@ export function createScheduler(clock, { maxTasks = 10000 } = {}) {
       type: 'every',
       due: clock.nowMs + (immediate ? 0 : interval),
       interval,
-      fn: (typeof fn === 'function') ? fn : null,
+      fn,
       owner: String(owner || ''),
       canceled: false
     })

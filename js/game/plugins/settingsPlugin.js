@@ -38,7 +38,9 @@ export function createSettingsPlugin({ getState } = {}) {
           sfxEnabled: true
         },
         gameplay: {
-          autoEquipLoot: false
+          autoEquipLoot: false,
+          showCombatNumbers: true,
+          autoSave: true
         }
       })
 
@@ -117,6 +119,16 @@ export function createSettingsPlugin({ getState } = {}) {
           if (typeof ae === 'boolean') state.settingsAutoEquipLoot = ae
         } catch (_) {}
 
+        try {
+          const scn = settings.get('gameplay.showCombatNumbers', state.settingsShowCombatNumbers)
+          if (typeof scn === 'boolean') state.settingsShowCombatNumbers = scn
+        } catch (_) {}
+
+        try {
+          const as = settings.get('gameplay.autoSave', state.settingsAutoSave)
+          if (typeof as === 'boolean') state.settingsAutoSave = as
+        } catch (_) {}
+
         // reduceMotion is still stored in state; keep it in sync.
         try {
           const rmPref = settings.get('a11y.reduceMotion', 'auto')
@@ -150,6 +162,12 @@ export function createSettingsPlugin({ getState } = {}) {
           }
           if (k === 'gameplay.autoEquipLoot') {
             if (typeof v === 'boolean') st.settingsAutoEquipLoot = v
+          }
+          if (k === 'gameplay.showCombatNumbers') {
+            if (typeof v === 'boolean') st.settingsShowCombatNumbers = v
+          }
+          if (k === 'gameplay.autoSave') {
+            if (typeof v === 'boolean') st.settingsAutoSave = v
           }
           if (k === 'a11y.reduceMotion') {
             if (v === true) st.settingsReduceMotion = true

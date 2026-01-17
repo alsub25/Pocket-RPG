@@ -71,6 +71,39 @@ export function createDiagnosticsOverlayPlugin(opts = {}) {
                 pre.style.fontSize = '12px'
                 pre.textContent = JSON.stringify(err, null, 2)
                 body.appendChild(pre)
+
+                // Add copy button
+                const copyBtn = document.createElement('button')
+                copyBtn.textContent = 'Copy Error Details'
+                copyBtn.style.marginTop = '12px'
+                copyBtn.style.padding = '8px 16px'
+                copyBtn.style.cursor = 'pointer'
+                copyBtn.addEventListener('click', async () => {
+                  try {
+                    const errorText = JSON.stringify(err, null, 2)
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                      await navigator.clipboard.writeText(errorText)
+                      copyBtn.textContent = 'Copied!'
+                      setTimeout(() => (copyBtn.textContent = 'Copy Error Details'), 1500)
+                    } else {
+                      // Fallback for older browsers
+                      const textarea = document.createElement('textarea')
+                      textarea.value = errorText
+                      textarea.style.position = 'fixed'
+                      textarea.style.opacity = '0'
+                      document.body.appendChild(textarea)
+                      textarea.select()
+                      document.execCommand('copy')
+                      document.body.removeChild(textarea)
+                      copyBtn.textContent = 'Copied!'
+                      setTimeout(() => (copyBtn.textContent = 'Copy Error Details'), 1500)
+                    }
+                  } catch (e) {
+                    copyBtn.textContent = 'Copy Failed'
+                    setTimeout(() => (copyBtn.textContent = 'Copy Error Details'), 1500)
+                  }
+                })
+                body.appendChild(copyBtn)
               } catch (_) {}
             })
           } catch (_) {}

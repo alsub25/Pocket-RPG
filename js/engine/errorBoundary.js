@@ -10,6 +10,7 @@ export function createErrorBoundary(engine, {
   maxErrors = 25
 } = {}) {
   const errors = []
+  let installed = false
 
   function _push(kind, err, extra) {
     const rec = {
@@ -39,17 +40,26 @@ export function createErrorBoundary(engine, {
   function install() {
     if (!enabled) return
     if (typeof window === 'undefined') return
+    if (installed) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[ErrorBoundary] Already installed, skipping duplicate installation')
+      }
+      return
+    }
     try {
       window.addEventListener('error', handleError)
       window.addEventListener('unhandledrejection', handleRejection)
+      installed = true
     } catch (_) {}
   }
 
   function uninstall() {
     if (typeof window === 'undefined') return
+    if (!installed) return
     try {
       window.removeEventListener('error', handleError)
       window.removeEventListener('unhandledrejection', handleRejection)
+      installed = false
     } catch (_) {}
   }
 
@@ -71,5 +81,5 @@ export function createErrorBoundary(engine, {
     return report
   }
 
-  return { install, uninstall, getErrors: () => errors.slice(), buildReport }
+  return { install, uninstall, getErrors: () => errors.slice(), buildReport, isInstalled: () => installed }
 }

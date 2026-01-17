@@ -3,6 +3,7 @@
 import { GAME_FULL_LABEL } from '../game/systems/version.js';
 import { safeStorageGet, safeStorageSet } from './lib/safeStorage.js';
 import { BootLoader } from './bootLoader.js';
+import { showSplashSequence } from './splashScreen.js';
 
 // Persisted boot timings for QA / bug reports.
 const BOOT_METRICS_KEY = 'ew-last-boot-metrics';
@@ -554,43 +555,57 @@ function ensureChangeVersionButton() {
 
 function initBootstrap() {
   onDocReady(async () => {
-    // Show immediately so the overlay can paint before any heavier work.
-    BootLoader.show('Starting…');
-    await BootLoader.nextFrame();
+    // Start splash screen and game loading in parallel
+    // This ensures the game loads during the splash screen display
+    const splashPromise = showSplashSequence();
+    
+    // Start preparing for game load immediately
+    const loadPromise = (async () => {
+      // Show boot loader (it will be hidden behind splash initially)
+      BootLoader.show('Starting…');
+      await BootLoader.nextFrame();
 
-    // Wire HUD/modal pill tap highlight immediately (before game module loads)
-    // so feedback is consistent across early boot and in-game overlays.
-    wirePillTapHighlight();
+      // Wire HUD/modal pill tap highlight immediately (before game module loads)
+      // so feedback is consistent across early boot and in-game overlays.
+      wirePillTapHighlight();
 
-    // If only one build exists: auto-load it and don't show the Change Version button.
-    const only = getOnlyVersionIfSingle();
-    if (only) {
-      removeChangeVersionButtonIfPresent();
-      // Keep localStorage consistent (optional but helpful for debugging)
-      safeStorageSet(STORAGE_KEY, only.id);
-      await loadGameVersion(only);
-      return;
-    }
+      // If only one build exists: auto-load it and don't show the Change Version button.
+      const only = getOnlyVersionIfSingle();
+      if (only) {
+        removeChangeVersionButtonIfPresent();
+        // Keep localStorage consistent (optional but helpful for debugging)
+        safeStorageSet(STORAGE_KEY, only.id);
+        await loadGameVersion(only);
+        return;
+      }
 
-    // Multiple builds: show the Change Version button.
-    ensureChangeVersionButton();
+      // Multiple builds: show the Change Version button.
+      ensureChangeVersionButton();
 
-    const pickedId = pickVersionId();
-    const picked = VERSIONS.find(v => v.id === pickedId);
+      const pickedId = pickVersionId();
+      const picked = VERSIONS.find(v => v.id === pickedId);
 
-    // If query param used and valid, persist it so it “sticks”
-    const url = new URL(location.href);
-    const q = url.searchParams.get("v");
-    if (q && picked) safeStorageSet(STORAGE_KEY, picked.id);
+      // If query param used and valid, persist it so it "sticks"
+      const url = new URL(location.href);
+      const q = url.searchParams.get("v");
+      if (q && picked) safeStorageSet(STORAGE_KEY, picked.id);
 
-    if (picked) {
-      await loadGameVersion(picked, { onFail: () => openVersionModal({ requirePick: true }) });
-    } else {
-      // Force first-time selection (cleanest when you’re managing multiple builds)
-      BootLoader.hide();
-      openVersionModal({ requirePick: true });
-    }
+      if (picked) {
+        await loadGameVersion(picked, { onFail: () => openVersionModal({ requirePick: true }) });
+      } else {
+        // Force first-time selection (cleanest when you're managing multiple builds)
+        BootLoader.hide();
+        openVersionModal({ requirePick: true });
+      }
+    })();
+
+    // Wait for splash to finish (either by completion or user skip)
+    await splashPromise;
+    
+    // Then wait for game loading to complete
+    await loadPromise;
   });
 }
+
 
 initBootstrap();

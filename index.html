@@ -9,8 +9,23 @@
         <link rel="stylesheet" href="style.css" />
     </head>
     <body>
+        <!-- Splash Screen: Studio and Engine logos -->
+        <div id="splashScreen" class="splash-screen">
+            <div class="splash-content">
+                <div id="studioLogo" class="splash-logo studio-logo">
+                    <div class="logo-icon">💡</div>
+                    <div class="logo-text">BLUE LAMP</div>
+                    <div class="logo-subtitle">STUDIOS</div>
+                </div>
+                <div id="engineLogo" class="splash-logo engine-logo hidden">
+                    <div class="logo-text-large">LOCUS</div>
+                    <div class="logo-subtitle">ENGINE</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Boot Loader: kept in HTML so it can paint before heavy module parsing begins. -->
-        <div id="bootLoader" class="boot-loader" aria-live="polite" aria-busy="true">
+        <div id="bootLoader" class="boot-loader hidden" aria-live="polite" aria-busy="true">
             <div class="boot-loader-card">
                 <div class="boot-loader-title">Loading Emberwood…</div>
                 <div class="boot-loader-spinner" aria-hidden="true"></div>
@@ -280,6 +295,35 @@
 
                             <div class="settings-row">
                                 <div class="settings-left">
+                                    <div class="settings-label">Color scheme</div>
+                                    <div class="settings-desc">Light or dark mode for the UI.</div>
+                                </div>
+                                <div class="settings-control">
+                                    <select id="settingsColorScheme" class="settings-select" aria-label="Color scheme">
+                                        <option value="auto" selected>Auto</option>
+                                        <option value="light">Light</option>
+                                        <option value="dark">Dark</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="settings-row">
+                                <div class="settings-left">
+                                    <div class="settings-label">UI scale</div>
+                                    <div class="settings-desc">Adjusts the size of all UI elements.</div>
+                                </div>
+                                <div class="settings-control">
+                                    <select id="settingsUiScale" class="settings-select" aria-label="UI scale">
+                                        <option value="0.9">Small</option>
+                                        <option value="1" selected>Default</option>
+                                        <option value="1.1">Large</option>
+                                        <option value="1.2">Extra Large</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="settings-row">
+                                <div class="settings-left">
                                     <div class="settings-label">Text speed</div>
                                     <div class="settings-desc">How quickly story text advances.</div>
                                 </div>
@@ -346,6 +390,32 @@
                                         <option value="hard">Hard</option>
                                         <option value="dynamic">Dynamic</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <div class="settings-row">
+                                <div class="settings-left">
+                                    <div class="settings-label">Show combat numbers</div>
+                                    <div class="settings-desc">Display damage and healing numbers in combat.</div>
+                                </div>
+                                <div class="settings-control">
+                                    <label class="switch" aria-label="Toggle combat numbers">
+                                        <input type="checkbox" id="settingsShowCombatNumbers" checked />
+                                        <span class="switch-track" aria-hidden="true"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="settings-row">
+                                <div class="settings-left">
+                                    <div class="settings-label">Auto-save</div>
+                                    <div class="settings-desc">Automatically save your progress periodically.</div>
+                                </div>
+                                <div class="settings-control">
+                                    <label class="switch" aria-label="Toggle auto-save">
+                                        <input type="checkbox" id="settingsAutoSave" checked />
+                                        <span class="switch-track" aria-hidden="true"></span>
+                                    </label>
                                 </div>
                             </div>
                         </div>

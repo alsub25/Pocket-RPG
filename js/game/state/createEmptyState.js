@@ -2,64 +2,37 @@
 // Game-specific initial save-state factory.
 // This is intentionally NOT part of the proprietary engine core.
 
-import { safeStorageGet } from '../../engine/storageRuntime.js'
 import { createDefaultQuestState, createDefaultQuestFlags } from '../quests/questDefaults.js'
 
 export function createEmptyState() {
-    // Settings are global (not tied to a save slot). Keep them in localStorage so
-    // sliders actually affect the game and persist between runs.
-    let savedVolume = 80 // matches the HTML default
-    let savedTextSpeed = 100 // matches the HTML default
-    let savedMusicEnabled = true
-    let savedSfxEnabled = true
-    let savedReduceMotion = false
-    let savedAutoEquipLoot = false
-    try {
-        const vRaw = safeStorageGet('pq-master-volume')
-        if (vRaw !== null) {
-            const v = Number(vRaw)
-            if (!isNaN(v)) savedVolume = Math.max(0, Math.min(100, v))
-        }
-
-        const tRaw = safeStorageGet('pq-text-speed')
-        if (tRaw !== null) {
-            const t = Number(tRaw)
-            if (!isNaN(t)) savedTextSpeed = Math.max(30, Math.min(200, t))
-        }
-
-        const m = safeStorageGet('pq-music-enabled')
-        if (m !== null) savedMusicEnabled = m === '1' || m === 'true'
-        const s = safeStorageGet('pq-sfx-enabled')
-        if (s !== null) savedSfxEnabled = s === '1' || s === 'true'
-
-        const rm = safeStorageGet('pq-reduce-motion')
-        if (rm !== null) savedReduceMotion = rm === '1' || rm === 'true'
-
-        const ae = safeStorageGet('pq-auto-equip-loot')
-        if (ae !== null) savedAutoEquipLoot = ae === '1' || ae === 'true'
-
-    } catch (e) {
-        // ignore storage errors (private mode, etc.)
-    }
+    // Settings are managed by locus_settings (engine settings service).
+    // These are just reasonable defaults; settingsPlugin will override them
+    // with actual values from locus_settings immediately after engine startup.
+    const defaultVolume = 80 // matches the HTML default
+    const defaultTextSpeed = 100 // matches the HTML default
+    const defaultMusicEnabled = true
+    const defaultSfxEnabled = true
+    const defaultReduceMotion = false
+    const defaultAutoEquipLoot = false
 
     return {
         player: null,
         area: 'village', // village, forest, ruins
         difficulty: 'normal',
 
-        // Global settings (persisted in localStorage)
-        settingsVolume: savedVolume, // 0-100
-        settingsTextSpeed: savedTextSpeed, // 0-200 (100 = normal)
+        // Global settings (managed by locus_settings via settingsPlugin)
+        settingsVolume: defaultVolume, // 0-100
+        settingsTextSpeed: defaultTextSpeed, // 0-200 (100 = normal)
 
-        // Motion / animation accessibility (persisted in localStorage)
-        settingsReduceMotion: savedReduceMotion,
+        // Motion / animation accessibility (managed by locus_settings)
+        settingsReduceMotion: defaultReduceMotion,
 
-        // Audio toggles (persisted in localStorage)
-        musicEnabled: savedMusicEnabled,
-        sfxEnabled: savedSfxEnabled,
+        // Audio toggles (managed by locus_settings)
+        musicEnabled: defaultMusicEnabled,
+        sfxEnabled: defaultSfxEnabled,
 
-        // Inventory QoL (persisted in localStorage)
-        settingsAutoEquipLoot: savedAutoEquipLoot,
+        // Inventory QoL (managed by locus_settings)
+        settingsAutoEquipLoot: defaultAutoEquipLoot,
 
         // dynamic difficulty tracking
         dynamicDifficulty: {

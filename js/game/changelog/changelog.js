@@ -3,6 +3,288 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.2.85",
+    "title": "Engine Integration Expansion - Kingdom, Loot & Quest Systems",
+    "sections": [
+      {
+        "heading": "New Engine-Integrated Services",
+        "items": [
+          {
+            "title": "Kingdom Government Service",
+            "bullets": [
+              "Created engine-integrated kingdom government service with immutable state updates via engine.setState()",
+              "All kingdom state mutations now go through engine with spread operators for immutability",
+              "Added comprehensive event system for kingdom changes: kingdom:initialized, kingdom:dayTick",
+              "Kingdom government now properly reacts to time:dayChanged events through engine event bus",
+              "Service provides clean API: initializeState(), handleDayTick(), getSummary(), getVillageEffect()"
+            ]
+          },
+          {
+            "title": "Loot Generator Service",
+            "bullets": [
+              "Created engine-integrated loot generator service with event emissions for all loot drops",
+              "All loot generation now emits events: loot:generated, loot:armorGenerated",
+              "Event payloads include full loot context (rarity, item level, enemy tier, area, boss/elite status)",
+              "Enables telemetry tracking and other systems to react to loot generation",
+              "Service provides clean API: generateLoot(), generateArmor(), getSellPrice(), getRarityLabel(), getPowerScore()"
+            ]
+          },
+          {
+            "title": "Quest System Service",
+            "bullets": [
+              "Created engine-integrated quest system service with immutable state updates through engine.setState()",
+              "All quest state mutations now go through engine with proper event emissions",
+              "Added comprehensive event system for quest changes: quest:initialized, quest:mainQuestStarted, quest:sideQuestStarted, quest:sideQuestAdvanced, quest:sideQuestCompleted, quest:itemProgressApplied, quest:enemyProgressApplied",
+              "Quest system now properly reacts to world:itemGained and world:enemyDefeated events",
+              "Service provides clean API: initializeState(), initMainQuest(), startSideQuest(), advanceSideQuest(), completeSideQuest(), applyItemProgress(), applyEnemyProgress(), getActiveSideQuests()"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Service Plugins",
+        "items": [
+          {
+            "title": "kingdomGovernmentPlugin",
+            "bullets": [
+              "Registers kingdom government service with engine using proper lifecycle hooks",
+              "Automatically subscribes to time:dayChanged events to trigger daily government ticks",
+              "Includes proper init/start/stop/dispose lifecycle for memory leak prevention",
+              "Service registered as 'kingdom.government' for easy access from other systems"
+            ]
+          },
+          {
+            "title": "lootGeneratorPlugin",
+            "bullets": [
+              "Registers loot generator service with engine",
+              "Enables event-driven loot tracking and telemetry",
+              "Service registered as 'loot.generator' for access from combat and reward systems"
+            ]
+          },
+          {
+            "title": "questSystemPlugin",
+            "bullets": [
+              "Registers quest system service with engine using proper lifecycle hooks",
+              "Automatically subscribes to world:itemGained and world:enemyDefeated events",
+              "Replaces partial questEventsPlugin integration with full service pattern",
+              "Includes proper init/start/stop/dispose lifecycle for memory leak prevention",
+              "Service registered as 'quest.system' for easy access from other systems"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Architecture Improvements",
+        "items": [
+          {
+            "title": "Expanded Engine Integration Coverage",
+            "bullets": [
+              "More game systems now follow the engine integration pattern from ENGINE_INTEGRATION_GUIDE.md",
+              "All new services use immutable state updates with spread operators",
+              "All new services emit events for significant state changes",
+              "Enables better debugging, telemetry, and loose coupling between systems"
+            ]
+          },
+          {
+            "title": "Event-Driven Architecture Expansion",
+            "bullets": [
+              "Kingdom government daily ticks now driven by time:dayChanged events",
+              "Quest progress now driven by world:itemGained and world:enemyDefeated events",
+              "Loot generation emits events for tracking and analytics",
+              "Supports future command replay and undo/redo functionality"
+            ]
+          },
+          {
+            "title": "Service Registry Growth",
+            "bullets": [
+              "Engine now hosts 3 additional game services: kingdom.government, loot.generator, quest.system",
+              "Services accessible via engine.get() for dependency injection",
+              "Follows established patterns from village.economy, village.population, and timeService"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Technical Improvements",
+        "items": [
+          {
+            "title": "State Management Consistency",
+            "bullets": [
+              "All quest, kingdom, and loot operations now follow immutable state patterns",
+              "State changes flow through engine.setState() as single source of truth",
+              "Prevents accidental state mutations and improves debuggability",
+              "Makes state changes trackable and replayable"
+            ]
+          },
+          {
+            "title": "Plugin Lifecycle Management",
+            "bullets": [
+              "All new plugins follow proper init/start/stop/dispose lifecycle",
+              "Event listeners properly cleaned up in stop() to prevent memory leaks",
+              "Services properly unregistered in dispose() for clean shutdown"
+            ]
+          },
+          {
+            "title": "Settings Storage Consolidation",
+            "bullets": [
+              "All settings controls now exclusively use locus_settings (engine.settings service) as the single source of truth",
+              "Removed all legacy localStorage fallback code from settings controls (volume, music, SFX, theme, text speed, etc.)",
+              "Settings are now only read from and written to the unified locus_settings_v1 storage key",
+              "Ensures consistent settings behavior and prevents data fragmentation across multiple localStorage keys",
+              "Legacy migration code in settingsPlugin continues to support existing users with old storage keys"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.2.82",
+    "title": "Engine Enhancement & Documentation",
+    "sections": [
+      {
+        "heading": "Engine Improvements",
+        "items": [
+          {
+            "title": "Enhanced Locus Engine architecture and robustness",
+            "bullets": [
+              "Engine now provides more comprehensive services for game systems to leverage",
+              "Improved separation of concerns between engine (platform) and game (content) layers",
+              "Better plugin lifecycle management with clearer dependency resolution",
+              "Enhanced service registry pattern for reducing circular dependencies"
+            ]
+          },
+          {
+            "title": "Comprehensive Engine Integration for Village Systems",
+            "bullets": [
+              "Created engine-integrated village economy service with immutable state updates via engine.setState()",
+              "Created engine-integrated village population service with proper event emissions",
+              "All village state mutations now go through engine with spread operators for immutability",
+              "Added comprehensive event system for village changes: village:economyTick, village:economyAfterBattle, village:economyAfterPurchase, village:populationTick, village:populationMoodChanged, village:populationSizeChanged",
+              "Village systems now properly leverage engine's RNG service for deterministic behavior"
+            ]
+          },
+          {
+            "title": "Engine-Integrated Time Service",
+            "bullets": [
+              "Created time service with immutable state updates through engine.setState()",
+              "All time advancements emit proper events: time:advanced, time:partChanged, time:dayChanged, time:yearChanged, time:jumpedToMorning",
+              "Time service provides clean API: getCurrentTime(), advanceTime(), jumpToNextMorning()",
+              "Time mutations now follow engine patterns with event-driven architecture",
+              "Other systems can react to time changes through engine event bus"
+            ]
+          },
+          {
+            "title": "New Service Plugins",
+            "bullets": [
+              "Added villageServicesPlugin to register economy and population services with proper lifecycle",
+              "Added timeServicePlugin to register time service with engine",
+              "Plugins include proper init/start/stop/dispose lifecycle hooks",
+              "Automatic event subscription for combat victories and purchases affecting economy",
+              "Time service integrated with village daily tick pipeline through events"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Documentation",
+        "items": [
+          {
+            "title": "Completely rewrote engine README with comprehensive documentation",
+            "bullets": [
+              "Added detailed architecture overview explaining the layered design philosophy",
+              "Documented all engine services with practical code examples",
+              "Created comprehensive plugin development guide with templates and patterns",
+              "Added service integration patterns showing best practices for using engine features",
+              "Included troubleshooting section for common engine-related issues",
+              "Added migration guide for moving from direct imports to engine services",
+              "Provided complete service capability map showing all engine and game plugin services"
+            ]
+          },
+          {
+            "title": "Developer experience improvements",
+            "bullets": [
+              "Clear examples for every engine service (state, events, scheduler, RNG, etc.)",
+              "Best practices section covering owner-based cleanup, deterministic RNG, and proper state management",
+              "Quick start guide for creating engine instances and registering plugins",
+              "Complete file map of all engine modules with descriptions"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Technical Improvements",
+        "items": [
+          {
+            "title": "Immutable State Management Pattern",
+            "bullets": [
+              "All state updates now use spread operators for immutability",
+              "State changes flow through engine.setState() as single source of truth",
+              "Prevents accidental state mutations and improves debuggability",
+              "Makes state changes trackable and replayable"
+            ]
+          },
+          {
+            "title": "Event-Driven Architecture",
+            "bullets": [
+              "Comprehensive event emissions for all significant state changes",
+              "Enables loose coupling between game systems",
+              "Systems can react to changes without direct dependencies",
+              "Supports future command replay and undo/redo functionality"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Bug Fixes",
+        "items": [
+          {
+            "title": "Fixed code formatting issue in Ranger damage calculation",
+            "bullets": [
+              "Corrected line 1758 in gameOrchestrator.js where two statements were incorrectly placed on the same line",
+              "The Ranger's marked enemy damage calculation now has proper formatting for better code readability",
+              "This was a cosmetic fix that doesn't change game behavior but improves code maintainability"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.2.81",
+    "title": "In-Game Settings Menu Enhancement",
+    "sections": [
+      {
+        "heading": "Bug Fixes",
+        "items": [
+          {
+            "title": "Fixed UI Scale selection in in-game settings menu",
+            "bullets": [
+              "Corrected the settings path for UI Scale from 'a11y.uiScale' to 'ui.scale' to match the engine settings service.",
+              "UI Scale changes from the in-game settings menu now properly apply and persist across sessions.",
+              "The in-game settings menu now correctly reads the current UI Scale value when opened."
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Settings Menu Improvements",
+        "items": [
+          {
+            "title": "Complete settings parity between main menu and in-game settings",
+            "bullets": [
+              "Added Color Scheme setting (Auto/Light/Dark) to in-game settings menu, allowing users to override system preferences for UI appearance during gameplay.",
+              "Added UI Scale setting (Small/Default/Large/Extra Large) to in-game settings menu to adjust the size of all UI elements for better readability and accessibility.",
+              "Added Show Combat Numbers toggle to in-game settings menu to control display of damage and healing numbers in combat.",
+              "Added Auto-save toggle to in-game settings menu to allow users to enable or disable automatic periodic saving.",
+              "All settings now properly sync between the main menu settings screen and in-game settings modal, using the same engine settings service for consistency."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.2.80",
     "title": "The Blackbark Oath — Engine Integration: Single-Load Boot, Snapshot Schema Migration, Modal Escape & Motion A11y",
     "sections": [
@@ -84,6 +366,27 @@ export const CHANGELOG = [
               "Hid the visible scrollbar/scroll indicator for the main-menu Settings list while keeping touch scrolling.",
               "Restored the Text size selector on the main-menu Settings screen and wired it to engine settings (a11y.textScale).",
               "In-game Settings modal now also includes Text size and High contrast controls, both wired to the same engine-wide accessibility settings so the two menus stay in sync."
+            ]
+          },
+          {
+            "title": "Enhanced Settings Menu with new options",
+            "bullets": [
+              "Added Color Scheme setting (Auto/Light/Dark) to allow users to override system preferences for UI appearance.",
+              "Added UI Scale setting (Small/Default/Large/Extra Large) to adjust the size of all UI elements for better readability and accessibility.",
+              "Added Show Combat Numbers toggle to control display of damage and healing numbers in combat.",
+              "Added Auto-save toggle to allow users to enable or disable automatic periodic saving.",
+              "All new settings are properly wired to the engine settings service and persist across sessions.",
+              "UI Scale and Color Scheme settings are applied via the a11y bridge plugin for consistent behavior across the application."
+            ]
+          },
+          {
+            "title": "Improved Engine Integration",
+            "bullets": [
+              "Ensured all game settings route through engine.settings as the single source of truth.",
+              "Settings are now properly mirrored between engine settings and game state for backwards compatibility.",
+              "The a11y bridge plugin now combines UI scale with text scale for proper font sizing.",
+              "Added new gameplay settings (showCombatNumbers, autoSave) to the settings plugin defaults.",
+              "All settings changes trigger engine settings:changed events for reactive updates."
             ]
           }
         ]
