@@ -2,7 +2,7 @@
 // ES6 module: structured changelog data for Emberwood: The Blackbark Oath
 
 export const CHANGELOG = [
-  {
+  
     "version": "1.2.85",
     "title": "Engine Integration Expansion - Kingdom, Loot & Quest Systems",
     "sections": [
