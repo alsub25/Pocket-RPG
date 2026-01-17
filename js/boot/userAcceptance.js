@@ -361,29 +361,20 @@ export function installBootDiagnostics() {
         }
       })
 
-      // Helper function to restore boot loader after closing diagnostics
-      const restoreBootLoader = () => {
-        try {
-          import('./bootLoader.js').then(({ BootLoader }) => {
-            BootLoader.show('Boot failed. See diagnostics for details.')
-          }).catch(() => {})
-        } catch (_) {}
-      }
-
       const btnClear = mkBtn('🗑️ Clear & Close', 'danger')
       btnClear.addEventListener('click', () => {
         diag.errors = []
         try { localStorage.removeItem('pq-last-boot-errors') } catch (_) {}
         overlay.remove()
-        // Show the boot loader again since boot failed
-        restoreBootLoader()
+        // Reset flag so overlay can be shown again if needed
+        diag._overlayShown = false
       })
 
       const btnClose = mkBtn('✖️ Close')
       btnClose.addEventListener('click', () => {
         overlay.remove()
-        // Show the boot loader again since boot failed
-        restoreBootLoader()
+        // Reset flag so overlay can be shown again if needed
+        diag._overlayShown = false
       })
 
       const btnRefresh = mkBtn('🔄 Refresh Page')
