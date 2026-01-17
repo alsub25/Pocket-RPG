@@ -160,54 +160,15 @@ import {
 
 import { validateState, formatIssues } from '../systems/assertState.js'
 
-import {
-    initVillageEconomyState,
-    getVillageEconomySummary,
-    getMerchantPrice,
-    getRestCost,
-    handleEconomyDayTick,
-    handleEconomyAfterBattle,
-    handleEconomyAfterPurchase
-} from '../locations/village/villageEconomy.js'
-import {
-    initGovernmentState,
-    handleGovernmentDayTick,
-    getGovernmentSummary,
-    getVillageGovernmentEffect
-} from '../systems/kingdomGovernment.js'
-import {
-    openBankModalImpl,
-    bankDeposit,
-    bankWithdraw,
-    bankInvest,
-    bankCashOut,
-    bankBorrow,
-    bankRepay
-} from '../locations/village/bank.js'
-import { openTavernModalImpl } from '../locations/village/tavern.js' // ⬅️ NEW
-import {
-    openMerchantModalImpl,
-    handleMerchantDayTick,
-    ensureMerchantStock,
-    executeMerchantBuy
-} from '../locations/village/merchant.js' // ⬅️ NEW
-import {
-    generateLootDrop,
-    generateArmorForSlot,
-    getItemPowerScore,
-    getSellValue,
-    formatRarityLabel,
-    pickWeighted
-} from '../systems/lootGenerator.js'
-import {
-    openTownHallModalImpl,
-    handleTownHallDayTick,
-    cleanupTownHallEffects
-} from '../locations/village/townHall.js'
-import {
-    ensureVillagePopulation,
-    handlePopulationDayTick
-} from '../locations/village/villagePopulation.js'
+// NOTE: These functions are now accessed via engine services instead of direct imports
+// Economy: _engine.get('village.economy')
+// Population: _engine.get('village.population')
+// Government: _engine.get('kingdom.government')
+// Bank: _engine.get('bank')
+// Merchant: _engine.get('merchant')
+// Tavern: _engine.get('tavern')
+// Town Hall: _engine.get('townHall')
+// Loot: _engine.get('loot')
 import { QUEST_DEFS } from '../quests/questDefs.js'
 import { createDefaultQuestState, createDefaultQuestFlags } from '../quests/questDefaults.js'
 import { createQuestBindings } from '../quests/questBindings.js'
@@ -20366,6 +20327,164 @@ export function bootGame(engine) {
     } else {
         // keep global debug ref in sync
         try { syncGlobalStateRef() } catch (_) {}
+    }
+
+    // =============================================================================
+    // ENGINE SERVICE ACCESSORS (Engine-First Architecture)
+    // =============================================================================
+    // These helper functions provide backwards-compatible access to engine services
+    // for code that previously imported location modules directly.
+    
+    // Village Economy Service
+    const initVillageEconomyState = (state) => {
+        const service = _engine?.get('village.economy')
+        return service?.initEconomy()
+    }
+    const getVillageEconomySummary = (state) => {
+        const service = _engine?.get('village.economy')
+        return service?.getSummary()
+    }
+    const getMerchantPrice = (basePrice, state, context) => {
+        const service = _engine?.get('village.economy')
+        return service?.getMerchantPrice(basePrice, context)
+    }
+    const getRestCost = (state) => {
+        const service = _engine?.get('village.economy')
+        return service?.getRestCost()
+    }
+    const handleEconomyDayTick = (state, day) => {
+        const service = _engine?.get('village.economy')
+        return service?.handleDayTick(day)
+    }
+    const handleEconomyAfterBattle = (state, enemy, area) => {
+        const service = _engine?.get('village.economy')
+        return service?.handleAfterBattle(enemy, area)
+    }
+    const handleEconomyAfterPurchase = (state, goldSpent, context) => {
+        const service = _engine?.get('village.economy')
+        return service?.handleAfterPurchase(goldSpent, context)
+    }
+    
+    // Village Population Service
+    const ensureVillagePopulation = (state) => {
+        const service = _engine?.get('village.population')
+        return service?.getPopulation()
+    }
+    const handlePopulationDayTick = (state, day, hooks) => {
+        const service = _engine?.get('village.population')
+        return service?.handleDayTick(day)
+    }
+    
+    // Kingdom Government Service
+    const initGovernmentState = (state, day) => {
+        const service = _engine?.get('kingdom.government')
+        return service?.initGovernment(day)
+    }
+    const handleGovernmentDayTick = (state, day, hooks) => {
+        const service = _engine?.get('kingdom.government')
+        return service?.handleDayTick(day)
+    }
+    const getGovernmentSummary = (state) => {
+        const service = _engine?.get('kingdom.government')
+        return service?.getSummary()
+    }
+    const getVillageGovernmentEffect = (state, context) => {
+        const service = _engine?.get('kingdom.government')
+        return service?.getVillageEffect(context)
+    }
+    
+    // Bank Service
+    const openBankModalImpl = (deps) => {
+        const service = _engine?.get('bank')
+        return service?.openBankModal(deps)
+    }
+    const bankDeposit = (deps) => {
+        const service = _engine?.get('bank')
+        return service?.deposit(deps)
+    }
+    const bankWithdraw = (deps) => {
+        const service = _engine?.get('bank')
+        return service?.withdraw(deps)
+    }
+    const bankInvest = (deps) => {
+        const service = _engine?.get('bank')
+        return service?.invest(deps)
+    }
+    const bankCashOut = (deps) => {
+        const service = _engine?.get('bank')
+        return service?.cashOut(deps)
+    }
+    const bankBorrow = (deps) => {
+        const service = _engine?.get('bank')
+        return service?.borrow(deps)
+    }
+    const bankRepay = (deps) => {
+        const service = _engine?.get('bank')
+        return service?.repay(deps)
+    }
+    
+    // Merchant Service
+    const openMerchantModalImpl = (deps) => {
+        const service = _engine?.get('merchant')
+        return service?.openMerchantModal(deps)
+    }
+    const handleMerchantDayTick = (state, day, cloneItemDef) => {
+        const service = _engine?.get('merchant')
+        return service?.handleDayTick(day, cloneItemDef)
+    }
+    const ensureMerchantStock = (state) => {
+        const service = _engine?.get('merchant')
+        return service?.ensureStock()
+    }
+    const executeMerchantBuy = (deps) => {
+        const service = _engine?.get('merchant')
+        return service?.executeBuy(deps)
+    }
+    
+    // Tavern Service
+    const openTavernModalImpl = (deps) => {
+        const service = _engine?.get('tavern')
+        return service?.openTavernModal(deps)
+    }
+    
+    // Town Hall Service
+    const openTownHallModalImpl = (deps) => {
+        const service = _engine?.get('townHall')
+        return service?.openTownHallModal(deps)
+    }
+    const handleTownHallDayTick = (state, day, hooks) => {
+        const service = _engine?.get('townHall')
+        return service?.handleDayTick(day, hooks)
+    }
+    const cleanupTownHallEffects = (state, today) => {
+        const service = _engine?.get('townHall')
+        return service?.cleanupEffects(today)
+    }
+    
+    // Loot Generator Service
+    const generateLootDrop = (args) => {
+        const service = _engine?.get('loot')
+        return service?.generateLootDrop(args)
+    }
+    const generateArmorForSlot = (args) => {
+        const service = _engine?.get('loot')
+        return service?.generateArmorForSlot(args)
+    }
+    const getItemPowerScore = (item) => {
+        const service = _engine?.get('loot')
+        return service?.getItemPowerScore(item)
+    }
+    const getSellValue = (item, context) => {
+        const service = _engine?.get('loot')
+        return service?.getSellValue(item, context)
+    }
+    const formatRarityLabel = (rarity) => {
+        const service = _engine?.get('loot')
+        return service?.formatRarityLabel(rarity)
+    }
+    const pickWeighted = (choices) => {
+        const service = _engine?.get('loot')
+        return service?.pickWeighted(choices)
     }
 
     // =============================================================================
