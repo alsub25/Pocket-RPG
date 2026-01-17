@@ -95,12 +95,73 @@ export function installBootDiagnostics() {
     })
   })
 
-  diag.buildReport = () => ({
-    startedAt: diag.startedAt,
-    url: (typeof location !== 'undefined' ? location.href : ''),
-    ua: (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
-    errors: diag.errors
-  })
+  diag.buildReport = () => {
+    const report = {
+      startedAt: diag.startedAt,
+      url: (typeof location !== 'undefined' ? location.href : ''),
+      ua: (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
+      errors: diag.errors
+    }
+    
+    // Enhanced diagnostics for syntax errors
+    if (diag.errors && diag.errors.length > 0) {
+      diag.errors.forEach(err => {
+        if (err.kind === 'scriptLoadError' && err.message) {
+          // Parse error message for details
+          const msg = String(err.message)
+          
+          // Add enhanced info
+          if (!err.enhanced) {
+            err.enhanced = {}
+            
+            // Detect syntax error patterns
+            if (msg.includes('Unexpected identifier') || msg.includes('Expected')) {
+              err.enhanced.type = 'SYNTAX_ERROR'
+              err.enhanced.hint = 'JavaScript syntax error - likely caused by:'
+              err.enhanced.possibleCauses = [
+                '1. Missing comma in object literal',
+                '2. Unclosed brace/bracket',
+                '3. Invalid ES6 module syntax',
+                '4. Jekyll processing corruption (check .nojekyll file exists)',
+                '5. Browser cache serving old corrupted files'
+              ]
+            }
+            
+            // Extract identifier if present
+            const identMatch = msg.match(/identifier ['"](.+?)['"]/)
+            if (identMatch) {
+              err.enhanced.identifier = identMatch[1]
+              err.enhanced.identifierNote = `The parser failed at identifier: "${identMatch[1]}"`
+            }
+            
+            // Check for object literal issues
+            if (msg.includes('object literal')) {
+              err.enhanced.specificIssue = 'Object literal syntax error'
+              err.enhanced.commonFixes = [
+                'Check for missing commas between properties',
+                'Verify all braces are properly closed',
+                'Ensure no mixing of getter/shorthand syntax',
+                'Look for trailing commas before closing brace'
+              ]
+            }
+            
+            // File-specific guidance
+            if (err.src && err.src.includes('main.js')) {
+              err.enhanced.fileNote = 'Error in main.js - this is the entry point'
+              err.enhanced.checkFiles = [
+                'main.js itself',
+                'Any modules imported by main.js',
+                'gameOrchestrator.js (large orchestrator file)',
+                'QA modules (smokeTests.js, integrityScanners.js)'
+              ]
+            }
+          }
+        }
+      })
+    }
+    
+    return report
+  }
 
   diag.renderOverlay = () => {
     try {
@@ -176,7 +237,68 @@ export function installBootDiagnostics() {
       const pre = document.createElement('pre')
       pre.style.whiteSpace = 'pre-wrap'
       pre.style.fontSize = '12px'
-      pre.textContent = JSON.stringify(diag.buildReport(), null, 2)
+      pre.style.lineHeight = '1.5'
+      
+      const report = diag.buildReport()
+      
+      // Enhanced display with highlighted sections
+      let displayText = JSON.stringify(report, null, 2)
+      
+      // Add visual separator and enhanced info if available
+      if (report.errors && report.errors.length > 0) {
+        const firstError = report.errors[0]
+        if (firstError.enhanced) {
+          let enhancedSection = '\n\n' + '='.repeat(50) + '\n'
+          enhancedSection += '🔍 ENHANCED DIAGNOSTICS\n'
+          enhancedSection += '='.repeat(50) + '\n\n'
+          
+          if (firstError.enhanced.type) {
+            enhancedSection += `Type: ${firstError.enhanced.type}\n\n`
+          }
+          
+          if (firstError.enhanced.identifier) {
+            enhancedSection += `Failed at identifier: "${firstError.enhanced.identifier}"\n\n`
+          }
+          
+          if (firstError.enhanced.specificIssue) {
+            enhancedSection += `Issue: ${firstError.enhanced.specificIssue}\n\n`
+          }
+          
+          if (firstError.enhanced.hint) {
+            enhancedSection += `${firstError.enhanced.hint}\n`
+          }
+          
+          if (firstError.enhanced.possibleCauses) {
+            enhancedSection += '\nPossible Causes:\n'
+            firstError.enhanced.possibleCauses.forEach(cause => {
+              enhancedSection += `  ${cause}\n`
+            })
+          }
+          
+          if (firstError.enhanced.commonFixes) {
+            enhancedSection += '\nCommon Fixes:\n'
+            firstError.enhanced.commonFixes.forEach(fix => {
+              enhancedSection += `  • ${fix}\n`
+            })
+          }
+          
+          if (firstError.enhanced.fileNote) {
+            enhancedSection += `\n📁 ${firstError.enhanced.fileNote}\n`
+          }
+          
+          if (firstError.enhanced.checkFiles) {
+            enhancedSection += '\nFiles to check:\n'
+            firstError.enhanced.checkFiles.forEach(file => {
+              enhancedSection += `  • ${file}\n`
+            })
+          }
+          
+          enhancedSection += '\n' + '='.repeat(50) + '\n\n'
+          displayText = enhancedSection + displayText
+        }
+      }
+      
+      pre.textContent = displayText
       overlay.appendChild(pre)
 
       document.body.appendChild(overlay)
