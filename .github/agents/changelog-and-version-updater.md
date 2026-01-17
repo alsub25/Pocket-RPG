@@ -55,8 +55,9 @@ When you update the version, you **MUST** update it in all of the following loca
    - These values are the single source of truth for the current version
 
 2. **`/README.md`**
-   - Update the version badge on line 7
-   - Change `version-1.2.85-blue.svg` to match your new version number
+   - Update the version badge near the top of the file (in the header section after the title)
+   - Look for the line containing `[![Version](https://img.shields.io/badge/version-`
+   - Change the version number in the badge URL to match your new version
    - Example: `[![Version](https://img.shields.io/badge/version-1.2.86-blue.svg)]`
 
 3. **`/js/game/changelog/changelog.js`**
@@ -124,7 +125,7 @@ If you fix a bug in the combat system:
    export const GAME_PATCH = '1.2.86';
    export const GAME_PATCH_NAME = 'Combat Bug Fixes';
    ```
-4. Update `/README.md` line 7:
+4. Update the version badge in `/README.md`:
    ```markdown
    [![Version](https://img.shields.io/badge/version-1.2.86-blue.svg)]
    ```
