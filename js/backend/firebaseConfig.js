@@ -14,15 +14,23 @@
 
 // Firebase configuration
 // IMPORTANT: Replace these values with your own Firebase project configuration
-export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCDW_uDqS3bo9MgJDbUoRUJlTSn_OzSeUo",
+  authDomain: "emberwood-game.firebaseapp.com",
+  projectId: "emberwood-game",
+  storageBucket: "emberwood-game.firebasestorage.app",
+  messagingSenderId: "956338840984",
+  appId: "1:956338840984:web:6bfa60b02edff461aef7ed"
 };
 
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 // Feature flag to enable/disable backend features
 // Set to false to disable backend and use localStorage only
 export const BACKEND_ENABLED = firebaseConfig.apiKey !== "YOUR_API_KEY";
