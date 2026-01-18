@@ -187,8 +187,7 @@ import {
     qaScanTalentIntegrity,
     qaScanCooldownIntegrity,
     qaScanReferenceIntegrity,
-    qaCollectBugScannerFindings,
-    classifyIntegritySeverity
+    qaCollectBugScannerFindings
 } from '../diagnostics/qaScanners.js'
 
 import { GAME_PATCH as CURRENT_PATCH, GAME_PATCH_NAME as CURRENT_PATCH_NAME } from '../systems/version.js'

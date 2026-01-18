@@ -4,13 +4,14 @@
  */
 
 // GitHub configuration
-const GITHUB_REPO_URL = 'https://github.com/Leyban/Emberwood-The-Blackbark-Oath'
+const GITHUB_REPO_URL = 'https://github.com/alsub25/Emberwood-The-Blackbark-Oath'
 const GITHUB_ISSUE_TITLE_MAX_LENGTH = 60
 const GITHUB_URL_MAX_LENGTH = 8190
 
 function isRunningOnGitHubPages() {
-    return typeof window !== 'undefined' && 
-           window.location.hostname.includes('github.io')
+    if (typeof window === 'undefined') return false
+    const hostname = window.location.hostname
+    return hostname.endsWith('.github.io')
 }
 
 export function createFeedbackModal(deps) {

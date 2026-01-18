@@ -87,16 +87,52 @@ export function qaScanNegativeCounters(s) {
 }
 
 export function qaCollectBugScannerFindings(s) {
+    const nonFinite = qaScanNonFiniteNumbers(s, { maxIssues: 250 })
+    const negatives = qaScanNegativeCounters(s)
+    const elementKeys = qaScanElementKeyIssues(s)
+    const refs = qaScanReferenceIntegrity(s)
+    const abilityElements = qaScanAbilityElementCoverage()
+    const statSanity = qaScanStatSanity(s)
+    const combatRuntime = qaScanCombatRuntimeSanity(s)
+    const talentIntegrity = qaScanTalentIntegrity(s)
+    const cooldownIntegrity = qaScanCooldownIntegrity(s)
+
+    const hasIssues = !!(
+        nonFinite.length ||
+        negatives.length ||
+        elementKeys.length ||
+        refs.length ||
+        abilityElements.length ||
+        statSanity.length ||
+        combatRuntime.length ||
+        talentIntegrity.length ||
+        cooldownIntegrity.length
+    )
+
     return {
-        nonFinite: qaScanNonFiniteNumbers(s, { maxIssues: 400 }),
-        negativeCounters: qaScanNegativeCounters(s),
-        statSanity: qaScanStatSanity(s),
-        combatRuntime: qaScanCombatRuntimeSanity(s),
-        elementKeys: qaScanElementKeyIssues(s),
-        abilityElements: qaScanAbilityElementCoverage(),
-        talentIntegrity: qaScanTalentIntegrity(s),
-        cooldownIntegrity: qaScanCooldownIntegrity(s),
-        referenceIntegrity: qaScanReferenceIntegrity(s)
+        hasIssues,
+        counts: {
+            nonFinite: nonFinite.length,
+            negatives: negatives.length,
+            elementKeys: elementKeys.length,
+            refs: refs.length,
+            abilityElements: abilityElements.length,
+            statSanity: statSanity.length,
+            combatRuntime: combatRuntime.length,
+            talentIntegrity: talentIntegrity.length,
+            cooldownIntegrity: cooldownIntegrity.length
+        },
+        findings: {
+            nonFinite,
+            negativeCounters: negatives,
+            statSanity,
+            combatRuntime,
+            elementKeys,
+            abilityElements,
+            talentIntegrity,
+            cooldownIntegrity,
+            referenceIntegrity: refs
+        }
     }
 }
 
@@ -289,26 +325,6 @@ export function qaScanReferenceIntegrity(s) {
     return issues
 }
 
-// Severity classification helper
-export function classifyIntegritySeverity(invariant, scanners) {
-    // "Invariants" like nonFinite and negativeCounters are always critical
-    if (invariant === 'nonFinite' && scanners.nonFinite && scanners.nonFinite.length) return 'critical'
-    if (invariant === 'negativeCounters' && scanners.negativeCounters && scanners.negativeCounters.length) return 'critical'
-
-    // combatRuntime issues can break the game flow
-    if (invariant === 'combatRuntime' && scanners.combatRuntime && scanners.combatRuntime.length) return 'high'
-
-    // Reference integrity issues (unknown items/abilities) are medium
-    if (invariant === 'referenceIntegrity' && scanners.referenceIntegrity && scanners.referenceIntegrity.length) return 'medium'
-    if (invariant === 'cooldownIntegrity' && scanners.cooldownIntegrity && scanners.cooldownIntegrity.length) return 'medium'
-    if (invariant === 'talentIntegrity' && scanners.talentIntegrity && scanners.talentIntegrity.length) return 'medium'
-
-    // Element key issues are low (usually cosmetic)
-    if (invariant === 'elementKeys' && scanners.elementKeys && scanners.elementKeys.length) return 'low'
-    if (invariant === 'abilityElements' && scanners.abilityElements && scanners.abilityElements.length) return 'low'
-
-    // Stat sanity issues can be low to medium
-    if (invariant === 'statSanity' && scanners.statSanity && scanners.statSanity.length) return 'medium'
-
-    return 'unknown'
-}
+// Note: classifyIntegritySeverity is NOT exported from this module as it remains
+// in gameOrchestrator.js with a different signature. The version there expects  
+// invariant objects with specific structure from the integrity audit system.
