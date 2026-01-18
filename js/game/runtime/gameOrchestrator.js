@@ -160,54 +160,23 @@ import {
 
 import { validateState, formatIssues } from '../systems/assertState.js'
 
-import {
-    initVillageEconomyState,
-    getVillageEconomySummary,
-    getMerchantPrice,
-    getRestCost,
-    handleEconomyDayTick,
-    handleEconomyAfterBattle,
-    handleEconomyAfterPurchase
-} from '../locations/village/villageEconomy.js'
-import {
-    initGovernmentState,
-    handleGovernmentDayTick,
-    getGovernmentSummary,
-    getVillageGovernmentEffect
-} from '../systems/kingdomGovernment.js'
-import {
-    openBankModalImpl,
-    bankDeposit,
-    bankWithdraw,
-    bankInvest,
-    bankCashOut,
-    bankBorrow,
-    bankRepay
-} from '../locations/village/bank.js'
-import { openTavernModalImpl } from '../locations/village/tavern.js' // ⬅️ NEW
-import {
-    openMerchantModalImpl,
-    handleMerchantDayTick,
-    ensureMerchantStock,
-    executeMerchantBuy
-} from '../locations/village/merchant.js' // ⬅️ NEW
-import {
-    generateLootDrop,
-    generateArmorForSlot,
-    getItemPowerScore,
-    getSellValue,
-    formatRarityLabel,
-    pickWeighted
-} from '../systems/lootGenerator.js'
-import {
-    openTownHallModalImpl,
-    handleTownHallDayTick,
-    cleanupTownHallEffects
-} from '../locations/village/townHall.js'
-import {
-    ensureVillagePopulation,
-    handlePopulationDayTick
-} from '../locations/village/villagePopulation.js'
+// NOTE: Core business logic functions are now accessed via engine services instead of direct imports
+// Economy: _engine.getService('village.economy')
+// Population: _engine.getService('village.population')
+// Government: _engine.getService('kingdom.government')
+// Bank: _engine.getService('bank')
+// Merchant: _engine.getService('merchant')
+// Tavern: _engine.getService('tavern')
+// Town Hall: _engine.getService('townHall')
+// Loot: _engine.getService('loot.generator')
+// Quest System: _engine.getService('quest.system')
+// Time: _engine.getService('time')
+//
+// UI-specific modal functions are still imported from location modules:
+import { openBankModalImpl, bankDeposit, bankWithdraw, bankInvest, bankCashOut, bankBorrow, bankRepay } from '../locations/village/bank.js'
+import { openTavernModalImpl } from '../locations/village/tavern.js'
+import { openMerchantModalImpl, handleMerchantDayTick, ensureMerchantStock, executeMerchantBuy } from '../locations/village/merchant.js'
+import { openTownHallModalImpl, handleTownHallDayTick, cleanupTownHallEffects } from '../locations/village/townHall.js'
 import { QUEST_DEFS } from '../quests/questDefs.js'
 import { createDefaultQuestState, createDefaultQuestFlags } from '../quests/questDefaults.js'
 import { createQuestBindings } from '../quests/questBindings.js'
@@ -2809,6 +2778,138 @@ function pickEnemyAbilitySet(enemy) {
 let state = null
 // Engine Core handle (proprietary engine). The orchestrator uses it as a state/event backplane.
 let _engine = null
+
+// =============================================================================
+// ENGINE SERVICE ACCESSORS (Engine-First Architecture)
+// =============================================================================
+// These helper functions provide backwards-compatible access to engine services
+// for code that previously imported location modules directly.
+//
+// NOTE: The `state` parameter is kept for API compatibility but not passed to
+// services because services manage state internally via engine.getState() and
+// engine.setState(). This is by design in the engine-first architecture.
+
+// Village Economy Service
+const initVillageEconomyState = (state) => {
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.initEconomy()
+}
+const getVillageEconomySummary = (state) => {
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.getSummary()
+}
+const getMerchantPrice = (basePrice, state, context) => {
+    if (!_engine) return basePrice
+    const service = _engine.getService('village.economy')
+    if (!service) return basePrice
+    return service.getMerchantPrice(basePrice, context)
+}
+const getRestCost = (state) => {
+    if (!_engine) return 0
+    const service = _engine.getService('village.economy')
+    if (!service) return 0
+    return service.getRestCost()
+}
+const handleEconomyDayTick = (state, day) => {
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.handleDayTick(day)
+}
+const handleEconomyAfterBattle = (state, enemy, area) => {
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.handleAfterBattle(enemy, area)
+}
+const handleEconomyAfterPurchase = (state, goldSpent, context) => {
+    if (!_engine) return
+    const service = _engine.getService('village.economy')
+    if (!service) return
+    return service.handleAfterPurchase(goldSpent, context)
+}
+
+// Village Population Service
+const ensureVillagePopulation = (state) => {
+    if (!_engine) return
+    const service = _engine.getService('village.population')
+    if (!service) return
+    return service.getPopulation()
+}
+const handlePopulationDayTick = (state, day, hooks) => {
+    if (!_engine) return
+    const service = _engine.getService('village.population')
+    if (!service) return
+    return service.handleDayTick(day)
+}
+
+// Kingdom Government Service
+const initGovernmentState = (state, day) => {
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.initGovernment(day)
+}
+const handleGovernmentDayTick = (state, day, hooks) => {
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.handleDayTick(day)
+}
+const getGovernmentSummary = (state) => {
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.getSummary()
+}
+const getVillageGovernmentEffect = (state, context) => {
+    if (!_engine) return
+    const service = _engine.getService('kingdom.government')
+    if (!service) return
+    return service.getVillageEffect(context)
+}
+
+// Loot Generator Service
+const generateLootDrop = (args) => {
+    if (!_engine) return null
+    const service = _engine.getService('loot.generator')
+    if (!service) return null
+    return service.generateLootDrop(args)
+}
+const generateArmorForSlot = (args) => {
+    if (!_engine) return null
+    const service = _engine.getService('loot.generator')
+    if (!service) return null
+    return service.generateArmorForSlot(args)
+}
+const getItemPowerScore = (item) => {
+    if (!_engine) return 0
+    const service = _engine.getService('loot.generator')
+    if (!service) return 0
+    return service.getItemPowerScore(item)
+}
+const getSellValue = (item, context) => {
+    if (!_engine) return 0
+    const service = _engine.getService('loot.generator')
+    if (!service) return 0
+    return service.getSellValue(item, context)
+}
+const formatRarityLabel = (rarity) => {
+    if (!_engine) return rarity
+    const service = _engine.getService('loot.generator')
+    if (!service) return rarity
+    return service.formatRarityLabel(rarity)
+}
+const pickWeighted = (choices) => {
+    if (!_engine) return null
+    const service = _engine.getService('loot.generator')
+    if (!service) return null
+    return service.pickWeighted(choices)
+}
 
 function _setState(next) {
     state = next
