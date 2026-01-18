@@ -5553,87 +5553,8 @@ if (enemy.affixRegenPct && enemy.affixRegenPct > 0 && enemy.hp > 0) {
 }
 
 function decideEnemyAction(enemy, player) {
-    const diff = getActiveDifficultyConfig()
-    const smart = diff.aiSmartness
-    const available = []
-
-    available.push('attack')
-
-    if (enemy.isBoss) {
-        if (enemy.behavior === 'bossGoblin') {
-            available.push('heavy', 'guard')
-        } else if (enemy.behavior === 'bossDragon') {
-            available.push('heavy', 'voidBreath')
-        } else if (enemy.behavior === 'bossWitch') {
-            available.push('heavy', 'voidBreath', 'guard')
-        } else if (enemy.behavior === 'bossGiant') {
-            available.push('heavy', 'guard')
-        } else if (enemy.behavior === 'bossLich') {
-            available.push('heavy', 'voidBreath', 'guard')
-        } else if (enemy.behavior === 'bossKing') {
-            available.push('heavy', 'guard', 'voidBreath')
-        } else {
-            available.push('heavy')
-        }
-    } else {
-        if (enemy.behavior === 'aggressive') {
-            available.push('heavy')
-        } else if (enemy.behavior === 'cunning') {
-            available.push('heavy', 'guard')
-        } else if (enemy.behavior === 'caster') {
-            available.push('voidBreath')
-        }
-    }
-
-    if (rand('ai.smartRoll') > smart) {
-        return available[randInt(0, available.length - 1, 'ai.randomAbility')]
-    }
-
-    let bestAction = 'attack'
-    let bestScore = -Infinity
-
-    available.forEach((act) => {
-        let score = 0
-        if (act === 'attack') {
-            const dmg = calcEnemyDamage(getEffectiveEnemyAttack(enemy), { damageType: 'physical', elementType: enemy.attackElementType || null })
-            score = dmg
-        } else if (act === 'heavy') {
-            const dmg = calcEnemyDamage(getEffectiveEnemyAttack(enemy) * 1.4, { damageType: 'physical', elementType: enemy.attackElementType || null })
-            score = dmg * 1.1
-        } else if (act === 'voidBreath') {
-            const dmg = calcEnemyDamage(enemy.magic * 1.7, { damageType: 'magic', elementType: enemy.magicElementType || null })
-            score = dmg * 1.2
-        } else if (act === 'guard') {
-            score = 12
-            if (enemy.hp < enemy.maxHp * 0.4) score += 10
-        }
-
-        if (
-            player.hp <=
-            calcEnemyDamage(
-                act === 'heavy'
-                    ? enemy.attack * 1.4
-                    : act === 'voidBreath'
-                    ? enemy.magic * 1.7
-                    : enemy.attack,
-                {
-                    damageType: act === 'voidBreath' ? 'magic' : 'physical',
-                    elementType: act === 'voidBreath'
-                        ? enemy.magicElementType || null
-                        : enemy.attackElementType || null
-                }
-            )
-        ) {
-            score += 50
-        }
-
-        if (score > bestScore) {
-            bestScore = score
-            bestAction = act
-        }
-    })
-
-    return bestAction
+    _initHelpers()
+    return _enemyAIHelpers.decideEnemyAction(enemy, player)
 }
 
 function applyEndOfTurnEffectsPlayer(p) {
