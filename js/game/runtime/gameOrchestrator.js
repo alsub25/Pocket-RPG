@@ -104,6 +104,9 @@ import {
     _getTalentSpellElementBonusMap,
     _getElementalBreakdownsForPlayer
 } from '../systems/characterSystem.js'
+import { createEquipmentHelpers } from '../systems/equipmentHelpers.js'
+import { createEnemyAIHelpers } from '../combat/enemyAIHelpers.js'
+import { createHUDUpdaters } from '../ui/hudUpdates.js'
 
 /* =============================================================================
  * Emberwood Game Orchestrator (gameOrchestrator.js)
@@ -2670,6 +2673,58 @@ const quests = createQuestBindings({
     SAVE_SCHEMA
 })
 
+// Initialize modular helper systems (Patch 1.2.72)
+let _equipmentHelpers = null
+let _enemyAIHelpers = null
+let _hudUpdaters = null
+
+function _initHelpers() {
+    if (!_equipmentHelpers) {
+        _equipmentHelpers = createEquipmentHelpers({
+            state,
+            cloneItemDef,
+            _engine,
+            quests,
+            addLog,
+            updateHUD,
+            requestSave,
+            withSaveTxn,
+            getSellValue,
+            closeModal,
+            guardPlayerTurn,
+            endPlayerTurn,
+            _recalcPlayerStats: recalcPlayerStats
+        })
+    }
+    if (!_enemyAIHelpers) {
+        _enemyAIHelpers = createEnemyAIHelpers({
+            state,
+            ENEMY_ABILITIES,
+            ENEMY_ABILITY_SETS,
+            addLog,
+            rand,
+            randInt,
+            calcEnemyDamage,
+            getActiveDifficultyConfig,
+            computeEnemyPostureMaxImpl,
+            clampNumber,
+            ensureEnemyRuntimeImpl,
+            pickEnemyAbilitySet
+        })
+    }
+    if (!_hudUpdaters) {
+        _hudUpdaters = createHUDUpdaters({
+            state,
+            PLAYER_CLASSES,
+            getActiveDifficultyConfig,
+            finiteNumber,
+            clampFinite,
+            clampNumber,
+            sanitizeCoreState,
+            syncSmokeTestsPillVisibility
+        })
+    }
+}
 
 // Small helper so we only need to change behavior in one place
 function cheatsEnabled() {
@@ -2727,396 +2782,27 @@ function syncGlobalStateRef() {
 }
 
 function updateHUD() {
+    _initHelpers()
     const st = state
     try {
         if (st && st.debug && st.debug.capturePerf) {
-            return perfWrap(st, 'hud:updateHUD', null, () => _updateHUDImpl())
+            return perfWrap(st, 'hud:updateHUD', null, () => _hudUpdaters.updateHUD())
         }
     } catch (_) {}
-    return _updateHUDImpl()
+    return _hudUpdaters.updateHUD()
 }
 
 function _updateHUDImpl() {
-    if (!state.player) return
-
-    sanitizeCoreState()
-
-    // Dev cheats UI affordance
-    try { syncSmokeTestsPillVisibility() } catch (_) {}
-
-    const p = state.player
-    const comp = state.companion
-    const diff = getActiveDifficultyConfig()
-    const classDef = PLAYER_CLASSES[p.classId]
-
-    const nameEl = document.getElementById('hud-name')
-    const classDiffEl = document.getElementById('hud-class-diff')
-    const hpFill = document.getElementById('hpFill')
-    const hpLabel = document.getElementById('hpLabel')
-    const resFill = document.getElementById('resFill')
-    const resLabel = document.getElementById('resLabel')
-    const hudLevel = document.getElementById('hud-level')
-    const hudGold = document.getElementById('hud-gold')
-    const hudBottom = document.getElementById('hud-bottom')
-    const hudTime = document.getElementById('timeLabel')
-
-    // Defensive: if HUD nodes are missing (partial DOM / early calls), don't crash.
-    if (!nameEl || !classDiffEl || !hpFill || !hpLabel || !resFill || !resLabel || !hudLevel || !hudGold || !hudBottom) return
-
-    // Decide which entity to show: default to player if no companion
-    let mode = state.hudView || 'player'
-    if (!comp && mode === 'companion') {
-        mode = 'player'
-        state.hudView = 'player'
-    }
-
-
-    if (mode === 'player') {
-        // --- PLAYER VIEW ---
-        nameEl.textContent = p.name || 'Nameless'
-        classDiffEl.textContent =
-            (classDef ? classDef.name : 'Adventurer') +
-            ' • ' +
-            (diff ? diff.name : '')
-
-        const maxHp = Math.max(1, Math.floor(finiteNumber(p.maxHp, 1)))
-        const hpNow = clampFinite(p.hp, 0, maxHp, maxHp)
-        const hpPercent = Math.max(0, Math.min(100, (hpNow / maxHp) * 100))
-        hpFill.style.width = hpPercent + '%'
-        hpLabel.textContent = 'HP ' + Math.round(hpNow) + '/' + maxHp
-        hpFill.className = 'bar-fill hp-fill'
-
-        const rk =
-            p.resourceKey === 'mana' || p.resourceKey === 'fury' || p.resourceKey === 'blood' || p.resourceKey === 'essence'
-                ? p.resourceKey
-                : 'mana'
-        const resName = p.resourceName || 'Resource'
-        const maxResRaw = finiteNumber(p.maxResource, 0)
-        const maxRes = maxResRaw > 0 ? maxResRaw : 0
-
-        if (maxRes <= 0) {
-            // Some classes / corrupted saves may temporarily have no resource pool.
-            resFill.style.width = '0%'
-            resFill.className = 'bar-fill resource-fill ' + rk
-            resLabel.textContent = resName + ' —'
-        } else {
-            const resNow = clampFinite(p.resource, 0, maxRes, maxRes)
-            const resPercent = Math.max(0, Math.min(100, (resNow / maxRes) * 100))
-            resFill.style.width = resPercent + '%'
-            resFill.className = 'bar-fill resource-fill ' + rk
-            resLabel.textContent = resName + ' ' + Math.round(resNow) + '/' + Math.round(maxRes)
-        }
-    } else {
-        // --- COMPANION VIEW ---
-        // We already guaranteed comp exists above.
-        nameEl.textContent = comp.name + ' (Companion)'
-        classDiffEl.textContent =
-            comp.role.charAt(0).toUpperCase() +
-            comp.role.slice(1) +
-            ' • Swipe to switch'
-
-        // Use bars to show companion stats instead of HP/resource
-        // HP bar -> Attack
-        hpFill.style.width = '100%'
-        hpFill.className = 'bar-fill hp-fill'
-        hpLabel.textContent = 'Attack ' + comp.attack
-
-        // Resource bar -> HP bonus
-        resFill.style.width = '100%'
-        resFill.className = 'bar-fill resource-fill mana'
-        resLabel.textContent = 'HP Bonus +' + comp.hpBonus
-    }
-
-    // Bottom: progression + gold are hidden during combat per HUD request.
-    // (Show again immediately after combat ends.)
-    if (hudLevel) {
-        hudLevel.textContent =
-            'Lv ' + p.level + ' • ' + p.xp + '/' + p.nextLevelXp + ' XP'
-    }
-    if (hudGold) {
-        hudGold.innerHTML = '<span class="gold">' + p.gold + '</span> Gold'
-    }
-
-    const inCombatNow = !!(state.inCombat && state.currentEnemy)
-    if (hudBottom) {
-        if (inCombatNow) hudBottom.classList.add('hidden')
-        else hudBottom.classList.remove('hidden')
-    } else {
-        // Fallback if DOM changed: hide individual fields.
-        if (hudLevel) hudLevel.classList.toggle('hidden', inCombatNow)
-        if (hudGold) hudGold.classList.toggle('hidden', inCombatNow)
-        if (hudTime) hudTime.classList.toggle('hidden', inCombatNow)
-    }
-
-    // Class mechanics meter (combat only)
-    try { updateClassMeterHUD() } catch (_) {}
+    _initHelpers()
+    return _hudUpdaters.updateHUD()
 }
 
 // --- Combat HUD: class mechanics meter ---------------------------------------
 // Shows lightweight class-specific generation systems in a compact HUD row.
 // (Rogue combo points, Ranger marks on target, Shaman totem uptime)
 function updateClassMeterHUD() {
-    const el = document.getElementById('hudClassMeter')
-    if (!el) return
-
-    const p = state && state.player
-    if (!p || !state.inCombat) {
-        el.classList.add('hidden')
-        el.innerHTML = ''
-        return
-    }
-
-    const enemy = state.currentEnemy || null
-    const classId = String(p.classId || '')
-    const st = p.status || {}
-
-    // ---------------------------------------------------------------------
-    // Helpers
-    // ---------------------------------------------------------------------
-    const clampInt = (v, min, max) => {
-        const n = Math.floor(Number(v))
-        return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min))
-    }
-    const clampNum = (v, min, max) => {
-        const n = Number(v)
-        return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min))
-    }
-    const cap = (s) => {
-        s = String(s || '')
-        if (!s) return ''
-        return s.charAt(0).toUpperCase() + s.slice(1)
-    }
-    const escHtml = (s) => {
-        s = String(s == null ? '' : s)
-        return s.replace(/[&<>\"]/g, (ch) => {
-            if (ch === '&') return '&amp;'
-            if (ch === '<') return '&lt;'
-            if (ch === '>') return '&gt;'
-            return '&quot;'
-        })
-    }
-
-    // IMPORTANT: The HUD is often used on iOS via file://. Using an inline <symbol>
-    // sprite in index.html keeps icons available without fetch() or bundling.
-    // We render icons as crisp outlines (no fills) so the meter reads cleanly at tiny sizes.
-    // Expects sprite symbols: <id>-stroke.
-    const iconUse = (symbolId) => {
-        const id = escHtml(symbolId || '')
-        if (!id) return ''
-        const strokeId = id + '-stroke'
-        return (
-            '<svg class="meter-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
-            '<use class="meter-icon-stroke" href="#' + strokeId + '" xlink:href="#' + strokeId + '"></use>' +
-            '</svg>'
-        )
-    }
-
-    const renderPips = (filled, max, symbolId) => {
-        filled = clampInt(filled, 0, max)
-        max = clampInt(max, 1, 12)
-        const svg = iconUse(symbolId)
-        let out = '<span class="meter-dots" aria-hidden="true">'
-        for (let i = 1; i <= max; i++) {
-            out += '<span class="meter-dot' + (i <= filled ? ' filled' : '') + '">' + svg + '</span>'
-        }
-        out += '</span>'
-        return out
-    }
-
-    // ---------------------------------------------------------------------
-    // Meter definitions (data-driven so adding new classes is low-risk)
-    // ---------------------------------------------------------------------
-    const M = {
-        rogue: {
-            label: 'Combo',
-            kind: 'pips',
-            icon: 'i-dagger',
-            max: 5,
-            filled: () => clampInt(st.comboPoints || 0, 0, 5)
-        },
-        ranger: {
-            label: 'Marks',
-            kind: 'pips+turns',
-            icon: 'i-bullseye',
-            max: 5,
-            filled: () => clampInt(enemy && enemy.markedStacks ? enemy.markedStacks : 0, 0, 5),
-            turns: () => clampInt(enemy && enemy.markedTurns ? enemy.markedTurns : 0, 0, 99)
-        },
-        shaman: {
-            label: 'Totem',
-            kind: 'chip+turns',
-            chip: () => cap(st.totemType || '') || 'None',
-            turns: () => clampInt(st.totemTurns || 0, 0, 99)
-        },
-        necromancer: {
-            label: 'Shards',
-            kind: 'pips',
-            icon: 'i-skull',
-            max: 5,
-            filled: () => clampInt(st.soulShards || 0, 0, 5)
-        },
-        mage: {
-            label: 'Rhythm',
-            kind: 'pips+chip',
-            icon: 'i-starburst',
-            max: 3,
-            filled: () => {
-                const count = clampInt(st.spellCastCount || 0, 0, 999999)
-                return clampInt(count % 3, 0, 3)
-            },
-            chip: () => {
-                const count = clampInt(st.spellCastCount || 0, 0, 999999)
-                return (count % 3) === 2 ? 'Ready' : ''
-            }
-        },
-        warrior: {
-            label: 'Bulwark',
-            kind: 'pips+chip',
-            icon: 'i-shield',
-            max: 5,
-            filled: () => {
-                const fury = clampNum(p.resource || 0, 0, p.maxResource || 0)
-                const threshold = 40
-                return clampInt(Math.round((Math.min(fury, threshold) / threshold) * 5), 0, 5)
-            },
-            chip: () => {
-                const fury = clampNum(p.resource || 0, 0, p.maxResource || 0)
-                return fury >= 40 ? 'On' : ''
-            }
-        },
-        blood: {
-            label: 'Blood',
-            kind: 'pips',
-            icon: 'i-blooddrop',
-            max: 5,
-            filled: () => {
-                const cur = clampNum(p.resource || 0, 0, p.maxResource || 0)
-                const mx = clampNum(p.maxResource || 0, 1, 99999)
-                return clampInt(Math.round((cur / mx) * 5), 0, 5)
-            }
-        },
-        paladin: {
-            label: 'Sanctuary',
-            kind: 'pips+chip',
-            icon: 'i-shield',
-            max: 5,
-            filled: () => {
-                const shield = clampNum(st.shield || 0, 0, 99999)
-                const mx = clampNum(p.maxHp || 1, 1, 99999)
-                return clampInt(Math.round((Math.min(shield, mx) / mx) * 5), 0, 5)
-            },
-            chip: () => (clampNum(st.shield || 0, 0, 99999) > 0 ? 'On' : 'Off')
-        },
-        cleric: {
-            label: 'Ward',
-            kind: 'pips+value',
-            icon: 'i-cross',
-            max: 5,
-            filled: () => {
-                const shield = clampNum(st.shield || 0, 0, 99999)
-                const mx = clampNum(p.maxHp || 1, 1, 99999)
-                return clampInt(Math.round((Math.min(shield, mx) / mx) * 5), 0, 5)
-            },
-            value: () => {
-                const shield = clampNum(st.shield || 0, 0, 99999)
-                return shield > 0 ? String(Math.round(shield)) : ''
-            }
-        },
-        berserker: {
-            label: 'Frenzy',
-            kind: 'pips',
-            icon: 'i-flame',
-            max: 5,
-            filled: () => {
-                const mx = clampNum(p.maxHp || 1, 1, 99999)
-                const hp = clampNum(p.hp || 0, 0, mx)
-                const missingPct = clampNum((mx - hp) / mx, 0, 1)
-                return clampInt(Math.round(missingPct * 5), 0, 5)
-            }
-        },
-        vampire: {
-            label: 'Hunger',
-            kind: 'pips+chip',
-            icon: 'i-bat',
-            max: 5,
-            filled: () => {
-                const cur = clampNum(p.resource || 0, 0, p.maxResource || 0)
-                const mx = clampNum(p.maxResource || 0, 1, 99999)
-                return clampInt(Math.round((cur / mx) * 5), 0, 5)
-            },
-            chip: () => {
-                const cur = clampNum(p.resource || 0, 0, p.maxResource || 0)
-                const mx = clampNum(p.maxResource || 0, 1, 99999)
-                return (cur / mx) >= 0.55 ? 'On' : ''
-            }
-        }
-    }
-
-    const meter = M[classId]
-    if (!meter) {
-        el.classList.add('hidden')
-        el.innerHTML = ''
-        return
-    }
-
-    // Expose class identity to CSS so the meter can tint per-class.
-    // Using a dedicated data attribute avoids collisions with other datasets.
-    el.setAttribute('data-meter-class', classId)
-
-    // ---------------------------------------------------------------------
-    // Render
-    // ---------------------------------------------------------------------
-    let html = '<span class="meter-label">' + escHtml(meter.label) + '</span>'
-
-    // If the meter uses pips, determine whether it's "ready".
-    // When ready, we apply a subtle hue shimmer to the dots area.
-    let pipFilled = 0
-    let pipMax = 0
-    let chipPreview = ''
-    if (meter.kind === 'pips' || meter.kind === 'pips+turns' || meter.kind === 'pips+chip' || meter.kind === 'pips+value') {
-        pipMax = clampInt(meter.max || 5, 1, 12)
-        pipFilled = clampInt(meter.filled(), 0, pipMax)
-        if (meter.kind === 'pips+chip') chipPreview = String(meter.chip() || '')
-
-        // Some meters express readiness via a chip label (ex: Mage rhythm).
-        // If the chip literally says "Ready", visually fill all pips so the
-        // shimmer condition "all ticks active" makes sense at a glance.
-        const chipLower = chipPreview.trim().toLowerCase()
-        const filledForRender = (chipLower === 'ready') ? pipMax : pipFilled
-
-        html += renderPips(filledForRender, pipMax, meter.icon)
-
-        const isReady = (filledForRender >= pipMax) && pipMax > 0
-        el.classList.toggle('is-ready', isReady)
-    } else {
-        el.classList.remove('is-ready')
-    }
-
-    if (meter.kind === 'chip+turns') {
-        const chip = escHtml(meter.chip())
-        const turns = clampInt(meter.turns(), 0, 99)
-        html += '<span class="meter-chip">' + chip + '</span>'
-        html += '<span class="meter-turns">' + turns + 't</span>'
-    }
-
-    if (meter.kind === 'pips+turns') {
-        const turns = clampInt(meter.turns(), 0, 99)
-        html += '<span class="meter-turns">' + turns + 't</span>'
-    }
-
-    if (meter.kind === 'pips+chip') {
-        // Use chipPreview if we already computed it for readiness.
-        const chip = escHtml(chipPreview || meter.chip())
-        if (chip) html += '<span class="meter-chip">' + chip + '</span>'
-    }
-
-    if (meter.kind === 'pips+value') {
-        const v = escHtml(meter.value())
-        if (v) html += '<span class="meter-turns">' + v + '</span>'
-    }
-
-    el.innerHTML = html
-    el.classList.remove('hidden')
+    _initHelpers()
+    return _hudUpdaters.updateClassMeterHUD()
 }
 
 
@@ -3669,8 +3355,6 @@ function startNewGameFromCreation() {
  * Inventory data, equip/unequip, sell/buy, and item UI rendering.
  * ============================================================================= */
 
-
-
 function _questEventsEnabled() {
     try {
         const svc = _engine && typeof _engine.getService === 'function' ? _engine.getService('ew.questEvents') : null
@@ -3679,197 +3363,23 @@ function _questEventsEnabled() {
 }
 
 function addItemToInventory(itemId, quantity) {
-    // Defensive: normalize quantity (prevents negative / NaN quantities from corrupting inventory).
-    quantity = Math.floor(Number(quantity))
-    if (!Number.isFinite(quantity) || quantity <= 0) quantity = 1
-    const def = cloneItemDef(itemId)
-    if (!def) return
-
-    const inv = state.player.inventory
-    const existingIndex = inv.findIndex(
-        (it) => it.id === def.id && it.type === 'potion'
-    )
-    if (existingIndex >= 0 && def.type === 'potion') {
-        const prev = Math.floor(Number(inv[existingIndex].quantity))
-        inv[existingIndex].quantity = (Number.isFinite(prev) ? prev : 0) + quantity
-    } else {
-        def.quantity = quantity
-        inv.push(def)
-    }
-
-    // World event (consumed by questEvents + autosave plugins)
-    try { _engine && _engine.emit && _engine.emit('world:itemGained', { itemId: def.id, quantity }) } catch (_) {}
-
-    // Legacy quest hook (kept as a fallback when the questEvents plugin isn't present)
-    if (!_questEventsEnabled()) {
-        try {
-            if (quests && typeof quests.applyQuestProgressOnItemGain === 'function') {
-                quests.applyQuestProgressOnItemGain(def.id, quantity)
-            }
-        } catch (_) {}
-    }
+    _initHelpers()
+    return _equipmentHelpers.addItemToInventory(itemId, quantity)
 }
 
-// --- Generated loot support -------------------------------------------------
-// Allows dynamically generated items (weapons/armor/potions) to be added directly.
 function addGeneratedItemToInventory(item, quantity = 1) {
-    if (!item) return
-    quantity = Math.floor(Number(quantity))
-    if (!Number.isFinite(quantity) || quantity <= 0) quantity = 1
-    const inv = state.player.inventory
-
-    // Deep-clone to avoid accidental shared references.
-    const cloned = JSON.parse(JSON.stringify(item))
-
-    // Stack potions by id; equipment stays unique.
-    if (cloned.type === 'potion') {
-        const existingIndex = inv.findIndex(
-            (it) => it.id === cloned.id && it.type === 'potion'
-        )
-        if (existingIndex >= 0) {
-            const prev = Math.floor(Number(inv[existingIndex].quantity))
-            inv[existingIndex].quantity = (Number.isFinite(prev) ? prev : 0) + quantity
-            try { _engine && _engine.emit && _engine.emit('world:itemGained', { itemId: cloned.id, quantity }) } catch (_) {}
-
-            if (!_questEventsEnabled()) {
-                try {
-                    if (quests && typeof quests.applyQuestProgressOnItemGain === 'function') {
-                        quests.applyQuestProgressOnItemGain(cloned.id, quantity)
-                    }
-                } catch (_) {}
-            }
-            return
-        }
-        cloned.quantity = quantity
-        inv.push(cloned)
-
-        try { _engine && _engine.emit && _engine.emit('world:itemGained', { itemId: cloned.id, quantity }) } catch (_) {}
-
-        if (!_questEventsEnabled()) {
-            try {
-                if (quests && typeof quests.applyQuestProgressOnItemGain === 'function') {
-                    quests.applyQuestProgressOnItemGain(cloned.id, quantity)
-                }
-            } catch (_) {}
-        }
-        return
-    }
-
-    // Equipment items should not stack
-    cloned.quantity = 1
-    inv.push(cloned)
-
-    try { _engine && _engine.emit && _engine.emit('world:itemGained', { itemId: cloned.id, quantity: 1 }) } catch (_) {}
-
-    if (!_questEventsEnabled()) {
-        try {
-            if (quests && typeof quests.applyQuestProgressOnItemGain === 'function') {
-                quests.applyQuestProgressOnItemGain(cloned.id, 1)
-            }
-        } catch (_) {}
-    }
-
-    // Optional QoL: auto-equip newly acquired gear if the slot is currently empty.
-    // Kept out of combat to avoid mid-fight equipment changes.
-    try {
-        const p = state && state.player ? state.player : null
-        if (
-            p &&
-            !state.inCombat &&
-            state.settingsAutoEquipLoot &&
-            (cloned.type === 'weapon' || cloned.type === 'armor')
-        ) {
-            if (!p.equipment) p.equipment = {}
-            const ensureSlot = (k) => {
-                if (p.equipment[k] === undefined) p.equipment[k] = null
-            }
-            ;['weapon','armor','head','hands','feet','belt','neck','ring'].forEach(ensureSlot)
-
-            const slot = cloned.slot || (cloned.type === 'weapon' ? 'weapon' : 'armor')
-            ensureSlot(slot)
-
-            if (p.equipment[slot] == null) {
-                p.equipment[slot] = cloned
-                addLog('Auto-equipped ' + cloned.name + ' (' + slot + ').', 'system')
-                _recalcPlayerStats()
-            }
-        }
-    } catch (e) {
-        // ignore auto-equip failures
-    }
+    _initHelpers()
+    return _equipmentHelpers.addGeneratedItemToInventory(item, quantity)
 }
 
-// Unequip helper: prefer reference equality (prevents unequipping the wrong "copy" of an item),
-// but fall back to id matching for older saves that may have cloned equipment objects.
 function unequipItemIfEquipped(player, item) {
-    if (!player || !player.equipment || !item) return false
-
-    const eq = player.equipment
-    let changed = false
-
-    // 1) Exact object match (best for duplicated item ids)
-    Object.keys(eq).forEach((k) => {
-        if (eq[k] === item) {
-            eq[k] = null
-            changed = true
-        }
-    })
-
-    // 2) Fallback: id match (legacy saves or cloned equip refs)
-    // IMPORTANT: This is *unsafe* when the player owns multiple copies with the same id.
-    // In that scenario we cannot know which copy was meant, so we refuse to unequip by id.
-    if (!changed && item.id) {
-        const inv = Array.isArray(player.inventory) ? player.inventory : []
-        const sameIdCount = inv.reduce((n, it) => (it && it.id === item.id ? n + 1 : n), 0)
-        if (sameIdCount <= 1) {
-            Object.keys(eq).forEach((k) => {
-                if (eq[k] && eq[k].id === item.id) {
-                    eq[k] = null
-                    changed = true
-                }
-            })
-        }
-    }
-
-    return changed
+    _initHelpers()
+    return _equipmentHelpers.unequipItemIfEquipped(player, item)
 }
 
-// Sell one unit (or the whole item if equipment). Intended to be called from merchant UIs.
 function sellItemFromInventory(index, context = 'village') {
-    return withSaveTxn('inventory:sell', () => {
-        const p = state.player
-        const item = p.inventory[index]
-        if (!item) return
-
-    // Prevent selling quest/unique items if we ever add them
-    if (item.noSell) {
-        addLog('This item cannot be sold.', 'system')
-        return
-    }
-
-    const sellValue = getSellValue(item, context)
-    if (!sellValue || sellValue <= 0) {
-        addLog('No merchant will buy this.', 'system')
-        return
-    }
-
-    // If selling equipped gear, unequip first (supports multi-slot gear).
-    unequipItemIfEquipped(p, item)
-
-    // Remove from inventory
-    if (item.type === 'potion' && (item.quantity || 1) > 1) {
-        item.quantity -= 1
-    } else {
-        p.inventory.splice(index, 1)
-    }
-
-    p.gold = (p.gold || 0) + sellValue
-    addLog('Sold ' + item.name + ' for ' + sellValue + ' gold.', 'good')
-
-    _recalcPlayerStats()
-    updateHUD()
-    requestSave('inventory:sell')
-    })
+    _initHelpers()
+    return _equipmentHelpers.sellItemFromInventory(index, context)
 }
 
 /* =============================================================================
@@ -3905,133 +3415,13 @@ function openInventoryModal(inCombat) {
 }
 
 function usePotionFromInventory(index, inCombat, opts = {}) {
-    const p = state.player
-    const item = p.inventory[index]
-    if (!item || item.type !== 'potion') return
-
-    if (inCombat) {
-        if (!guardPlayerTurn()) return
-    }
-
-    const stayOpen = !!opts.stayOpen
-    const onAfterUse = typeof opts.onAfterUse === 'function' ? opts.onAfterUse : null
-
-    let used = false
-    if (item.hpRestore) {
-        const before = p.hp
-        p.hp = Math.min(p.maxHp, p.hp + item.hpRestore)
-        if (p.hp > before) {
-            addLog(
-                'You drink ' + item.name + ' and recover ' + (p.hp - before) + ' HP.',
-                'good'
-            )
-            used = true
-        }
-    }
-    if (item.resourceRestore) {
-        if (item.resourceKey && item.resourceKey !== p.resourceKey) {
-            addLog(
-                item.name + " doesn't restore your " + (p.resourceName || 'power') + '.',
-                'system'
-            )
-        } else {
-            const before = p.resource
-            p.resource = Math.min(p.maxResource, p.resource + item.resourceRestore)
-            if (p.resource > before) {
-                addLog(
-                    'You drink ' +
-                        item.name +
-                        ' and recover ' +
-                        (p.resource - before) +
-                        ' ' +
-                        p.resourceName +
-                        '.',
-                    'good'
-                )
-                used = true
-            }
-        }
-    }
-
-    if (used) {
-        item.quantity = (item.quantity || 1) - 1
-        if (item.quantity <= 0) {
-            p.inventory.splice(index, 1)
-        }
-        updateHUD()
-        requestSave('legacy')
-
-        if (onAfterUse) onAfterUse()
-
-        if (inCombat) {
-            closeModal()
-            endPlayerTurn({ source: 'item', item: item.id || item.name })
-        } else if (!stayOpen) {
-            closeModal()
-        }
-    } else {
-        addLog('Nothing happens.', 'system')
-    }
+    _initHelpers()
+    return _equipmentHelpers.usePotionFromInventory(index, inCombat, opts)
 }
 
 function equipItemFromInventory(index, opts = {}) {
-    const p = state.player
-    const item = p.inventory[index]
-    if (!item || (item.type !== 'weapon' && item.type !== 'armor')) return
-
-    // Ensure equipment schema is present (older saves).
-    if (!p.equipment) p.equipment = {}
-    if (p.equipment.weapon === undefined) p.equipment.weapon = null
-    if (p.equipment.armor === undefined) p.equipment.armor = null
-    if (p.equipment.head === undefined) p.equipment.head = null
-    if (p.equipment.hands === undefined) p.equipment.hands = null
-    if (p.equipment.feet === undefined) p.equipment.feet = null
-    if (p.equipment.belt === undefined) p.equipment.belt = null
-    if (p.equipment.neck === undefined) p.equipment.neck = null
-    if (p.equipment.ring === undefined) p.equipment.ring = null
-
-    const stayOpen = !!opts.stayOpen
-    const onAfterEquip =
-        typeof opts.onAfterEquip === 'function' ? opts.onAfterEquip : null
-
-    const slotLabel = (slot) =>
-        slot === 'weapon'
-            ? 'weapon'
-            : slot === 'armor'
-            ? 'armor'
-            : slot === 'head'
-            ? 'head'
-            : slot === 'hands'
-            ? 'hands'
-            : slot === 'feet'
-            ? 'feet'
-            : slot === 'belt'
-            ? 'belt'
-            : slot === 'neck'
-            ? 'neck'
-            : slot === 'ring'
-            ? 'ring'
-            : 'gear'
-
-    if (item.type === 'weapon') {
-        p.equipment.weapon = item
-        addLog('You equip ' + item.name + ' as your weapon.', 'good')
-    } else {
-        const slot = item.slot || 'armor'
-        if (p.equipment[slot] === undefined) p.equipment[slot] = null
-        p.equipment[slot] = item
-        addLog(
-            'You equip ' + item.name + ' as your ' + slotLabel(slot) + '.',
-            'good'
-        )
-    }
-
-    _recalcPlayerStats()
-    updateHUD()
-    requestSave('legacy')
-
-    if (onAfterEquip) onAfterEquip()
-    if (!stayOpen) closeModal()
+    _initHelpers()
+    return _equipmentHelpers.equipItemFromInventory(index, opts)
 }
 
 
@@ -5216,106 +4606,33 @@ function applyEquipmentOnKill(enemy) {
 
 // --- Deep Combat: Posture + Intent helpers (Patch 1.1.6) -----------------------
 function computeEnemyPostureMax(enemy) {
-    return computeEnemyPostureMaxImpl(enemy)
+    _initHelpers()
+    return _enemyAIHelpers.computeEnemyPostureMax(enemy)
 }
 
 function getEffectiveEnemyAttack(enemy) {
-    if (!enemy) return 0
-    const base = Number(
-        typeof enemy.baseAttack === 'number' ? enemy.baseAttack : enemy.attack || 0
-    )
-    const down =
-        enemy.atkDownTurns && enemy.atkDownTurns > 0
-            ? Number(enemy.atkDownFlat || 0)
-            : 0
-    return Math.max(0, Math.round(base - down))
+    _initHelpers()
+    return _enemyAIHelpers.getEffectiveEnemyAttack(enemy)
 }
 
 function getEffectiveEnemyMagic(enemy) {
-    if (!enemy) return 0
-    const base = Number(
-        typeof enemy.baseMagic === 'number' ? enemy.baseMagic : enemy.magic || 0
-    )
-    const down =
-        enemy.magDownTurns && enemy.magDownTurns > 0
-            ? Number(enemy.magDownFlat || 0)
-            : 0
-    return Math.max(0, Math.round(base - down))
+    _initHelpers()
+    return _enemyAIHelpers.getEffectiveEnemyMagic(enemy)
 }
 
 function applyEnemyAtkDown(enemy, flatAmount, turns) {
-    if (!enemy) return
-    ensureEnemyRuntime(enemy)
-
-    const amt = Math.max(0, Number(flatAmount || 0))
-    const t = Math.max(0, Math.floor(Number(turns || 0)))
-    if (amt <= 0 || t <= 0) return
-
-    const baseAtk = Number(
-        typeof enemy.baseAttack === 'number' ? enemy.baseAttack : enemy.attack || 0
-    )
-    const cap = Math.max(1, Math.round(baseAtk * 0.6))
-    enemy.atkDownFlat = Math.min(cap, Number(enemy.atkDownFlat || 0) + amt)
-    enemy.atkDownTurns = Math.max(enemy.atkDownTurns || 0, t)
+    _initHelpers()
+    return _enemyAIHelpers.applyEnemyAtkDown(enemy, flatAmount, turns)
 }
 
 function clearEnemyIntent(enemy, reasonText) {
-    if (!enemy || !enemy.intent) return
-    enemy.intent = null
-    if (reasonText) addLog(reasonText, 'system')
+    _initHelpers()
+    return _enemyAIHelpers.clearEnemyIntent(enemy, reasonText)
 }
 
 function applyEnemyPostureFromPlayerHit(enemy, damageDealt, meta = {}) {
-    if (!enemy) return
-    const dmg = Math.max(0, Math.round(Number(damageDealt || 0)))
-    if (dmg <= 0) return
-
-    ensureEnemyRuntime(enemy)
-
-    // Enemy mini-affixes that trigger when the player hits the enemy (e.g., Thorns reflect).
-    applyEnemyAffixesOnPlayerHit(enemy, dmg)
-    if (typeof enemy.postureMax !== 'number' || enemy.postureMax <= 0) {
-        enemy.postureMax = computeEnemyPostureMax(enemy)
-    }
-    if (typeof enemy.posture !== 'number') enemy.posture = 0
-
-    // Build posture mostly from meaningful hits; bosses resist posture break.
-    //
-    // NOTE: Smoke tests sometimes set postureMax extremely low (e.g. 5) to verify the
-    // break/disrupt behavior in a single hit. For those tiny caps, we intentionally
-    // allow a single hit to fully break posture so the test stays deterministic.
-    let gain = Math.max(1, Math.round(dmg * 0.25))
-
-    // Basic attacks still contribute meaningful posture pressure.
-    if (meta && meta.isBasic) gain += 1
-
-    // Crits and interrupts spike posture more.
-    if (state.lastPlayerHitWasCrit) gain = Math.round(gain * 1.5)
-    if (meta && meta.tag === 'interrupt') gain += 2
-
-    if (enemy.isBoss) gain = Math.max(1, Math.round(gain * 0.75))
-    if (enemy.isElite) gain = Math.max(1, Math.round(gain * 0.85))
-
-    // Keep single-hit posture gains from instantly breaking high-posture enemies.
-    // For very small postureMax (test helpers / special enemies), don't cap the gain.
-    const perHitCap =
-        enemy.postureMax <= 12
-            ? enemy.postureMax
-            : Math.max(1, Math.round(enemy.postureMax * 0.35))
-
-    // Determinism for tiny posture caps (used by smoke tests).
-    if (enemy.postureMax <= 10) gain = enemy.postureMax
-
-    gain = Math.min(perHitCap, gain)
-
-enemy.posture += gain
-
-    if (enemy.posture >= enemy.postureMax) {
-        enemy.posture = 0
-        enemy.brokenTurns = Math.max(enemy.brokenTurns || 0, 1)
-        clearEnemyIntent(enemy, enemy.name + "'s focus shatters!")
-        addLog(enemy.name + ' is Broken!', 'good')
-    }
+    _initHelpers()
+    return _enemyAIHelpers.applyEnemyPostureFromPlayerHit(enemy, damageDealt, meta)
 }
 
 
@@ -5757,255 +5074,39 @@ function playerInterrupt() {
 
 // --- ENEMY TURN (ABILITY + LEARNING AI) --------------------------------------
 function ensureEnemyRuntime(enemy) {
-    return ensureEnemyRuntimeImpl(enemy, { pickEnemyAbilitySet })
+    _initHelpers()
+    return _enemyAIHelpers.ensureEnemyRuntime(enemy)
 }
 
 function ensureEnemyAbilityStat(enemy, aid) {
-    if (!enemy.memory) return { value: 0, uses: 0 }
-    if (!enemy.memory.abilityStats) enemy.memory.abilityStats = {}
-    if (!enemy.memory.abilityStats[aid]) {
-        enemy.memory.abilityStats[aid] = { value: 0, uses: 0 }
-    }
-    return enemy.memory.abilityStats[aid]
+    _initHelpers()
+    return _enemyAIHelpers.ensureEnemyAbilityStat(enemy, aid)
 }
 
 function tickEnemyStartOfTurn(enemy) {
-    if (!enemy) return false
-
-    // Tick debuffs first so durations are consistent even if the enemy loses their action.
-    if (enemy.atkDownTurns && enemy.atkDownTurns > 0) {
-        enemy.atkDownTurns -= 1
-        if (enemy.atkDownTurns <= 0) {
-            enemy.atkDownFlat = 0
-            addLog(enemy.name + ' recovers their strength.', 'system')
-        }
-    }
-    if (enemy.magDownTurns && enemy.magDownTurns > 0) {
-        enemy.magDownTurns -= 1
-        if (enemy.magDownTurns <= 0) {
-            enemy.magDownFlat = 0
-            addLog(enemy.name + ' regains arcane focus.', 'system')
-        }
-    }
-
-    // Guard ticks down
-    if (enemy.guardTurns && enemy.guardTurns > 0) {
-        enemy.guardTurns -= 1
-        if (enemy.guardTurns <= 0) {
-            enemy.armorBuff = 0
-            enemy.magicResBuff = 0
-            addLog(enemy.name + "'s guard drops.", 'system')
-        }
-    }
-
-    // Enrage ticks down
-    if (enemy.enrageTurns && enemy.enrageTurns > 0) {
-        enemy.enrageTurns -= 1
-        if (enemy.enrageTurns <= 0) {
-            enemy.attackBuff = 0
-            enemy.enrageAtkPct = 0
-            addLog(enemy.name + ' calms down.', 'system')
-        }
-    }
-
-    // Berserk affix: when low, permanently enter an "enraged" state for this fight.
-    if (
-        enemy.affixBerserkAtkPct &&
-        enemy.affixBerserkAtkPct > 0 &&
-        enemy.affixBerserkThreshold &&
-        enemy.affixBerserkThreshold > 0 &&
-        !enemy.affixBerserkActive
-    ) {
-        const ratio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1
-        if (ratio <= enemy.affixBerserkThreshold) {
-            enemy.affixBerserkActive = true
-            enemy.enrageTurns = Math.max(enemy.enrageTurns || 0, 999)
-            enemy.enrageAtkPct = Math.max(enemy.enrageAtkPct || 0, enemy.affixBerserkAtkPct)
-            addLog(enemy.name + ' enters a berserk frenzy!', 'danger')
-        }
-    }
-
-    // Chill ticks down
-    if (enemy.chilledTurns && enemy.chilledTurns > 0) {
-        enemy.chilledTurns -= 1
-        if (enemy.chilledTurns <= 0) {
-            addLog(enemy.name + ' shakes off the chill.', 'system')
-        }
-    }
-
-    // Marks (Ranger): ticks down and clears when expired.
-    if (enemy.markedTurns && enemy.markedTurns > 0) {
-        enemy.markedTurns -= 1
-        if (enemy.markedTurns <= 0) {
-            enemy.markedStacks = 0
-        }
-    }
-
-
-    // Broken: posture break skips the next action and disrupts telegraphs.
-    if (enemy.brokenTurns && enemy.brokenTurns > 0) {
-        enemy.brokenTurns -= 1
-        clearEnemyIntent(enemy, enemy.name + " can't keep their focus!")
-        addLog(enemy.name + ' is Broken and cannot act!', 'good')
-        return true
-    }
-
-    // Stun: skip this enemy turn.
-    if (enemy.stunTurns && enemy.stunTurns > 0) {
-        enemy.stunTurns -= 1
-        clearEnemyIntent(enemy, enemy.name + " loses their intent!")
-        addLog(enemy.name + ' is stunned and cannot act!', 'good')
-        return true
-    }
-
-    // If forced guard (boss phase etc.), end turn early.
-    if (enemy.aiForcedGuard) {
-        enemy.aiForcedGuard = false
-        enemy.guardTurns = Math.max(enemy.guardTurns || 0, 1)
-        enemy.armorBuff = (enemy.armorBuff || 0) + 2
-        enemy.magicResBuff = (enemy.magicResBuff || 0) + 2
-        addLog(enemy.name + ' braces for impact.', 'system')
-        return true
-    }
-
-    return false
+    _initHelpers()
+    return _enemyAIHelpers.tickEnemyStartOfTurn(enemy)
 }
 
 
 function canUseEnemyAbility(enemy, aid) {
-    const ab = ENEMY_ABILITIES[aid]
-    if (!ab) return false
-    const cd = enemy.abilityCooldowns ? enemy.abilityCooldowns[aid] || 0 : 0
-    return cd <= 0
+    _initHelpers()
+    return _enemyAIHelpers.canUseEnemyAbility(enemy, aid)
 }
 
 function tickEnemyCooldowns() {
-    const list = (Array.isArray(state.enemies) && state.enemies.length) ? state.enemies : (state.currentEnemy ? [state.currentEnemy] : [])
-    list.forEach((enemy) => {
-        if (!enemy || !enemy.abilityCooldowns) return
-        Object.keys(enemy.abilityCooldowns).forEach((k) => {
-            if (enemy.abilityCooldowns[k] > 0) enemy.abilityCooldowns[k] -= 1
-        })
-    })
+    _initHelpers()
+    return _enemyAIHelpers.tickEnemyCooldowns()
 }
 
 function scoreEnemyAbility(enemy, p, aid) {
-    const ab = ENEMY_ABILITIES[aid]
-    if (!ab) return -9999
-
-    // Memory / long-term learned value
-    const stat = ensureEnemyAbilityStat(enemy, aid)
-    const learned = stat.value || 0
-
-    // Immediate heuristic
-    let score = 0
-
-    const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1
-    const playerHpRatio = p.maxHp > 0 ? p.hp / p.maxHp : 1
-
-    // Guard when low or when player is healthy (stall for better burst windows)
-    if (ab.type === 'guard') {
-        score += 8
-        if (hpRatio < 0.45) score += 18
-        if (enemy.guardTurns > 0) score -= 25 // don't spam guard
-    }
-
-    // Buff when planning for burst
-    if (ab.type === 'buff') {
-        score += 6
-        if (hpRatio < 0.6) score += 10
-        if (enemy.enrageTurns > 0) score -= 30
-    }
-
-    // Debuffs become more valuable when player is healthy / shielded
-    if (ab.type === 'debuff' || (ab.type && ab.type.indexOf('debuff') >= 0)) {
-        score += 10
-        if (playerHpRatio > 0.6) score += 8
-        if ((p.status && p.status.shield) > 0) score += 6
-    }
-
-    // Damage estimate
-    if (ab.type && ab.type.indexOf('damage') >= 0) {
-        const isMagic = ab.damageType === 'magic'
-        const baseStat =
-            (isMagic ? enemy.magic : enemy.attack) * (ab.potency || 1)
-        const enrageMult = enemy.enrageAtkPct
-            ? 1 + enemy.enrageAtkPct * (isMagic ? 0.5 : 1)
-            : 1
-        const elemHit =
-            ab.elementType || (isMagic ? enemy.magicElementType : enemy.attackElementType) || null
-        const dmgEst = calcEnemyDamage(baseStat * enrageMult, { damageType: isMagic ? 'magic' : 'physical', elementType: elemHit })
-
-        score += dmgEst
-
-        // kill pressure
-        if (dmgEst >= p.hp) score += 65
-        if (playerHpRatio < 0.35) score += 15
-
-        // shield tech
-        if (ab.shatterShieldFlat && p.status && p.status.shield > 0) {
-            score += Math.min(p.status.shield, ab.shatterShieldFlat) * 0.35
-        }
-
-        // bleed value
-        if (ab.bleedTurns) {
-            const alreadyBleeding = p.status && p.status.bleedTurns > 0
-            score += alreadyBleeding ? 4 : 10
-            if (playerHpRatio < 0.5) score += 6
-        }
-
-        // vulnerability is great when setting up a follow-up nuke
-        if (ab.vulnerableTurns) {
-            score += 12
-        }
-    }
-
-    // Healing synergy for drain/heal abilities
-    if (ab.type === 'damage+heal') {
-        if (hpRatio < 0.7) score += 12
-        if (hpRatio < 0.4) score += 18
-    }
-
-    // Mix in learned value (lightly), scaled by AI smartness.
-    const diff = getActiveDifficultyConfig()
-    const smart = diff.aiSmartness || 0.6
-    score += learned * (0.35 + smart * 0.45)
-
-    return score
+    _initHelpers()
+    return _enemyAIHelpers.scoreEnemyAbility(enemy, p, aid)
 }
 
 function chooseEnemyAbility(enemy, p) {
-    const diff = getActiveDifficultyConfig()
-    const smart = diff.aiSmartness || 0.6
-
-    const kit = Array.isArray(enemy.abilities)
-        ? enemy.abilities
-        : [...pickEnemyAbilitySet(enemy)]
-    const usable = kit.filter((aid) => canUseEnemyAbility(enemy, aid))
-
-    // Fallback: if everything is on cooldown, default to Strike.
-    if (usable.length === 0) return 'enemyStrike'
-
-    // Exploration (lower when smartness is high)
-    const epsBase = enemy.memory ? enemy.memory.exploration || 0.2 : 0.2
-    const eps = Math.max(0.05, Math.min(0.35, epsBase * (1.2 - smart)))
-
-    if (rand('ai.epsChoice') < eps) {
-        return usable[randInt(0, usable.length - 1, 'ai.randomUsable')]
-    }
-
-    let best = usable[0]
-    let bestScore = -Infinity
-
-    for (const aid of usable) {
-        const s = scoreEnemyAbility(enemy, p, aid)
-        if (s > bestScore) {
-            bestScore = s
-            best = aid
-        }
-    }
-
-    return best
+    _initHelpers()
+    return _enemyAIHelpers.chooseEnemyAbility(enemy, p)
 }
 
 function applyEnemyAbilityToPlayer(enemy, p, aid) {
@@ -6234,20 +5335,8 @@ function applyEnemyAbilityToPlayer(enemy, p, aid) {
     return { damageDealt: dmg, healDone, shieldShattered }
 }
 function updateEnemyLearning(enemy, aid, reward) {
-    if (!enemy || !enemy.memory) return
-    const stat = ensureEnemyAbilityStat(enemy, aid)
-    stat.uses = (stat.uses || 0) + 1
-    const prev = stat.value || 0
-
-    // EMA update; reward can be slightly noisy.
-    const alpha = 0.18
-    stat.value = prev * (1 - alpha) + reward * alpha
-
-    // Slowly reduce exploration (but never to 0)
-    enemy.memory.exploration = Math.max(
-        0.06,
-        (enemy.memory.exploration || 0.2) * 0.996
-    )
+    _initHelpers()
+    return _enemyAIHelpers.updateEnemyLearning(enemy, aid, reward)
 }
 
 function enemyAct(enemy) {
