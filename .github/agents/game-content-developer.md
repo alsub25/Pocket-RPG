@@ -154,6 +154,7 @@ When creating new items, you **MUST**:
   // For armor
   slot: 'armor',              // armor, ring, amulet
   armorBonus: 4,              // Armor value
+  maxResourceBonus: 20,       // Increases max resource (mana/fury/blood/essence)
   
   // For potions
   hpRestore: 40,              // HP restoration amount
@@ -212,11 +213,11 @@ robeApprentice: {
     name: 'Apprentice Robe',
     type: 'armor',
     slot: 'armor',
-    armorBonus: 3,
-    magicBonus: 4,
-    price: 38,
-    desc: '+3 Armor, +4 Magic. Standard mage attire.',
-    elementalResists: { arcane: 8 }
+    armorBonus: 2,
+    maxResourceBonus: 20,
+    price: 40,
+    desc: '+2 Armor, +20 Mana.',
+    elementalResists: { arcane: 10 }
 }
 ```
 
