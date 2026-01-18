@@ -85,7 +85,6 @@ export function createBattleManager(deps) {
             const r = rand('encounter.groupSize')
 
             // Use closestId so Dynamic difficulty also maps cleanly.
-            // Use closestId so Dynamic difficulty also maps cleanly.
             // NOTE: getActiveDifficultyConfig() returns { id:'dynamic', closestId:'easy'|'normal'|'hard' } for Dynamic.
             // For fixed difficulties, closestId is undefined so we fall back to diff.id.
             let diffId = 'normal'
