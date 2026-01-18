@@ -83,6 +83,16 @@ import {
     tryResumeAudioContext,
     applyChannelMuteGains
 } from '../systems/audioSystem.js'
+import {
+    recalcPlayerStats,
+    computeElementSummariesForPlayer,
+    renderElementalBreakdownHtml,
+    refreshCharacterSheetLiveValues,
+    refreshCharacterSheetIfOpen,
+    renderTalentsPanelHtml,
+    _getTalentSpellElementBonusMap,
+    _getElementalBreakdownsForPlayer
+} from '../systems/characterSystem.js'
 
 /* =============================================================================
  * Emberwood Game Orchestrator (gameOrchestrator.js)
@@ -955,47 +965,45 @@ function unlockTalent(p, talentId) {
     // an unrelated stat refresh (equip, level-up, etc.).
     try {
         if (state && state.player === p) {
-            recalcPlayerStats()
+            _recalcPlayerStats()
             // Keep immediate UI feedback consistent across ALL classes.
             // (Many talents affect dodge/resistAll/max resource, etc.)
             try { updateHUD() } catch (_) {}
-            try { refreshCharacterSheetIfOpen() } catch (_) {}
+            try { refreshCharacterSheetIfOpen(state, playerHasTalent) } catch (_) {}
             try { if (state.inCombat) updateEnemyPanel() } catch (_) {}
         }
     } catch (_) {}
     return true
 }
 
+// Wrapper functions for character system (pass dependencies)
+function _recalcPlayerStats() {
+    recalcPlayerStats(state, playerHasTalent, _getCompanionRuntime)
+}
+
+function __renderTalentsPanelHtml(p) {
+    return renderTalentsPanelHtml(p, ensurePlayerTalents, getTalentsForClass, playerHasTalent, canUnlockTalent)
+}
+
+function __computeElementSummariesForPlayer(p) {
+    return computeElementSummariesForPlayer(p, playerHasTalent)
+}
+
+function __renderElementalBreakdownHtml(p) {
+    return renderElementalBreakdownHtml(p, playerHasTalent)
+}
+
+function _refreshCharacterSheetLiveValues(p, root) {
+    refreshCharacterSheetLiveValues(p, root, playerHasTalent)
+}
+
+function _refreshCharacterSheetIfOpen() {
+    refreshCharacterSheetIfOpen(state, playerHasTalent)
+}
+
 // --- Elemental breakdown + sheet live refresh (Patch 1.2.32) -----------------
 // Gear elemental bonuses live in stats.elementalBonuses (used by damage math).
 // Talent-based spell focus bonuses are tracked separately for Character Sheet display.
-function _getTalentSpellElementBonusMap(p) {
-    const out = {}
-    if (!p) return out
-    try {
-        if (playerHasTalent(p, 'mage_ember_focus')) out.fire = (out.fire || 0) + 10
-        if (playerHasTalent(p, 'mage_glacial_edge')) out.frost = (out.frost || 0) + 10
-        if (playerHasTalent(p, 'blood_hemomancy')) out.shadow = (out.shadow || 0) + 10
-        if (playerHasTalent(p, 'ranger_nature_attunement')) out.nature = (out.nature || 0) + 10
-        if (playerHasTalent(p, 'paladin_radiant_focus')) out.holy = (out.holy || 0) + 10
-        if (playerHasTalent(p, 'cleric_holy_focus')) out.holy = (out.holy || 0) + 10
-        if (playerHasTalent(p, 'necromancer_shadow_mastery')) out.shadow = (out.shadow || 0) + 10
-        if (playerHasTalent(p, 'necromancer_plague_touch')) out.poison = (out.poison || 0) + 10
-        if (playerHasTalent(p, 'shaman_tempest_focus')) out.lightning = (out.lightning || 0) + 10
-        if (playerHasTalent(p, 'shaman_nature_attunement')) out.nature = (out.nature || 0) + 10
-        if (playerHasTalent(p, 'vampire_shadow_focus')) out.shadow = (out.shadow || 0) + 10
-    } catch (_) {}
-    return out
-}
-
-function _capWord(s) {
-    return s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : ''
-}
-
-function _round1(x) {
-    return Math.round((Number(x) || 0) * 10) / 10
-}
-
 // Stable integer rounding for combat numbers.
 // JS floating-point math can produce values like 57.49999999999999 for what is
 // conceptually 57.5; without a tiny epsilon this would round down incorrectly.
@@ -1004,353 +1012,6 @@ function _roundIntStable(x) {
     if (!Number.isFinite(n)) return 0
     const eps = 1e-9
     return Math.round(n + (n >= 0 ? eps : -eps))
-}
-
-function _numPct(x) {
-    const n = typeof x === "number" ? x : parseFloat(x)
-    return Number.isFinite(n) ? n : 0
-}
-function _elementIcon(k) {
-    switch (k) {
-        case 'fire':
-            return '🔥'
-        case 'frost':
-            return '🧊'
-        case 'lightning':
-            return '⚡'
-        case 'holy':
-            return '✨'
-        case 'shadow':
-            return '🕸️'
-        case 'arcane':
-            return '🔮'
-        case 'poison':
-            return '☠️'
-        case 'earth':
-            return '🪨'
-        case 'nature':
-            return '🌿'
-        default:
-            return '•'
-    }
-}
-
-function _orderedElementKeys(keys) {
-    const order = ['fire', 'frost', 'lightning', 'holy', 'shadow', 'arcane', 'poison', 'earth', 'nature']
-    const uniq = {}
-    ;(keys || []).forEach((k) => {
-        const nk = normalizeElementType(k) || (k !== null && k !== undefined ? String(k).trim() : null)
-        if (nk) uniq[nk] = 1
-    })
-    return Object.keys(uniq).sort((a, b) => {
-        const ia = order.indexOf(a)
-        const ib = order.indexOf(b)
-        if (ia < 0 && ib < 0) return String(a).localeCompare(String(b))
-        if (ia < 0) return 1
-        if (ib < 0) return -1
-        return ia - ib
-    })
-}
-
-
-function _normalizeElemMap(obj) {
-    const out = {}
-    if (!obj || typeof obj !== 'object') return out
-    Object.keys(obj).forEach((k) => {
-        const nk = normalizeElementType(k) || String(k).trim()
-        if (!nk) return
-        const v = _numPct(obj[k])
-        if (!v) return
-        out[nk] = (out[nk] || 0) + v
-    })
-    return out
-}
-
-function _getElementalBreakdownsForPlayer(p) {
-    const gearBonus =
-        (p && p.stats && p.stats.elementalBonusBreakdown && p.stats.elementalBonusBreakdown.gear) ||
-        (p && p.stats && p.stats.elementalBonuses) ||
-        {}
-
-    let talentBonus =
-        (p && p.stats && p.stats.elementalBonusBreakdown && p.stats.elementalBonusBreakdown.talent) ||
-        {}
-
-    if (!talentBonus || typeof talentBonus !== 'object') talentBonus = {}
-    if (!Object.keys(talentBonus).length) {
-        // Back-compat: compute focus bonuses on demand.
-        talentBonus = _getTalentSpellElementBonusMap(p)
-    }
-
-    const gearResist =
-        (p && p.stats && p.stats.elementalResistBreakdown && p.stats.elementalResistBreakdown.gear) ||
-        {}
-    const talentResist =
-        (p && p.stats && p.stats.elementalResistBreakdown && p.stats.elementalResistBreakdown.talent) ||
-        {}
-    const totalResist = (p && p.stats && p.stats.elementalResists) || {}
-
-    return {
-        gearBonus: _normalizeElemMap(gearBonus),
-        talentBonus: _normalizeElemMap(talentBonus),
-        gearResist: _normalizeElemMap(gearResist),
-        talentResist: _normalizeElemMap(talentResist),
-        totalResist: _normalizeElemMap(totalResist)
-    }
-}
-
-function computeElementSummariesForPlayer(p) {
-    const bd = _getElementalBreakdownsForPlayer(p)
-
-    // Bonuses: show effective combined spell bonus per element: (1+gear)*(1+talent)-1
-    const bonusKeys = _orderedElementKeys(
-        Object.keys(bd.gearBonus || {}).concat(Object.keys(bd.talentBonus || {}))
-    )
-    const bonusParts = []
-    bonusKeys.forEach((k) => {
-        const g = _round1(_numPct((bd.gearBonus || {})[k]))
-        const t = _round1(_numPct((bd.talentBonus || {})[k]))
-        if (!g && !t) return
-        const total = _round1(((1 + g / 100) * (1 + t / 100) - 1) * 100)
-        if (!total) return
-        bonusParts.push(_capWord(k) + ' +' + total + '%')
-    })
-    const elementalBonusSummary = bonusParts.length ? bonusParts.join(', ') : 'None'
-
-    // Resists: show clamped resist percent (combat uses this value).
-    const resistKeys = _orderedElementKeys(Object.keys(bd.totalResist || {}))
-    const resistParts = []
-    const cap = Number(PLAYER_RESIST_CAP) || 75
-
-    resistKeys.forEach((k) => {
-        const raw = _round1(_numPct((bd.totalResist || {})[k]))
-        const eff = _round1(clampNumber(raw, 0, cap))
-        if (!eff) return
-
-        // If a build is over cap, show the raw value for clarity.
-        if (raw > eff + 0.5) {
-            resistParts.push(_capWord(k) + ' ' + eff + '% (raw ' + raw + '%)')
-        } else {
-            resistParts.push(_capWord(k) + ' ' + eff + '%')
-        }
-    })
-    const elementalResistSummary = resistParts.length ? resistParts.join(', ') : 'None'
-
-    const weaponElement =
-        p && p.stats && p.stats.weaponElementType ? _capWord(p.stats.weaponElementType) : 'None'
-
-    return { weaponElement, elementalBonusSummary, elementalResistSummary }
-}
-
-function renderElementalBreakdownHtml(p) {
-    const bd = _getElementalBreakdownsForPlayer(p)
-    const rarityScore = _getPlayerGearRarityScore(p)
-
-    const keys = _orderedElementKeys(
-        Object.keys(bd.gearBonus || {})
-            .concat(Object.keys(bd.talentBonus || {}))
-            .concat(Object.keys(bd.gearResist || {}))
-            .concat(Object.keys(bd.talentResist || {}))
-            .concat(Object.keys(bd.totalResist || {}))
-    )
-
-    if (!keys.length) {
-        return '<div class="muted">None</div>'
-    }
-
-    let html = '<div class="stat-grid elem-breakdown-grid">'
-
-    keys.forEach((k) => {
-        const name = _capWord(k)
-        const icon = _elementIcon(k)
-
-        const gB = _round1(_numPct((bd.gearBonus || {})[k]))
-        const tB = _round1(_numPct((bd.talentBonus || {})[k]))
-        const gR = _round1(_numPct((bd.gearResist || {})[k]))
-        const tR = _round1(_numPct((bd.talentResist || {})[k]))
-
-        // Bonus row (spell bonus)
-        if ((gB > 0) || (tB > 0)) {
-            const totalB = _round1(((1 + gB / 100) * (1 + tB / 100) - 1) * 100)
-            html +=
-                '<div class="stat-label"><span class="char-stat-icon">' +
-                escapeHtml(icon) +
-                '</span>' +
-                escapeHtml(name) +
-                ' Bonus</div>' +
-                '<div class="stat-value">+' +
-                escapeHtml(String(totalB)) +
-                '% <span class="muted">(Gear +' +
-                escapeHtml(String(gB)) +
-                '%, Talent +' +
-                escapeHtml(String(tB)) +
-                '%)</span></div>'
-        }
-
-        // Resist row
-        const rawTotalRes = _numPct((bd.totalResist || {})[k]) || (gR + tR)
-        const cap = Number(PLAYER_RESIST_CAP) || 75
-        const effR = _round1(clampNumber(rawTotalRes, 0, cap))
-        const rawR = _round1(rawTotalRes)
-        if ((gR > 0) || (tR > 0) || (rawR > 0)) {
-            html +=
-                '<div class="stat-label"><span class="char-stat-icon">🛡</span>' +
-                escapeHtml(name) +
-                ' Resist</div>' +
-                '<div class="stat-value">' +
-                escapeHtml(String(effR)) +
-                '% <span class="muted">(raw ' +
-                escapeHtml(String(rawR)) +
-                '%, Gear ' +
-                escapeHtml(String(gR)) +
-                '%, Talent ' +
-                escapeHtml(String(tR)) +
-                '%)</span></div>'
-        }
-    })
-
-    html += '</div><div class="muted" style="margin-top:6px;">Resists are capped at 75%. Higher rarity gear reaches the cap more easily via stronger rolls.</div>'
-    return html
-}
-
-function refreshCharacterSheetLiveValues(p, root) {
-    if (!p || !root) return
-
-    // Header + stats tab summaries
-    try {
-        const sums = computeElementSummariesForPlayer(p)
-        const we = root.querySelector('.sheet-weapon-element')
-        const eb = root.querySelector('.sheet-element-bonuses')
-        const er = root.querySelector('.sheet-element-resists')
-        const we2 = root.querySelector('.sheet-stat-weapon-element')
-        const eb2 = root.querySelector('.sheet-stat-element-bonus')
-        const er2 = root.querySelector('.sheet-stat-element-resists')
-        if (we) we.textContent = sums.weaponElement
-        if (eb) eb.textContent = sums.elementalBonusSummary
-        if (er) er.textContent = sums.elementalResistSummary
-        if (we2) we2.textContent = sums.weaponElement
-        if (eb2) eb2.textContent = sums.elementalBonusSummary
-        if (er2) er2.textContent = sums.elementalResistSummary
-    } catch (_) {}
-
-    // Elemental breakdown block(s)
-    try {
-        const html = renderElementalBreakdownHtml(p)
-        root.querySelectorAll('.sheet-element-breakdown').forEach((el) => {
-            el.innerHTML = html
-        })
-    } catch (_) {}
-
-    // Key derived stat cells
-    try {
-        const round1 = (x) => Math.round((Number(x) || 0) * 10) / 10
-        const hpLine =
-            Math.round(finiteNumber(p.hp, 0)) + ' / ' + Math.round(finiteNumber(p.maxHp, 0))
-        const resLine =
-            Math.round(finiteNumber(p.resource, 0)) +
-            ' / ' +
-            Math.round(finiteNumber(p.maxResource, 0))
-
-        root.querySelectorAll('.sheet-badge-hp').forEach((el) => (el.textContent = hpLine))
-        root.querySelectorAll('.sheet-badge-resource').forEach((el) => (el.textContent = resLine))
-        root
-            .querySelectorAll('.sheet-badge-gold')
-            .forEach((el) => (el.textContent = String(Math.round(finiteNumber(p.gold, 0)))))
-
-        root.querySelectorAll('.sheet-core-hp').forEach((el) => (el.textContent = hpLine))
-        root.querySelectorAll('.sheet-core-resource').forEach((el) => (el.textContent = resLine))
-        root
-            .querySelectorAll('.sheet-core-gold')
-            .forEach((el) => (el.textContent = String(Math.round(finiteNumber(p.gold, 0)))))
-
-        root
-            .querySelectorAll('.stat-attack')
-            .forEach((el) => (el.textContent = String(finiteNumber(p.stats && p.stats.attack, 0))))
-        root
-            .querySelectorAll('.stat-magic')
-            .forEach((el) => (el.textContent = String(finiteNumber(p.stats && p.stats.magic, 0))))
-        root
-            .querySelectorAll('.stat-armor')
-            .forEach((el) => (el.textContent = String(finiteNumber(p.stats && p.stats.armor, 0))))
-        root
-            .querySelectorAll('.stat-speed')
-            .forEach((el) => (el.textContent = String(finiteNumber(p.stats && p.stats.speed, 0))))
-
-        root
-            .querySelectorAll('.sheet-stat-crit')
-            .forEach((el) => (el.textContent = round1(p.stats && p.stats.critChance) + '%'))
-        root
-            .querySelectorAll('.sheet-stat-dodge')
-            .forEach((el) => (el.textContent = round1(p.stats && p.stats.dodgeChance) + '%'))
-        root
-            .querySelectorAll('.sheet-stat-resistall')
-            .forEach((el) => (el.textContent = round1(p.stats && p.stats.resistAll) + '%'))
-        root
-            .querySelectorAll('.sheet-stat-lifesteal')
-            .forEach((el) => (el.textContent = round1(p.stats && p.stats.lifeSteal) + '%'))
-        root
-            .querySelectorAll('.sheet-stat-armorpen')
-            .forEach((el) => (el.textContent = round1(p.stats && p.stats.armorPen) + '%'))
-        root
-            .querySelectorAll('.sheet-stat-haste')
-            .forEach((el) => (el.textContent = round1(p.stats && p.stats.haste) + '%'))
-        root
-            .querySelectorAll('.sheet-stat-thorns')
-            .forEach((el) => (el.textContent = String(round1(p.stats && p.stats.thorns))))
-        root
-            .querySelectorAll('.sheet-stat-hpregen')
-            .forEach((el) => (el.textContent = String(round1(p.stats && p.stats.hpRegen))))
-    } catch (_) {}
-}
-
-function refreshCharacterSheetIfOpen() {
-    if (typeof document === 'undefined') return
-    try {
-        const titleEl = document.getElementById('modalTitle')
-        const bodyEl = document.getElementById('modalBody')
-        if (!titleEl || !bodyEl) return
-        if ((titleEl.textContent || '').trim() !== 'Character Sheet') return
-        const p = state && state.player ? state.player : null
-        if (!p) return
-        refreshCharacterSheetLiveValues(p, bodyEl)
-    } catch (_) {}
-}
-
-
-function renderTalentsPanelHtml(p) {
-    ensurePlayerTalents(p)
-    const list = getTalentsForClass(p.classId)
-    const pts = p.talentPoints || 0
-    if (!list.length) {
-        return `<div class="char-section"><div class="char-section-title">Talents</div><div class="muted">No talents available for this class yet.</div></div>`
-    }
-    const rows = list
-        .map((t) => {
-            const owned = playerHasTalent(p, t.id)
-            const lockedByLevel = (p.level || 1) < (t.levelReq || 1)
-            const can = canUnlockTalent(p, t)
-            const status = owned ? 'Unlocked' : lockedByLevel ? ('Requires Lv ' + t.levelReq) : 'Locked'
-            const btn = can
-                ? `<button class="btn small talent-unlock" data-talent="${t.id}">Unlock</button>`
-                : owned
-                ? `<button class="btn small outline" disabled>Owned</button>`
-                : `<button class="btn small outline" disabled>—</button>`
-            return `
-            <div class="talent-row">
-              <div class="talent-main">
-                <div class="talent-name">${t.name} <span class="muted">(${status})</span></div>
-                <div class="talent-desc muted">${t.desc}</div>
-              </div>
-              <div class="talent-act">${btn}</div>
-            </div>`
-        })
-        .join('')
-    return `
-      <div class="char-section">
-        <div class="char-section-title">Talents</div>
-        <div class="muted" style="margin-bottom:8px;">Talent Points: <b>${pts}</b> • Gain 1 point every 3 levels.</div>
-        <div class="talent-list">${rows}</div>
-      </div>`
 }
 
 
@@ -3960,7 +3621,7 @@ function startNewGameFromCreation() {
     addLog('You can speak with Elder Rowan to accept the main quest — or explore freely first.', 'system')
 
     // Ensure derived stats are fully initialized from the start (prevents undefined stat scanners)
-    recalcPlayerStats()
+    _recalcPlayerStats()
 
     // New Game: ensure the hero begins at full health after derived stat recalcs.
     // (Endurance / gear / companion scaling can increase maxHp, leaving hp below max.)
@@ -4107,7 +3768,7 @@ function addGeneratedItemToInventory(item, quantity = 1) {
             if (p.equipment[slot] == null) {
                 p.equipment[slot] = cloned
                 addLog('Auto-equipped ' + cloned.name + ' (' + slot + ').', 'system')
-                recalcPlayerStats()
+                _recalcPlayerStats()
             }
         }
     } catch (e) {
@@ -4182,7 +3843,7 @@ function sellItemFromInventory(index, context = 'village') {
     p.gold = (p.gold || 0) + sellValue
     addLog('Sold ' + item.name + ' for ' + sellValue + ' gold.', 'good')
 
-    recalcPlayerStats()
+    _recalcPlayerStats()
     updateHUD()
     requestSave('inventory:sell')
     })
@@ -4570,7 +4231,7 @@ function openInventoryModal(inCombat) {
 
                             if (!dispatched) {
                                 unequipItemIfEquipped(p, item)
-                                recalcPlayerStats()
+                                _recalcPlayerStats()
                                 updateHUD()
                                 requestSave('legacy')
                                 renderList()
@@ -4650,7 +4311,7 @@ function openInventoryModal(inCombat) {
                         p.inventory.splice(idx, 1)
                     }
 
-                    recalcPlayerStats()
+                    _recalcPlayerStats()
                     updateHUD()
                     requestSave('legacy')
                     renderList()
@@ -4803,7 +4464,7 @@ function equipItemFromInventory(index, opts = {}) {
         )
     }
 
-    recalcPlayerStats()
+    _recalcPlayerStats()
     updateHUD()
     requestSave('legacy')
 
@@ -4811,371 +4472,6 @@ function equipItemFromInventory(index, opts = {}) {
     if (!stayOpen) closeModal()
 }
 
-function recalcPlayerStats() {
-    const p = state.player
-    const cls = PLAYER_CLASSES[p.classId]
-    const base = cls.baseStats
-
-    // If loading an old save, make sure skills exist
-    if (!p.skills) {
-        const fallback =
-            CLASS_STARTING_SKILLS[p.classId] || CLASS_STARTING_SKILLS.default
-        p.skills = {
-            strength: fallback.strength,
-            endurance: fallback.endurance,
-            willpower: fallback.willpower
-        }
-    }
-
-    // If loading an old save, ensure stats object exists
-    if (!p.stats) {
-        p.stats = { attack: 0, magic: 0, armor: 0, speed: 0, magicRes: 0 }
-    }
-
-    // If loading an old save, ensure equipment object exists (and backfill new slots).
-    if (!p.equipment) p.equipment = {}
-    if (p.equipment.weapon === undefined) p.equipment.weapon = null
-    if (p.equipment.armor === undefined) p.equipment.armor = null // body
-    if (p.equipment.head === undefined) p.equipment.head = null
-    if (p.equipment.hands === undefined) p.equipment.hands = null
-    if (p.equipment.feet === undefined) p.equipment.feet = null
-    if (p.equipment.belt === undefined) p.equipment.belt = null
-    if (p.equipment.neck === undefined) p.equipment.neck = null
-    if (p.equipment.ring === undefined) p.equipment.ring = null
-
-    const s = p.skills
-
-    // Base stats from class
-    p.maxHp = base.maxHp
-    p.stats.attack = base.attack
-    p.stats.magic = base.magic
-    p.stats.armor = base.armor
-    p.stats.speed = base.speed
-
-    // Magical resistance was historically missing from player baselines.
-    // Derive a small class baseline so enemy magic attacks are resistible
-    // without requiring a specific gear affix.
-    p.stats.magicRes =
-        typeof base.magicRes === 'number'
-            ? base.magicRes
-            : Math.max(0, Math.round(base.magic * 0.35 + base.armor * 0.45 + 1))
-
-    // Reset derived affixes (percent values unless noted)
-    p.stats.critChance = 0
-    p.stats.dodgeChance = 0
-    p.stats.resistAll = 0
-    p.stats.lifeSteal = 0
-    p.stats.armorPen = 0
-    p.stats.haste = 0
-    p.stats.thorns = 0 // flat reflect
-    p.stats.hpRegen = 0 // per-tick value (small)
-    p.stats.elementalBonuses = {} // gear-only (used by damage)
-    p.stats.elementalResists = {} // total (gear + talents)
-
-    // Elemental breakdown for Character Sheet derived display
-    const _elemBonusGear = {}
-    const _elemBonusTalent = {}
-    const _elemResistGear = {}
-    const _elemResistTalent = {}
-    p.stats.elementalBonusBreakdown = { gear: _elemBonusGear, talent: _elemBonusTalent }
-    p.stats.elementalResistBreakdown = { gear: _elemResistGear, talent: _elemResistTalent }
-
-    p.stats.weaponElementType = null
-
-    // Skill contributions
-    // Strength: boosts physical offense
-    p.stats.attack += s.strength * 2
-
-    // Endurance: more HP and some armor
-    p.maxHp += s.endurance * 6
-    p.stats.armor += Math.floor(s.endurance / 2)
-
-    // Willpower: boosts magic and resource pool
-    p.stats.magic += s.willpower * 2
-
-    // Willpower + a touch of Endurance also improve magical resistance.
-    // Keeps early enemy casters from spiking damage too hard.
-    p.stats.magicRes += Math.floor((s.willpower || 0) / 2)
-    p.stats.magicRes += Math.floor((s.endurance || 0) / 4)
-
-
-    let extraMaxRes = 0
-    extraMaxRes += s.willpower * 4
-    const addGearElementBonus = (elem, pct) => {
-        const k = normalizeElementType(elem)
-        const v = _numPct(pct)
-        if (!k || !v) return
-        p.stats.elementalBonuses[k] = (p.stats.elementalBonuses[k] || 0) + v
-        _elemBonusGear[k] = (_elemBonusGear[k] || 0) + v
-    }
-
-    const addGearElementResist = (elem, pct) => {
-        const k = normalizeElementType(elem)
-        const v = _numPct(pct)
-        if (!k || !v) return
-        p.stats.elementalResists[k] = (p.stats.elementalResists[k] || 0) + v
-        _elemResistGear[k] = (_elemResistGear[k] || 0) + v
-    }
-
-    const addTalentElementResist = (elem, pct) => {
-        const k = normalizeElementType(elem)
-        const v = _numPct(pct)
-        if (!k || !v) return
-        p.stats.elementalResists[k] = (p.stats.elementalResists[k] || 0) + v
-        _elemResistTalent[k] = (_elemResistTalent[k] || 0) + v
-    }
-
-    // UI-only: talent spell focus bonuses (damage math applies these separately in calcMagicDamage).
-    const addTalentElementBonus = (elem, pct) => {
-        const k = normalizeElementType(elem)
-        const v = _numPct(pct)
-        if (!k || !v) return
-        _elemBonusTalent[k] = (_elemBonusTalent[k] || 0) + v
-    }
-
-    const applyItemBonuses = (it, slot) => {
-        if (!it) return
-
-        // Core, older fields
-        if (it.attackBonus) p.stats.attack += it.attackBonus
-        if (it.magicBonus) p.stats.magic += it.magicBonus
-        if (it.armorBonus) p.stats.armor += it.armorBonus
-        if (it.speedBonus) p.stats.speed += it.speedBonus
-
-        // Optional: support explicit magical resistance bonuses (future-proof).
-        if (it.magicResBonus) p.stats.magicRes += it.magicResBonus
-        if (it.magicRes) p.stats.magicRes += it.magicRes
-
-        // Maxima
-        if (it.maxHPBonus) p.maxHp += it.maxHPBonus
-        if (it.maxHpBonus) p.maxHp += it.maxHpBonus // legacy
-        if (it.maxResourceBonus) extraMaxRes += it.maxResourceBonus
-
-        // NEW affixes (all rolled as % in loot generator; store as % here)
-        if (it.critChance) p.stats.critChance += it.critChance
-        if (it.dodgeChance) p.stats.dodgeChance += it.dodgeChance
-        if (it.resistAll) p.stats.resistAll += it.resistAll
-        if (it.lifeSteal) p.stats.lifeSteal += it.lifeSteal
-        if (it.armorPen) p.stats.armorPen += it.armorPen
-        if (it.haste) p.stats.haste += it.haste
-
-        // Defensive utilities
-        if (it.thorns) p.stats.thorns += it.thorns
-        if (it.hpRegen) p.stats.hpRegen += it.hpRegen
-
-        // Elemental bonus
-        if (it.elementalType && it.elementalBonus) {
-            addGearElementBonus(it.elementalType, it.elementalBonus)
-            if (slot === 'weapon' && !p.stats.weaponElementType) {
-                p.stats.weaponElementType = normalizeElementType(it.elementalType)
-            }
-        }
-
-        // If item stored multiple elemental bonuses (future-proof)
-        if (it.elementalBonuses && typeof it.elementalBonuses === 'object') {
-            Object.keys(it.elementalBonuses).forEach((k) =>
-                addGearElementBonus(k, it.elementalBonuses[k])
-            )
-        }
-
-        // Elemental resists (Patch 1.2.0)
-        // Stored as percent reduction against incoming elemental magic.
-        // Example: { arcane: 10 } means -10% arcane damage taken (before resistAll).
-        if (it.elementalResists && typeof it.elementalResists === 'object') {
-            Object.keys(it.elementalResists).forEach((k) =>
-                addGearElementResist(k, it.elementalResists[k])
-            )
-        }
-
-        // Elemental resist shorthand (generated armor) (Patch 1.2.0)
-        if (it.elementalResistType && it.elementalResist) {
-            addGearElementResist(it.elementalResistType, it.elementalResist)
-        }
-    }
-
-    // Equipment contributions
-    applyItemBonuses(p.equipment.weapon, 'weapon')
-    applyItemBonuses(p.equipment.armor, 'armor')
-    applyItemBonuses(p.equipment.head, 'head')
-    applyItemBonuses(p.equipment.hands, 'hands')
-    applyItemBonuses(p.equipment.feet, 'feet')
-    applyItemBonuses(p.equipment.belt, 'belt')
-    applyItemBonuses(p.equipment.neck, 'neck')
-    applyItemBonuses(p.equipment.ring, 'ring')
-
-    // Talent elemental resist wards (Patch 1.2.0+)
-    // These should apply immediately to player stats so combat math + Character Sheet are correct.
-    if (playerHasTalent(p, 'mage_frostward')) addTalentElementResist('frost', 15)
-    if (playerHasTalent(p, 'mage_arcane_ward')) addTalentElementResist('arcane', 15)
-    if (playerHasTalent(p, 'warrior_frostward')) addTalentElementResist('frost', 15)
-    if (playerHasTalent(p, 'blood_shadowward')) addTalentElementResist('shadow', 15)
-    if (playerHasTalent(p, 'paladin_holyward')) addTalentElementResist('holy', 15)
-    if (playerHasTalent(p, 'rogue_shadowward')) addTalentElementResist('shadow', 15)
-    if (playerHasTalent(p, 'cleric_lightward')) addTalentElementResist('holy', 15)
-    if (playerHasTalent(p, 'necromancer_graveward')) addTalentElementResist('shadow', 15)
-    if (playerHasTalent(p, 'shaman_stormward')) addTalentElementResist('lightning', 15)
-    if (playerHasTalent(p, 'berserker_fireward')) addTalentElementResist('fire', 15)
-    if (playerHasTalent(p, 'vampire_shadowward')) addTalentElementResist('shadow', 15)
-    if (playerHasTalent(p, 'vampire_mistward')) addTalentElementResist('frost', 15)
-
-    // Talent spell focus bonuses (UI breakdown only; damage calcs apply these separately).
-    if (playerHasTalent(p, 'mage_ember_focus')) addTalentElementBonus('fire', 10)
-    if (playerHasTalent(p, 'mage_glacial_edge')) addTalentElementBonus('frost', 10)
-    if (playerHasTalent(p, 'blood_hemomancy')) addTalentElementBonus('shadow', 10)
-    if (playerHasTalent(p, 'ranger_nature_attunement')) addTalentElementBonus('nature', 10)
-    if (playerHasTalent(p, 'paladin_radiant_focus')) addTalentElementBonus('holy', 10)
-    if (playerHasTalent(p, 'cleric_holy_focus')) addTalentElementBonus('holy', 10)
-    if (playerHasTalent(p, 'necromancer_shadow_mastery')) addTalentElementBonus('shadow', 10)
-    if (playerHasTalent(p, 'necromancer_plague_touch')) addTalentElementBonus('poison', 10)
-    if (playerHasTalent(p, 'shaman_tempest_focus')) addTalentElementBonus('lightning', 10)
-    if (playerHasTalent(p, 'shaman_nature_attunement')) addTalentElementBonus('nature', 10)
-    if (playerHasTalent(p, 'vampire_shadow_focus')) addTalentElementBonus('shadow', 10)
-
-    // Talent-derived stat adjustments (Patch 1.2.32)
-    if (playerHasTalent(p, 'mage_mystic_reservoir') && p.resourceKey === 'mana') extraMaxRes += 20
-
-    if (playerHasTalent(p, 'warrior_sunder')) p.stats.armorPen += 10
-    if (playerHasTalent(p, 'warrior_ironhide')) {
-        p.stats.armor += 6
-        p.stats.resistAll += 5
-    }
-    if (playerHasTalent(p, 'warrior_battle_trance')) p.stats.haste += 10
-
-    if (playerHasTalent(p, 'blood_blood_armor')) {
-        p.maxHp += 12
-        p.stats.armor += 2
-    }
-
-    if (playerHasTalent(p, 'ranger_camouflage')) p.stats.dodgeChance += 8
-    if (playerHasTalent(p, 'ranger_called_shot')) p.stats.critChance += 10
-
-
-
-
-
-    // Additional class talent stat adjustments (Patch 1.2.32)
-    if (playerHasTalent(p, 'paladin_aura_of_faith')) p.stats.resistAll += 5
-    if (playerHasTalent(p, 'paladin_sanctified_plate')) p.stats.armor += 8
-    if (playerHasTalent(p, 'paladin_zeal')) p.stats.critChance += 8
-    if (playerHasTalent(p, 'paladin_divine_haste')) p.stats.haste += 10
-    if (playerHasTalent(p, 'paladin_mana_font') && p.resourceKey === 'mana') extraMaxRes += 20
-
-    if (playerHasTalent(p, 'rogue_deadly_precision')) p.stats.critChance += 10
-    if (playerHasTalent(p, 'rogue_smokefoot')) p.stats.dodgeChance += 8
-    if (playerHasTalent(p, 'rogue_armor_sunder')) p.stats.armorPen += 10
-    if (playerHasTalent(p, 'rogue_adrenaline')) p.stats.haste += 10
-
-    if (playerHasTalent(p, 'cleric_mana_font') && p.resourceKey === 'mana') extraMaxRes += 20
-    if (playerHasTalent(p, 'cleric_bastion')) { p.stats.armor += 6; p.stats.resistAll += 5 }
-    if (playerHasTalent(p, 'cleric_grace')) p.stats.dodgeChance += 8
-    if (playerHasTalent(p, 'cleric_divine_haste')) p.stats.haste += 10
-
-    if (playerHasTalent(p, 'necromancer_soul_battery') && p.resourceKey === 'mana') extraMaxRes += 20
-    if (playerHasTalent(p, 'necromancer_bone_plating')) { p.stats.armor += 4; p.stats.resistAll += 8 }
-    if (playerHasTalent(p, 'necromancer_dark_haste')) p.stats.haste += 10
-
-    if (playerHasTalent(p, 'shaman_mana_font') && p.resourceKey === 'mana') extraMaxRes += 20
-    if (playerHasTalent(p, 'shaman_spirit_guard')) { p.stats.armor += 6; p.stats.resistAll += 5 }
-    if (playerHasTalent(p, 'shaman_swift_steps')) p.stats.dodgeChance += 8
-
-    if (playerHasTalent(p, 'berserker_bloodthirst')) p.stats.lifeSteal += 8
-    if (playerHasTalent(p, 'berserker_hardened')) p.stats.armor += 6
-    if (playerHasTalent(p, 'berserker_ferocity')) p.stats.critChance += 10
-    if (playerHasTalent(p, 'berserker_battle_trance')) p.stats.haste += 10
-
-    if (playerHasTalent(p, 'vampire_essence_reservoir') && p.resourceKey === 'essence') extraMaxRes += 20
-    if (playerHasTalent(p, 'vampire_dark_agility')) p.stats.dodgeChance += 8
-    if (playerHasTalent(p, 'vampire_bloodletting')) p.stats.lifeSteal += 10
-    if (playerHasTalent(p, 'vampire_crimson_crit')) p.stats.critChance += 10
-
-
-// Speed now has a tangible combat effect: it contributes a small amount of dodge.
-    // This ensures Speed gear rolls are never “dead stats.”
-    const _spd = Number.isFinite(Number(p.stats.speed)) ? Number(p.stats.speed) : 0
-    const _dodgeFromSpeed = Math.max(0, Math.min(12, _spd * 0.6)) // +0.6% dodge per Speed (cap 12%)
-    p.stats.dodgeChance = (p.stats.dodgeChance || 0) + _dodgeFromSpeed
-    // Clamp some percent-ish stats to sane gameplay ranges
-    p.stats.critChance = Math.max(0, Math.min(75, p.stats.critChance || 0))
-    p.stats.dodgeChance = Math.max(0, Math.min(60, p.stats.dodgeChance || 0))
-    p.stats.resistAll = Math.max(0, Math.min(80, p.stats.resistAll || 0))
-    p.stats.lifeSteal = Math.max(0, Math.min(60, p.stats.lifeSteal || 0))
-    p.stats.armorPen = Math.max(0, Math.min(80, p.stats.armorPen || 0))
-    p.stats.haste = Math.max(0, Math.min(80, p.stats.haste || 0))
-
-    let baseMaxRes = 60
-    if (cls.resourceKey === 'mana') {
-        baseMaxRes = 100
-    } else if (cls.resourceKey === 'essence') {
-        baseMaxRes = 90
-    }
-
-    p.maxResource = baseMaxRes + extraMaxRes
-
-    // Companion scaling: keep companion stats synced and re-apply HP bonus after stat recalcs.
-    if (state.companion) {
-        const comp = state.companion
-        const def = COMPANION_DEFS[comp.id]
-        if (def) {
-            const scaled = _getCompanionRuntime().computeCompanionScaledStats(def, p.level)
-
-            comp.attack = scaled.atk
-            comp.hpBonus = scaled.hpBonus
-            comp.appliedHpBonus = scaled.hpBonus
-
-            p.maxHp += scaled.hpBonus
-        }
-    }
-
-
-// --- Blackbark Oath (Chapter II) ---------------------------------------
-// These are intentionally modest and mostly flavor-forward. They give the
-// player a visible “world changed” feeling without invalidating gear.
-const choice = (state.flags && state.flags.blackbarkChoice) || null
-if (choice === 'swear') {
-    p.stats.armor += 5
-    p.stats.resistAll += 8
-} else if (choice === 'break') {
-    p.stats.attack += 4
-    p.stats.critChance += 4
-} else if (choice === 'rewrite') {
-    p.stats.attack += 2
-    p.stats.magic += 2
-    p.stats.armor += 2
-    p.stats.resistAll += 4
-}
-
-
-
-// --- Hollow Crown Ritual Ally (Chapter III) -----------------------------
-// A small, persistent boon tied to who you let speak for Emberwood at the gate.
-const ritualAlly = (state.flags && state.flags.chapter3RitualAlly) || null
-if (ritualAlly === 'rowan') {
-    p.stats.armor += 2
-    p.stats.resistAll += 4
-} else if (ritualAlly === 'scribe') {
-    p.stats.magic += 4
-    p.maxResource = (p.maxResource || 0) + 15
-} else if (ritualAlly === 'ashWarden') {
-    p.stats.attack += 4
-    p.stats.critChance += 4
-    p.stats.armorPen += 5
-}
-// Re-clamp % stats after late-applied story/flag modifiers.
-p.stats.critChance = Math.max(0, Math.min(75, p.stats.critChance || 0))
-p.stats.dodgeChance = Math.max(0, Math.min(60, p.stats.dodgeChance || 0))
-p.stats.resistAll = Math.max(0, Math.min(80, p.stats.resistAll || 0))
-p.stats.lifeSteal = Math.max(0, Math.min(60, p.stats.lifeSteal || 0))
-p.stats.armorPen = Math.max(0, Math.min(80, p.stats.armorPen || 0))
-p.stats.haste = Math.max(0, Math.min(80, p.stats.haste || 0))
-
-// Back-compat / diagnostics alias: some scanners and older UI paths refer to
-// "dodge" instead of "dodgeChance".
-p.stats.dodge = Number.isFinite(Number(p.stats.dodgeChance)) ? Number(p.stats.dodgeChance) : 0
-
-    // Clamp current values to new maxima
-    if (p.hp > p.maxHp) p.hp = p.maxHp
-    if (p.resource > p.maxResource) p.resource = p.maxResource
-}
 
 function openMerchantModal(context = 'village') {
     recordInput('open.merchant', { context })
@@ -6241,7 +5537,7 @@ function openCheatMenu() {
             p.talentPoints = (p.talentPoints || 0) + 1
             addLog('Cheat: granted +1 talent point.', 'system')
             try {
-                recalcPlayerStats()
+                _recalcPlayerStats()
             } catch (_) {}
             updateHUD()
             requestSave('legacy')
@@ -6256,7 +5552,7 @@ function openCheatMenu() {
             p.talentPoints = (p.talentPoints || 0) + 5
             addLog('Cheat: granted +5 talent points.', 'system')
             try {
-                recalcPlayerStats()
+                _recalcPlayerStats()
             } catch (_) {}
             updateHUD()
             requestSave('legacy')
@@ -6293,7 +5589,7 @@ function openCheatMenu() {
             p.talentPoints = (p.talentPoints || 0) + refunded
             addLog('Cheat: refunded ' + refunded + ' talent(s).', 'system')
             try {
-                recalcPlayerStats()
+                _recalcPlayerStats()
             } catch (_) {}
             updateHUD()
             requestSave('legacy')
@@ -6316,7 +5612,7 @@ function openCheatMenu() {
             p.talentPoints = 0
             addLog('Cheat: unlocked all ' + list.length + ' class talents.', 'system')
             try {
-                recalcPlayerStats()
+                _recalcPlayerStats()
             } catch (_) {}
             updateHUD()
             requestSave('legacy')
@@ -6336,7 +5632,7 @@ function openCheatMenu() {
         btnRecalc.textContent = 'Recalculate Stats'
         btnRecalc.addEventListener('click', () => {
             try {
-                recalcPlayerStats()
+                _recalcPlayerStats()
                 addLog('Cheat: stats recalculated.', 'system')
             } catch (e) {
                 addLog(
@@ -6787,12 +6083,12 @@ function openCheatMenu() {
             const slots = ['weapon','armor','head','hands','feet','belt','neck','ring']
             if (!p.equipment) p.equipment = {}
             slots.forEach((k) => { p.equipment[k] = null })
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const baseStats = snap('No Gear')
 
             // Restore gear
             p.equipment = Object.assign({}, eq)
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const gearedStats = snap('With Gear')
 
             // Restore current HP/resource as close as possible
@@ -6990,7 +6286,7 @@ function openCheatMenu() {
                     if (!p.equipment) p.equipment = {}
                     p.equipment[slot] = it
                 })
-                recalcPlayerStats()
+                _recalcPlayerStats()
             }
 
             const names = spawned.map((x) => x.name).join(' + ')
@@ -7979,7 +7275,7 @@ function openCharacterSheet() {
     const comp = state.companion
 
     // --- NEW: Gear-affix summary values for Character Sheet -------------------
-    // (These are totals from recalcPlayerStats(), primarily driven by gear affixes.)
+    // (These are totals from _recalcPlayerStats(), primarily driven by gear affixes.)
     const statCritChance = Math.round(((p.stats && p.stats.critChance) || 0) * 10) / 10
     const statDodgeChance = Math.round(((p.stats && p.stats.dodgeChance) || 0) * 10) / 10
     const statResistAll = Math.round(((p.stats && p.stats.resistAll) || 0) * 10) / 10
@@ -7995,7 +7291,7 @@ function openCharacterSheet() {
     // They must be recomputable so unlocking talents (which can add resists)
     // updates the header immediately without closing/reopening the sheet.
 
-    const computeElementSummaries = () => computeElementSummariesForPlayer(p)
+    const computeElementSummaries = () => __computeElementSummariesForPlayer(p)
 
     const _elemSummary = computeElementSummaries()
 
@@ -8274,7 +7570,7 @@ function openCharacterSheet() {
 
       <div class="char-section char-divider-top">
         <div class="char-section-title">Elemental Breakdown</div>
-        <div class="sheet-element-breakdown">${renderElementalBreakdownHtml(p)}</div>
+        <div class="sheet-element-breakdown">${_renderElementalBreakdownHtml(p)}</div>
       </div>
 
       <div class="char-section char-divider-top">
@@ -8401,7 +7697,7 @@ function openCharacterSheet() {
         const ringName = slotName('ring')
 
         // --- TALENTS TAB ----------------------------------------------------------
-        const talentsHtml = renderTalentsPanelHtml(p)
+        const talentsHtml = _renderTalentsPanelHtml(p)
 
         const equipmentHtml = `
       <div class="char-section">
@@ -8522,11 +7818,11 @@ function openCharacterSheet() {
                         const id = btn.getAttribute('data-talent')
                         if (unlockTalent(p, id)) {
                             // Talent effects can affect derived stats. Refresh the sheet in-place.
-                            try { refreshCharacterSheetLiveValues(p, body) } catch (_) {}
+                            try { _refreshCharacterSheetLiveValues(p, body) } catch (_) {}
 
                             const panel = panelsWrapper.querySelector('.char-tab-panel[data-tab="talents"]')
                             if (panel) {
-                                panel.innerHTML = renderTalentsPanelHtml(p)
+                                panel.innerHTML = _renderTalentsPanelHtml(p)
                                 try { wireSheetAccordions(panel) } catch (_) {}
                                 bindTalentButtons(panel)
                             }
@@ -8962,7 +8258,7 @@ function autoDistributeSkillPoints(p) {
     }
 
     // Recalc + heal like your manual "Increase" path expects
-    recalcPlayerStats()
+    _recalcPlayerStats()
     p.hp = p.maxHp
     p.resource = p.maxResource
     updateHUD()
@@ -9066,7 +8362,7 @@ function openSkillLevelUpModal() {
                 p.skills[s.key] += 1
                 p.skillPoints -= 1
 
-                recalcPlayerStats()
+                _recalcPlayerStats()
                 p.hp = p.maxHp // full heal on level-up
                 p.resource = p.maxResource
 
@@ -12133,7 +11429,7 @@ function cheatMaxLevel(opts = {}) {
 
     // Sync + heal
     rescaleActiveCompanion()
-    recalcPlayerStats()
+    _recalcPlayerStats()
     p.hp = p.maxHp
     p.resource = p.maxResource
 
@@ -15014,7 +14310,7 @@ function runScenarioRunner(opts = {}) {
         try {
             if (s.player) {
                 ensurePlayerSpellSystems(s.player)
-                recalcPlayerStats()
+                _recalcPlayerStats()
             }
         } catch (_) {}
 
@@ -15920,7 +15216,7 @@ function runSmokeTests(opts = {}) {
 
         // 1) basic stat recalc
         test('recalcPlayerStats', () => {
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const p = state.player
             assert(isFiniteNum(p.maxHp) && p.maxHp > 0, 'maxHp invalid')
             assert(isFiniteNum(p.stats.attack), 'attack invalid')
@@ -16011,9 +15307,9 @@ function runSmokeTests(opts = {}) {
             const armor = cloneItemDef('armorLeather')
             p.inventory.push(armor)
             p.equipment.armor = armor
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const snap1 = JSON.stringify({ maxHp: p.maxHp, stats: p.stats, status: p.status })
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const snap2 = JSON.stringify({ maxHp: p.maxHp, stats: p.stats, status: p.status })
             assert(snap1 === snap2, 'stats changed on second recalc')
         })
@@ -16054,7 +15350,7 @@ function runSmokeTests(opts = {}) {
 
             // Recalc is stable after swap
             const snap1 = JSON.stringify({ maxHp: p.maxHp, stats: p.stats })
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const snap2 = JSON.stringify({ maxHp: p.maxHp, stats: p.stats })
             assert(snap1 === snap2, 'stats changed on extra recalc after swap')
         })
@@ -16209,7 +15505,7 @@ function runSmokeTests(opts = {}) {
             p.level = 6
             p.talentPoints = 1
             ensurePlayerTalents(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
             assert(!((p.stats.elementalResists || {}).frost), 'unexpected frost resist before talent')
 
@@ -16226,7 +15522,7 @@ function runSmokeTests(opts = {}) {
             p.level = 6
             p.talentPoints = 1
             ensurePlayerTalents(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
             const before = Number(p.stats && p.stats.dodgeChance ? p.stats.dodgeChance : 0)
             const ok = unlockTalent(p, 'vampire_dark_agility')
@@ -16253,7 +15549,7 @@ function runSmokeTests(opts = {}) {
             p.talents = {}
             p.talentPoints = 1
 
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
             const enemy = {
                 name: 'Dummy',
@@ -16297,7 +15593,7 @@ test('ember focus increases fire spell damage (deterministic)', () => {
             p.level = 6
             p.talentPoints = 1
             ensurePlayerTalents(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
 	            const enemy = { name: 'Dummy', hp: 999, maxHp: 999, armor: 0, magicRes: 0, armorBuff: 0, magicResBuff: 0, level: 1, tier: 1 }
 
@@ -16330,15 +15626,15 @@ test('ember focus increases fire spell damage (deterministic)', () => {
             p.level = 6
             p.talentPoints = 1
             ensurePlayerTalents(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
-            const s0 = computeElementSummariesForPlayer(p)
+            const s0 = _computeElementSummariesForPlayer(p)
             assert(!String(s0.elementalBonusSummary || '').includes('Fire'), 'expected no Fire bonus before talent, got ' + s0.elementalBonusSummary)
 
             const ok = unlockTalent(p, 'mage_ember_focus')
             assert(ok, 'unlockTalent returned false')
 
-            const s1 = computeElementSummariesForPlayer(p)
+            const s1 = _computeElementSummariesForPlayer(p)
             assert(String(s1.elementalBonusSummary || '').includes('Fire +10%'), 'expected Fire +10% after Ember Focus, got ' + s1.elementalBonusSummary)
         })
 
@@ -16351,7 +15647,7 @@ test('ember focus increases fire spell damage (deterministic)', () => {
                     elementalResists: { frost: '7%', shadow: 15 }
                 }
             }
-            const s = computeElementSummariesForPlayer(p)
+            const s = _computeElementSummariesForPlayer(p)
             assert(String(s.elementalBonusSummary || '').includes('Frost +5%'), 'missing Frost +5%, got ' + s.elementalBonusSummary)
             assert(String(s.elementalBonusSummary || '').includes('Shadow +10%'), 'missing Shadow +10%, got ' + s.elementalBonusSummary)
             assert(!/0frost/i.test(String(s.elementalBonusSummary || '')), 'unexpected 0frost in summary: ' + s.elementalBonusSummary)
@@ -17128,7 +16424,7 @@ test('cheat: max level grants skill + talent points', () => {
 	                }
 
 	                state.player = createPlayer('SheetTester', 'mage', 'normal')
-	                recalcPlayerStats()
+	                _recalcPlayerStats()
 	                // Must not throw
 	                openCharacterSheet()
 
@@ -17227,7 +16523,7 @@ test('cheat: max level grants skill + talent points', () => {
             p.spells = ['holyStrike', 'blessingLight', 'retributionAura']
             p.equippedSpells = ['holyStrike', 'blessingLight', 'retributionAura']
             ensurePlayerSpellSystems(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
             // Prevent any combat AI from acting (enemyTurn can damage the player and
             // can update live UI if it isn't stubbed).
@@ -17304,7 +16600,7 @@ test('cheat: max level grants skill + talent points', () => {
             p.spells = ['powerStrike', 'battleCry', 'shieldWall', 'cleave']
             p.equippedSpells = ['cleave']
             ensurePlayerSpellSystems(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
             // Disable crit variance for deterministic assertions.
             if (p.stats) {
@@ -17342,7 +16638,7 @@ test('cheat: max level grants skill + talent points', () => {
             p.spells = ['bloodSlash', 'leech', 'hemorrhage', 'bloodNova']
             p.equippedSpells = ['bloodNova']
             ensurePlayerSpellSystems(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
             if (p.stats) {
                 p.stats.critChance = 0
@@ -17377,7 +16673,7 @@ test('cheat: max level grants skill + talent points', () => {
             p.spells = ['fireball', 'iceShard', 'arcaneShield', 'meteorSigil']
             p.equippedSpells = ['meteorSigil']
             ensurePlayerSpellSystems(p)
-            recalcPlayerStats()
+            _recalcPlayerStats()
 
             if (p.stats) {
                 p.stats.critChance = 0
@@ -17796,7 +17092,7 @@ test('cheat: max level grants skill + talent points', () => {
 
             p.equipment = p.equipment || {}
             p.equipment.armor = Object.assign({}, ITEM_DEFS.robeApprentice)
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const v = p.stats && p.stats.elementalResists ? (p.stats.elementalResists.arcane || 0) : 0
             if (!(v > 0)) throw new Error('expected arcane resist from robeApprentice')
 
@@ -17804,7 +17100,7 @@ test('cheat: max level grants skill + talent points', () => {
             p.classId = snap.classId
             p.level = snap.level
             p.talents = snap.talents
-            recalcPlayerStats()
+            _recalcPlayerStats()
         })
 
         test('elemental stats: talent elemental resist applies to player stats', () => {
@@ -17821,7 +17117,7 @@ test('cheat: max level grants skill + talent points', () => {
             ensurePlayerTalents(p)
             p.talents = p.talents || {}
             p.talents.warrior_frostward = true
-            recalcPlayerStats()
+            _recalcPlayerStats()
             const v = p.stats && p.stats.elementalResists ? (p.stats.elementalResists.frost || 0) : 0
             if (v < 10) throw new Error('expected frost resist from warrior_frostward talent')
 
@@ -17829,7 +17125,7 @@ test('cheat: max level grants skill + talent points', () => {
             p.classId = snap.classId
             p.level = snap.level
             p.talents = snap.talents
-            recalcPlayerStats()
+            _recalcPlayerStats()
         })
 
 
@@ -18564,7 +17860,7 @@ test('enemy elemental resists scale with difficulty', () => {
                 p.resourceName = 'Mana'
                 p.maxResource = 100
                 p.resource = 100
-                recalcPlayerStats()
+                _recalcPlayerStats()
 
                 const beforePosture = state.currentEnemy.posture || 0
                 playerInterrupt()
@@ -18624,7 +17920,7 @@ test('enemy elemental resists scale with difficulty', () => {
                 p.resourceName = 'Mana'
                 p.maxResource = 100
                 p.resource = 100
-                recalcPlayerStats()
+                _recalcPlayerStats()
 
                 // Let enemy declare intent (real enemyTurn is required)
                 if (!_enemyTurn) throw new Error('enemyTurn not available')
@@ -18888,7 +18184,7 @@ test('enemy elemental resists scale with difficulty', () => {
                     abilityCooldowns: {}
                 }
                 ensureEnemyRuntime(state.currentEnemy)
-                recalcPlayerStats()
+                _recalcPlayerStats()
                 setDeterministicRngEnabled(state, true)
                 setRngSeed(state, 111)
 
@@ -18988,7 +18284,7 @@ test('abilities: every ability is classified (elementType or physical)', () => {
 
 // B) element key normalization: prevents phantom keys like "0frost" from appearing in sheets/saves.
 test('elements: normalized keys only (no phantom element entries)', () => {
-    recalcPlayerStats()
+    _recalcPlayerStats()
     const issues = qaScanElementKeyIssues(state)
     assert(issues.length === 0, 'element key issues:\n' + issues.slice(0, 30).join('\n') + (issues.length > 30 ? '\n… (' + issues.length + ' total)' : ''))
 })
@@ -19016,7 +18312,7 @@ test('fuzz: ' + QA_COUNTS.fuzz2Seeds + ' seeds x ' + QA_COUNTS.fuzz2Actions + ' 
             } else if (r === 4) {
                 advanceTime(state, rngInt(state, 1, 2, 'smoke.fuzz2.timeSteps'))
             } else if (r === 5) {
-                recalcPlayerStats()
+                _recalcPlayerStats()
             } else {
                 // Small combat math poke (no turn sequencing): just ensure calculators never produce NaN.
                 state.currentEnemy = state.currentEnemy || { name: 'Fuzz2 Dummy', hp: 50, maxHp: 50, level: 1, armor: 0, magicRes: 0, affinities: {}, elementalResists: {} }
@@ -20078,7 +19374,7 @@ export function bootGame(engine) {
 	                    const item = p.inventory && p.inventory[idx] ? p.inventory[idx] : null
 	                    if (!item) return
 	                    unequipItemIfEquipped(p, item)
-	                    recalcPlayerStats()
+	                    _recalcPlayerStats()
 	                    updateHUD()
 	                    requestSave('legacy')
 	                } catch (_) {}
@@ -20107,7 +19403,7 @@ export function bootGame(engine) {
 	                    } else {
 	                        p.inventory.splice(idx, 1)
 	                    }
-	                    recalcPlayerStats()
+	                    _recalcPlayerStats()
 	                    updateHUD()
 	                    requestSave('legacy')
 	                } catch (_) {}
