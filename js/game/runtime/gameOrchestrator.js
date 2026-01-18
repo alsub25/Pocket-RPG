@@ -2709,7 +2709,8 @@ function _initHelpers() {
             computeEnemyPostureMaxImpl,
             clampNumber,
             ensureEnemyRuntimeImpl,
-            pickEnemyAbilitySet
+            pickEnemyAbilitySet,
+            applyEnemyAffixesOnPlayerHit
         })
     }
     if (!_hudUpdaters) {

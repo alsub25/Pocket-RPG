@@ -22,7 +22,8 @@ export function createEnemyAIHelpers(deps) {
         computeEnemyPostureMaxImpl,
         clampNumber,
         ensureEnemyRuntimeImpl,
-        pickEnemyAbilitySet
+        pickEnemyAbilitySet,
+        applyEnemyAffixesOnPlayerHit
     } = deps
 
     function ensureEnemyRuntime(enemy) {
@@ -348,6 +349,11 @@ export function createEnemyAIHelpers(deps) {
         if (dmg <= 0) return
 
         ensureEnemyRuntime(enemy)
+
+        // Enemy mini-affixes that trigger when the player hits the enemy (e.g., Thorns reflect).
+        if (applyEnemyAffixesOnPlayerHit) {
+            applyEnemyAffixesOnPlayerHit(enemy, dmg)
+        }
 
         if (typeof enemy.postureMax !== 'number' || enemy.postureMax <= 0) {
             enemy.postureMax = computeEnemyPostureMax(enemy)
