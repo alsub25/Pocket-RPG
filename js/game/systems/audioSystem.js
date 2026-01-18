@@ -581,15 +581,8 @@ export function getAudioState() {
     return audioState
 }
 
-// Export additional helper functions that are used in orchestrator
-export function tryResumeAudioContext() {
-    const ctx = audioState.ctx
-    if (!ctx) return
-
-    if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {})
-    }
-}
+// Export tryResumeAudioContext for external use
+export { tryResumeAudioContext }
 
 export function applyChannelMuteGains() {
     // Web Audio path
