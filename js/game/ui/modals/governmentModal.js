@@ -78,9 +78,9 @@ export function createGovernmentModal({
             const metricsLine = document.createElement('p')
             metricsLine.className = 'modal-subtitle'
             metricsLine.textContent =
-                `Stability: ${metrics.stability} • ` +
-                `Prosperity: ${metrics.prosperity} • ` +
-                `Popularity: ${metrics.royalPopularity} • ` +
+                `Stability: ${metrics.stability} * ` +
+                `Prosperity: ${metrics.prosperity} * ` +
+                `Popularity: ${metrics.royalPopularity} * ` +
                 `Corruption: ${metrics.corruption}`
             overviewCard.appendChild(metricsLine)
 
@@ -167,7 +167,7 @@ export function createGovernmentModal({
                     const right = document.createElement('span')
                     right.className = 'stat-note'
                     const loyalty = Math.round(member.loyalty)
-                    right.textContent = `${member.ideology} • Loyalty ${loyalty} • ${member.mood}`
+                    right.textContent = `${member.ideology} * Loyalty ${loyalty} * ${member.mood}`
                     row.appendChild(right)
 
                     councilCard.appendChild(row)
@@ -206,8 +206,8 @@ export function createGovernmentModal({
 
             if (villageEffect.hasData) {
                 moodLine.textContent =
-                    `Loyalty: ${Math.round(villageEffect.loyalty)} • ` +
-                    `Fear: ${Math.round(villageEffect.fear)} • ` +
+                    `Loyalty: ${Math.round(villageEffect.loyalty)} * ` +
+                    `Fear: ${Math.round(villageEffect.fear)} * ` +
                     `Unrest: ${Math.round(villageEffect.unrest)}`
                 villageCard.appendChild(moodLine)
 
@@ -221,7 +221,7 @@ export function createGovernmentModal({
                 mods.textContent =
                     `Prosperity modifier: ${villageEffect.prosperityModifier.toFixed(
                         2
-                    )} • ` +
+                    )} * ` +
                     `Safety modifier: ${villageEffect.safetyModifier.toFixed(2)}`
                 villageCard.appendChild(mods)
             } else {
@@ -234,8 +234,8 @@ export function createGovernmentModal({
             const econLine = document.createElement('p')
             econLine.className = 'modal-subtitle'
             econLine.textContent =
-                `Village economy — Prosperity ${villageEconomy.prosperity} • ` +
-                `Trade ${villageEconomy.trade} • ` +
+                `Village economy - Prosperity ${villageEconomy.prosperity} * ` +
+                `Trade ${villageEconomy.trade} * ` +
                 `Security ${villageEconomy.security}`
             villageCard.appendChild(econLine)
 
@@ -270,7 +270,7 @@ export function createGovernmentModal({
                     line.className = 'modal-subtitle'
                     const dayLabel =
                         typeof ev.day === 'number' ? `Day ${ev.day}` : 'Unknown day'
-                    line.textContent = `${dayLabel}: ${ev.title} — ${ev.description}`
+                    line.textContent = `${dayLabel}: ${ev.title} - ${ev.description}`
                     historyCard.appendChild(line)
                 })
             } else {

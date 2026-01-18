@@ -79,7 +79,7 @@ export function createExplorationManager(deps) {
 
                 if (area === 'forest') {
                     sceneText =
-                        'Deeper in the forest, a lantern glows between the trees – a traveling merchant has set up a tiny camp.'
+                        'Deeper in the forest, a lantern glows between the trees - a traveling merchant has set up a tiny camp.'
                 } else if (area === 'ruins') {
                     sceneText =
                         'Among the shattered stones of the Spire, a daring merchant has laid out wares on a cracked pillar.'
@@ -121,13 +121,13 @@ export function createExplorationManager(deps) {
         } else if (area === 'forest' && state.flags.goblinBossDefeated) {
             title = 'Calmer Forest'
             text =
-                'With the Warlord gone, Emberwood Forest feels less hostile – but not entirely safe.'
+                'With the Warlord gone, Emberwood Forest feels less hostile - but not entirely safe.'
         }
 
         setScene(title, text)
         addLog('You explore cautiously. For now, nothing attacks.', 'system')
 
-        // ✅ Make sure the actions bar matches the *current* area
+        // [check] Make sure the actions bar matches the *current* area
         renderActions()
 
         requestSave('legacy')

@@ -274,7 +274,7 @@ export function createBattleManager(deps) {
                         (d) =>
                             d.name +
                             (d.type === 'potion' && (d.quantity || 1) > 1
-                                ? ' ×' + (d.quantity || 1)
+                                ? ' ?' + (d.quantity || 1)
                                 : '')
                     )
                     .join(', ')

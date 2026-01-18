@@ -123,7 +123,7 @@ export function createEnemySheetModal(deps) {
                 if (ek.length) parts.push('Flat resist: ' + ek.join(', '))
             }
 
-            return parts.join(' • ')
+            return parts.join(' * ')
         })()
 
         const baseDropChance = isBoss ? 1.0 : isElite ? 0.9 : 0.7
@@ -144,7 +144,7 @@ export function createEnemySheetModal(deps) {
             if (def.hexTurns) parts.push('On hit: applies Hex (' + def.hexTurns + 't)')
             if (def.berserkThreshold) parts.push('Below ' + Math.round(def.berserkThreshold * 100) + '% HP: +'+ Math.round((def.berserkAtkPct||0)*100) + '% attack')
             if (def.regenPct) parts.push('Regenerates ' + Math.round(def.regenPct * 100) + '% max HP at end of turn')
-            return def.label + (parts.length ? ' — ' + parts.join('; ') : '')
+            return def.label + (parts.length ? ' - ' + parts.join('; ') : '')
         }
 
         openEnemyModal('Enemy Sheet', (body) => {
@@ -157,7 +157,7 @@ export function createEnemySheetModal(deps) {
           <div class="sheet-title-row">
             <div>
               <div class="sheet-title">${escapeHtml(enemy.name || 'Enemy')}</div>
-              <div class="sheet-subtitle">${escapeHtml(rarityLabel)}${isBoss ? ' • Boss' : ''}${isElite ? ' • Elite' : ''} • Lv ${finiteNumber(enemy.level, 1)}</div>
+              <div class="sheet-subtitle">${escapeHtml(rarityLabel)}${isBoss ? ' * Boss' : ''}${isElite ? ' * Elite' : ''} * Lv ${finiteNumber(enemy.level, 1)}</div>
             </div>
             <div class="sheet-subtitle">${escapeHtml(state.area || '')}</div>
           </div>
@@ -209,25 +209,25 @@ export function createEnemySheetModal(deps) {
       <div class="char-section">
         <div class="char-section-title">Enemy</div>
         <div class="stat-grid">
-          <div class="stat-label"><span class="char-stat-icon">🏷</span>Name</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Name</div>
           <div class="stat-value">${enemy.name || 'Enemy'}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">⭐</span>Level</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Level</div>
           <div class="stat-value">${finiteNumber(enemy.level, 1)}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">💠</span>Rarity</div>
-          <div class="stat-value">${rarityLabel}${isBoss ? ' • Boss' : ''}${isElite ? ' • Elite' : ''}</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Rarity</div>
+          <div class="stat-value">${rarityLabel}${isBoss ? ' * Boss' : ''}${isElite ? ' * Elite' : ''}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">❤️</span>HP</div>
+          <div class="stat-label"><span class="char-stat-icon">??</span>HP</div>
           <div class="stat-value">${Math.round(hp)}/${maxHp}</div>
 
           ${pm ? `
-          <div class="stat-label"><span class="char-stat-icon">🛡</span>Posture</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Posture</div>
           <div class="stat-value">${Math.round(posture)}/${pm}</div>
           ` : ''}
 
-          <div class="stat-label"><span class="char-stat-icon">🧠</span>Behavior</div>
-          <div class="stat-value">${enemy.behavior ? String(enemy.behavior) : '—'}</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Behavior</div>
+          <div class="stat-value">${enemy.behavior ? String(enemy.behavior) : '-'}</div>
         </div>
       </div>
     `
@@ -238,25 +238,25 @@ export function createEnemySheetModal(deps) {
       <div class="char-section">
         <div class="char-section-title">Combat Stats</div>
         <div class="stat-grid">
-          <div class="stat-label"><span class="char-stat-icon">⚔</span>Attack</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Attack</div>
           <div class="stat-value">${Math.round(finiteNumber(enemy.attack, 0))} <span style="opacity:.7">(effective ${Math.round(effAtk)})</span></div>
 
-          <div class="stat-label"><span class="char-stat-icon">✨</span>Magic</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Magic</div>
           <div class="stat-value">${Math.round(finiteNumber(enemy.magic, 0))} <span style="opacity:.7">(effective ${Math.round(effMag)})</span></div>
 
-          <div class="stat-label"><span class="char-stat-icon">🛡</span>Armor</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Armor</div>
           <div class="stat-value">${Math.round(finiteNumber(enemy.armor, 0))}${enemy.armorBuff ? ' <span style="opacity:.7">(+' + Math.round(enemy.armorBuff) + ' buff)</span>' : ''}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">🔰</span>Magic Res</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Magic Res</div>
           <div class="stat-value">${Math.round(finiteNumber(enemy.magicRes, 0))}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">🧪</span>Elements</div>
-          <div class="stat-value">${enemyElementInfoText ? escapeHtml(enemyElementInfoText) : '—'}</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Elements</div>
+          <div class="stat-value">${enemyElementInfoText ? escapeHtml(enemyElementInfoText) : '-'}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">📌</span>Base Attack</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Base Attack</div>
           <div class="stat-value">${Math.round(finiteNumber(enemy.baseAttack, finiteNumber(enemy.attack, 0)))}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">📌</span>Base Magic</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Base Magic</div>
           <div class="stat-value">${Math.round(finiteNumber(enemy.baseMagic, finiteNumber(enemy.magic, 0)))}</div>
         </div>
       </div>
@@ -278,7 +278,7 @@ export function createEnemySheetModal(deps) {
           <div class="item-row">
             <div class="item-row-header">
               <div><span class="item-name">${name}</span></div>
-              <div class="item-meta">${cd != null ? 'CD ' + cd : ''}${tele ? (cd != null ? ' • ' : '') + 'Telegraph ' + tele + 't' : ''}</div>
+              <div class="item-meta">${cd != null ? 'CD ' + cd : ''}${tele ? (cd != null ? ' * ' : '') + 'Telegraph ' + tele + 't' : ''}</div>
             </div>
             ${desc ? `<div style="font-size:.78rem;color:var(--muted)">${escapeHtml(desc)}</div>` : ''}
           </div>
@@ -327,7 +327,7 @@ export function createEnemySheetModal(deps) {
       </div>
       <div class="char-section">
         <div class="char-section-title">Current Effects</div>
-        <div class="modal-subtitle">${statusParts.length ? statusParts.join(' • ') : 'None'}</div>
+        <div class="modal-subtitle">${statusParts.length ? statusParts.join(' * ') : 'None'}</div>
       </div>
     `
             makePanel('effects', effectsHtml)
@@ -337,16 +337,16 @@ export function createEnemySheetModal(deps) {
       <div class="char-section">
         <div class="char-section-title">Rewards</div>
         <div class="stat-grid">
-          <div class="stat-label"><span class="char-stat-icon">📈</span>XP</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>XP</div>
           <div class="stat-value">${Math.round(finiteNumber(enemy.xp, 0))}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">🪙</span>Gold</div>
-          <div class="stat-value">${Math.round(finiteNumber(enemy.goldMin, 0))}–${Math.round(finiteNumber(enemy.goldMax, 0))}</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Gold</div>
+          <div class="stat-value">${Math.round(finiteNumber(enemy.goldMin, 0))}-${Math.round(finiteNumber(enemy.goldMax, 0))}</div>
 
-          <div class="stat-label"><span class="char-stat-icon">🎁</span>Loot Drop Chance</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Loot Drop Chance</div>
           <div class="stat-value">${Math.round(dropChance * 100)}%</div>
 
-          <div class="stat-label"><span class="char-stat-icon">🎲</span>Loot Quality Driver</div>
+          <div class="stat-label"><span class="char-stat-icon">?</span>Loot Quality Driver</div>
           <div class="stat-value">Enemy rarity tier ${finiteNumber(enemy.rarityTier, 1)}</div>
         </div>
       </div>

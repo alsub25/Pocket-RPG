@@ -30,25 +30,25 @@ function _numPct(x) {
 function _elementIcon(k) {
     switch (k) {
         case 'fire':
-            return '🔥'
+            return '[fire]'
         case 'frost':
-            return '🧊'
+            return '?'
         case 'lightning':
-            return '⚡'
+            return '?'
         case 'holy':
-            return '✨'
+            return '?'
         case 'shadow':
-            return '🕸️'
+            return '??'
         case 'arcane':
-            return '🔮'
+            return '?'
         case 'poison':
-            return '☠️'
+            return '??'
         case 'earth':
-            return '🪨'
+            return '?'
         case 'nature':
-            return '🌿'
+            return '?'
         default:
-            return '•'
+            return '*'
     }
 }
 
@@ -306,7 +306,7 @@ export function renderElementalBreakdownHtml(p, playerHasTalent) {
         const rawR = _round1(rawTotalRes)
         if ((gR > 0) || (tR > 0) || (rawR > 0)) {
             html +=
-                '<div class="stat-label"><span class="char-stat-icon">🛡</span>' +
+                '<div class="stat-label"><span class="char-stat-icon">?</span>' +
                 escapeHtml(name) +
                 ' Resist</div>' +
                 '<div class="stat-value">' +
@@ -442,7 +442,7 @@ export function renderTalentsPanelHtml(p, ensurePlayerTalents, getTalentsForClas
                 ? `<button class="btn small talent-unlock" data-talent="${t.id}">Unlock</button>`
                 : owned
                 ? `<button class="btn small outline" disabled>Owned</button>`
-                : `<button class="btn small outline" disabled>—</button>`
+                : `<button class="btn small outline" disabled>-</button>`
             return `
             <div class="talent-row">
               <div class="talent-main">
@@ -456,7 +456,7 @@ export function renderTalentsPanelHtml(p, ensurePlayerTalents, getTalentsForClas
     return `
       <div class="char-section">
         <div class="char-section-title">Talents</div>
-        <div class="muted" style="margin-bottom:8px;">Talent Points: <b>${pts}</b> • Gain 1 point every 3 levels.</div>
+        <div class="muted" style="margin-bottom:8px;">Talent Points: <b>${pts}</b> * Gain 1 point every 3 levels.</div>
         <div class="talent-list">${rows}</div>
       </div>`
 }

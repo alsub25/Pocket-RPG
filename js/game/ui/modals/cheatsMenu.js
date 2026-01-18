@@ -64,7 +64,7 @@ export function createCheatsMenu({
             'Debug / cheat options for testing. They instantly modify your current save.'
         body.appendChild(info)
 
-        // Quick controls: search + expand/collapse (keeps the same “pill + muted” aesthetic)
+        // Quick controls: search + expand/collapse (keeps the same "pill + muted" aesthetic)
         const toolbar = document.createElement('div')
         toolbar.className = 'cheat-toolbar'
 
@@ -74,7 +74,7 @@ export function createCheatsMenu({
         const search = document.createElement('input')
         search.type = 'text'
         search.className = 'inv-search cheat-search'
-        search.placeholder = 'Search cheats…'
+        search.placeholder = 'Search cheats...'
         search.setAttribute('aria-label', 'Search cheats')
         searchWrap.appendChild(search)
 
@@ -95,7 +95,7 @@ export function createCheatsMenu({
         statusBar.className = 'cheat-statusbar'
         body.appendChild(statusBar)
 
-        // Keep the stat pills readable and constrained: hard cap at ≤2 rows on narrow screens.
+        // Keep the stat pills readable and constrained: hard cap at ?2 rows on narrow screens.
         // We never scroll this bar; instead we (1) keep the pill count compact by combining
         // secondary stats, and (2) auto-scale text/padding until it fits.
         function fitCheatStatusbarTwoRows() {
@@ -240,26 +240,26 @@ export function createCheatsMenu({
             const tpTxt = 'Talents ' + (p.talentPoints || 0)
             addStat(tpTxt, '', 'TP ' + (p.talentPoints || 0))
 
-            // Secondary stats are combined to keep the status bar at ≤2 rows without scrolling.
+            // Secondary stats are combined to keep the status bar at ?2 rows without scrolling.
             const partShort = part ? String(part).trim().slice(0, 1).toUpperCase() : ''
-            const timeTxt = 'Day ' + day + (part ? ' • ' + part : '')
-            const timeShort = 'D' + day + (partShort ? '•' + partShort : '')
+            const timeTxt = 'Day ' + day + (part ? ' * ' + part : '')
+            const timeShort = 'D' + day + (partShort ? '*' + partShort : '')
             addStat(timeTxt, '', timeShort)
 
             const locBits = []
             if (area) locBits.push(area)
             if (activeDiff && activeDiff.name) locBits.push(activeDiff.name)
             if (locBits.length) {
-                const locTxt = locBits.join(' • ')
+                const locTxt = locBits.join(' * ')
                 // Short form drops the separator label and relies on truncation when needed.
-                const locShort = locBits.join('•')
+                const locShort = locBits.join('*')
                 addStat(locTxt, 'cheat-stat-wide', locShort)
             }
 
             const flagsTxt =
-                'God ' + (state.flags.godMode ? 'ON' : 'OFF') + ' • Crit ' + critLabel
+                'God ' + (state.flags.godMode ? 'ON' : 'OFF') + ' * Crit ' + critLabel
             const flagsShort =
-                'God ' + (state.flags.godMode ? 'ON' : 'OFF') + ' • C ' + critLabel.slice(0, 1)
+                'God ' + (state.flags.godMode ? 'ON' : 'OFF') + ' * C ' + critLabel.slice(0, 1)
             addStat(flagsTxt, 'cheat-stat-wide', flagsShort)
 
             // After DOM updates, ensure we stay within the 2-row constraint.
@@ -295,7 +295,7 @@ export function createCheatsMenu({
             function setOpen(open) {
                 content.style.display = open ? '' : 'none'
                 header.setAttribute('aria-expanded', open ? 'true' : 'false')
-                chevron.textContent = open ? '▾' : '▸'
+                chevron.textContent = open ? '?' : '?'
             }
 
             setOpen(!!expandedByDefault)
@@ -326,7 +326,7 @@ export function createCheatsMenu({
         const coreSec = makeCheatSection('Core Cheats', false)
         const coreContent = coreSec.body
 
-        // Row 1 – Gold / XP
+        // Row 1 - Gold / XP
         const btnRow1 = document.createElement('div')
         btnRow1.className = 'item-actions'
 
@@ -363,7 +363,7 @@ export function createCheatsMenu({
         btnRow1.appendChild(btnMax)
         coreContent.appendChild(btnRow1)
 
-        // Row 2 – Heal / Slay Enemy
+        // Row 2 - Heal / Slay Enemy
         const btnRow2 = document.createElement('div')
         btnRow2.className = 'item-actions'
 
@@ -399,7 +399,7 @@ export function createCheatsMenu({
         btnRow2.appendChild(btnKill)
         coreContent.appendChild(btnRow2)
 
-        // Row 3 – God Mode / Always Crit
+        // Row 3 - God Mode / Always Crit
         const btnRow3 = document.createElement('div')
         btnRow3.className = 'item-actions'
 
@@ -475,7 +475,7 @@ export function createCheatsMenu({
         btnRow3.appendChild(btnNeverCrit)
         coreContent.appendChild(btnRow3)
 
-        // Row 4 – Difficulty / Prime Class Meter
+        // Row 4 - Difficulty / Prime Class Meter
         const btnRow4 = document.createElement('div')
         btnRow4.className = 'item-actions'
 
@@ -623,50 +623,50 @@ export function createCheatsMenu({
         storyContent.appendChild(choiceRow)
 
         const STORY_PRESETS = [
-            { id: 'ch1_start', label: 'Chapter I — Start (Step 0)', step: 0, area: 'village', partIndex: 0 },
-            { id: 'ch1_captain', label: 'Chapter I — Captain Elara Briefing (Step 0.25)', step: 0.25, area: 'village', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1CaptainBriefed: false } },
-            { id: 'ch1_scribe', label: 'Chapter I — Bark‑Scribe Intel (Step 0.5)', step: 0.5, area: 'village', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1ScribeTrailsLearned: false } },
-            { id: 'ch1_salve', label: 'Chapter I — Bitterleaf Salve (Step 0.75)', step: 0.75, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
-            { id: 'ch1_raiders', label: 'Chapter I — Raiders (Step 1)', step: 1, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
-            { id: 'ch1_snareline', label: 'Chapter I — Snareline (Trapper) (Step 1.1)', step: 1.1, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
-            { id: 'ch1_supply', label: 'Chapter I — Supply Route (Step 1.2)', step: 1.2, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
-            { id: 'ch1_cache', label: 'Chapter I — Cache Fire (Packmaster) (Step 1.25)', step: 1.25, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
-            { id: 'ch1_drums', label: 'Chapter I — War Drums (Step 1.3)', step: 1.3, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
-            { id: 'ch1_captain_fight', label: 'Chapter I — Captain’s Trail (Step 1.4)', step: 1.4, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1SigilRecovered: false } },
-            { id: 'ch1_warlord_ready', label: 'Chapter I — Warlord Hunt Ready (Sigil Recovered)', step: 1.4, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1SigilRecovered: true, ch1CaptainDefeated: true } },
-            { id: 'ch1_rowan_warlord', label: 'Chapter I — Rowan Debrief (After Warlord) (Step 1.5)', step: 1.5, area: 'village', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, goblinBossDefeated: true, goblinRowanDebriefShown: false, goblinRowanDebriefPending: true } },
-            { id: 'ch2_intro', label: 'Chapter II — Start (Intro in Village)', step: 7, area: 'village', partIndex: 0, force: { blackbarkChapterStarted: false } },
-            { id: 'ch2_bark', label: 'Chapter II — Bark‑Scribe (Step 9)', step: 9, area: 'village', partIndex: 0 },
-            { id: 'ch2_rowan_reveal', label: 'Chapter II — Rowan’s Revelation (Step 8)', step: 8, area: 'village', partIndex: 0 },
-            { id: 'ch2_elara', label: 'Chapter II — Tallies (Elara) (Step 8.25)', step: 8.25, area: 'village', partIndex: 0 },
-            { id: 'ch2_splinters', label: 'Chapter II — Oath‑Splinters (Step 10)', step: 10, area: 'forest', partIndex: 0 },
-            { id: 'ch2_quietink', label: 'Chapter II — Quiet Ink Lesson (Step 10.5)', step: 10.5, area: 'village', partIndex: 0 },
-            { id: 'ch2_oathgrove', label: 'Chapter II — Oathgrove (Step 10.75)', step: 10.75, area: 'oathgrove', partIndex: 0 },
+            { id: 'ch1_start', label: 'Chapter I - Start (Step 0)', step: 0, area: 'village', partIndex: 0 },
+            { id: 'ch1_captain', label: 'Chapter I - Captain Elara Briefing (Step 0.25)', step: 0.25, area: 'village', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1CaptainBriefed: false } },
+            { id: 'ch1_scribe', label: 'Chapter I - Bark-Scribe Intel (Step 0.5)', step: 0.5, area: 'village', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1ScribeTrailsLearned: false } },
+            { id: 'ch1_salve', label: 'Chapter I - Bitterleaf Salve (Step 0.75)', step: 0.75, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
+            { id: 'ch1_raiders', label: 'Chapter I - Raiders (Step 1)', step: 1, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
+            { id: 'ch1_snareline', label: 'Chapter I - Snareline (Trapper) (Step 1.1)', step: 1.1, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
+            { id: 'ch1_supply', label: 'Chapter I - Supply Route (Step 1.2)', step: 1.2, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
+            { id: 'ch1_cache', label: 'Chapter I - Cache Fire (Packmaster) (Step 1.25)', step: 1.25, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
+            { id: 'ch1_drums', label: 'Chapter I - War Drums (Step 1.3)', step: 1.3, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true } },
+            { id: 'ch1_captain_fight', label: 'Chapter I - Captain's Trail (Step 1.4)', step: 1.4, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1SigilRecovered: false } },
+            { id: 'ch1_warlord_ready', label: 'Chapter I - Warlord Hunt Ready (Sigil Recovered)', step: 1.4, area: 'forest', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, ch1SigilRecovered: true, ch1CaptainDefeated: true } },
+            { id: 'ch1_rowan_warlord', label: 'Chapter I - Rowan Debrief (After Warlord) (Step 1.5)', step: 1.5, area: 'village', partIndex: 0, force: { mainQuestAccepted: true, metElder: true, goblinBossDefeated: true, goblinRowanDebriefShown: false, goblinRowanDebriefPending: true } },
+            { id: 'ch2_intro', label: 'Chapter II - Start (Intro in Village)', step: 7, area: 'village', partIndex: 0, force: { blackbarkChapterStarted: false } },
+            { id: 'ch2_bark', label: 'Chapter II - Bark-Scribe (Step 9)', step: 9, area: 'village', partIndex: 0 },
+            { id: 'ch2_rowan_reveal', label: 'Chapter II - Rowan's Revelation (Step 8)', step: 8, area: 'village', partIndex: 0 },
+            { id: 'ch2_elara', label: 'Chapter II - Tallies (Elara) (Step 8.25)', step: 8.25, area: 'village', partIndex: 0 },
+            { id: 'ch2_splinters', label: 'Chapter II - Oath-Splinters (Step 10)', step: 10, area: 'forest', partIndex: 0 },
+            { id: 'ch2_quietink', label: 'Chapter II - Quiet Ink Lesson (Step 10.5)', step: 10.5, area: 'village', partIndex: 0 },
+            { id: 'ch2_oathgrove', label: 'Chapter II - Oathgrove (Step 10.75)', step: 10.75, area: 'oathgrove', partIndex: 0 },
 
-            { id: 'ch2_gate', label: 'Chapter II — Gate Choice (Step 14)', step: 14, area: 'village', partIndex: 0 },
+            { id: 'ch2_gate', label: 'Chapter II - Gate Choice (Step 14)', step: 14, area: 'village', partIndex: 0 },
 
-            { id: 'ch3_council', label: 'Chapter III — Emergency Council (Step 15)', step: 15, area: 'village', partIndex: 0, force: { chapter3CouncilDone: false } },
-            { id: 'ch3_investigate', label: 'Chapter III — Blackbark Investigation (Step 15.5)', step: 15.5, area: 'blackbarkDepths', partIndex: 0 },
+            { id: 'ch3_council', label: 'Chapter III - Emergency Council (Step 15)', step: 15, area: 'village', partIndex: 0, force: { chapter3CouncilDone: false } },
+            { id: 'ch3_investigate', label: 'Chapter III - Blackbark Investigation (Step 15.5)', step: 15.5, area: 'blackbarkDepths', partIndex: 0 },
 
-            { id: 'ch3_crownecho', label: 'Chapter III — Crown‑Echo Fight (Step 16)', step: 16, area: 'forest', partIndex: 2 },
-            { id: 'ch3_decode', label: 'Chapter III — Decode Crown‑Echo (Step 17)', step: 17, area: 'village', partIndex: 0 },
-            { id: 'ch3_starfall', label: 'Chapter III — Starfall Ridge (Step 17.5)', step: 17.5, area: 'starfallRidge', partIndex: 0 },
+            { id: 'ch3_crownecho', label: 'Chapter III - Crown-Echo Fight (Step 16)', step: 16, area: 'forest', partIndex: 2 },
+            { id: 'ch3_decode', label: 'Chapter III - Decode Crown-Echo (Step 17)', step: 17, area: 'village', partIndex: 0 },
+            { id: 'ch3_starfall', label: 'Chapter III - Starfall Ridge (Step 17.5)', step: 17.5, area: 'starfallRidge', partIndex: 0 },
 
-            { id: 'ch3_spire', label: 'Chapter III — Mirror Warden (Step 18)', step: 18, area: 'ruins', partIndex: 0 },
-            { id: 'ch3_latch', label: 'Chapter III — Grave‑Latch Warden (Step 19)', step: 19, area: 'catacombs', partIndex: 0 },
-            { id: 'ch3_ritual', label: 'Chapter III — Ritual Leader (Step 20)', step: 20, area: 'village', partIndex: 0 },
-            { id: 'ch3_final', label: 'Chapter III — Hollow Regent (Step 21)', step: 21, area: 'forest', partIndex: 2 },
-            { id: 'ch3_epilogue', label: 'Chapter III — Epilogue Choice (Step 22)', step: 22, area: 'village', partIndex: 0 },
+            { id: 'ch3_spire', label: 'Chapter III - Mirror Warden (Step 18)', step: 18, area: 'ruins', partIndex: 0 },
+            { id: 'ch3_latch', label: 'Chapter III - Grave-Latch Warden (Step 19)', step: 19, area: 'catacombs', partIndex: 0 },
+            { id: 'ch3_ritual', label: 'Chapter III - Ritual Leader (Step 20)', step: 20, area: 'village', partIndex: 0 },
+            { id: 'ch3_final', label: 'Chapter III - Hollow Regent (Step 21)', step: 21, area: 'forest', partIndex: 2 },
+            { id: 'ch3_epilogue', label: 'Chapter III - Epilogue Choice (Step 22)', step: 22, area: 'village', partIndex: 0 },
 
-            { id: 'ch4_summons', label: 'Chapter IV — Court Summons (Step 23)', step: 23, area: 'village', partIndex: 0, force: { chapter4IntroShown: false, chapter4IntroQueued: true } },
-            { id: 'ch4_lens', label: 'Chapter IV — Verdant Lens (Step 24)', step: 24, area: 'ruins', partIndex: 0 },
-            { id: 'ch4_marsh', label: 'Chapter IV — Marsh Writs (Step 25)', step: 25, area: 'marsh', partIndex: 0, force: { chapter4MarshWritsDone: false } },
-            { id: 'ch4_frost', label: 'Chapter IV — Frozen Writ (Step 26)', step: 26, area: 'frostpeak', partIndex: 0 },
-            { id: 'ch4_bone', label: 'Chapter IV — Bone Writ (Step 27)', step: 27, area: 'catacombs', partIndex: 0 },
-            { id: 'ch4_seal', label: 'Chapter IV — Seal of Verdict (Step 28)', step: 28, area: 'keep', partIndex: 0 },
-            { id: 'ch4_magistrate', label: 'Chapter IV — Rootbound Magistrate (Step 29)', step: 29, area: 'forest', partIndex: 2 },
-            { id: 'ch4_answer', label: 'Chapter IV — Answer the Court (Step 30)', step: 30, area: 'village', partIndex: 0 },
-            { id: 'ch4_tbc', label: 'Chapter IV — To Be Continued (Step 31)', step: 31, area: 'village', partIndex: 0 }
+            { id: 'ch4_summons', label: 'Chapter IV - Court Summons (Step 23)', step: 23, area: 'village', partIndex: 0, force: { chapter4IntroShown: false, chapter4IntroQueued: true } },
+            { id: 'ch4_lens', label: 'Chapter IV - Verdant Lens (Step 24)', step: 24, area: 'ruins', partIndex: 0 },
+            { id: 'ch4_marsh', label: 'Chapter IV - Marsh Writs (Step 25)', step: 25, area: 'marsh', partIndex: 0, force: { chapter4MarshWritsDone: false } },
+            { id: 'ch4_frost', label: 'Chapter IV - Frozen Writ (Step 26)', step: 26, area: 'frostpeak', partIndex: 0 },
+            { id: 'ch4_bone', label: 'Chapter IV - Bone Writ (Step 27)', step: 27, area: 'catacombs', partIndex: 0 },
+            { id: 'ch4_seal', label: 'Chapter IV - Seal of Verdict (Step 28)', step: 28, area: 'keep', partIndex: 0 },
+            { id: 'ch4_magistrate', label: 'Chapter IV - Rootbound Magistrate (Step 29)', step: 29, area: 'forest', partIndex: 2 },
+            { id: 'ch4_answer', label: 'Chapter IV - Answer the Court (Step 30)', step: 30, area: 'village', partIndex: 0 },
+            { id: 'ch4_tbc', label: 'Chapter IV - To Be Continued (Step 31)', step: 31, area: 'village', partIndex: 0 }
         ]
 
         function resetQuestStoryFlags() {
@@ -846,7 +846,7 @@ export function createCheatsMenu({
             renderCheatStatus()
 
             const label = opts.label ? String(opts.label) : 'Step ' + target
-            addLog('Cheat: main story jump → ' + label + '.', 'system')
+            addLog('Cheat: main story jump ? ' + label + '.', 'system')
         }
 
         const presetRow = document.createElement('div')
@@ -1268,7 +1268,7 @@ export function createCheatsMenu({
             }
             recordInput('item.give', { id, qty })
             addItemToInventory(id, qty)
-            addLog('Cheat: granted ' + qty + '× ' + (ITEM_DEFS[id].name || id) + '.', 'system')
+            addLog('Cheat: granted ' + qty + '? ' + (ITEM_DEFS[id].name || id) + '.', 'system')
             updateHUD()
             requestSave('legacy')
         })
@@ -1349,11 +1349,11 @@ export function createCheatsMenu({
 
             const bTier = before.econ?.tier?.name || 'Unknown'
             const aTier = after.econ?.tier?.name || 'Unknown'
-            const econLine = `Economy: ${bTier} → ${aTier} (P ${before.econ?.prosperity}→${after.econ?.prosperity}, T ${before.econ?.trade}→${after.econ?.trade}, S ${before.econ?.security}→${after.econ?.security}).`
+            const econLine = `Economy: ${bTier} ? ${aTier} (P ${before.econ?.prosperity}?${after.econ?.prosperity}, T ${before.econ?.trade}?${after.econ?.trade}, S ${before.econ?.security}?${after.econ?.security}).`
 
             const bm = typeof before.mood === 'number' ? before.mood : 0
             const am = typeof after.mood === 'number' ? after.mood : 0
-            const moodLine = `Mood: ${bm} → ${am} (${am - bm >= 0 ? '+' : ''}${am - bm}).`
+            const moodLine = `Mood: ${bm} ? ${am} (${am - bm >= 0 ? '+' : ''}${am - bm}).`
 
             const decreeLine = after.decreeTitle
                 ? `Decree: ${after.decreeTitle} (${after.decreeRemaining} day${after.decreeRemaining === 1 ? '' : 's'} remaining).`
@@ -1364,7 +1364,7 @@ export function createCheatsMenu({
                 ? `Bank: week ${bw.daysIntoWeek}/7, next ledger update in ${bw.daysUntilNext} day${bw.daysUntilNext === 1 ? '' : 's'}.`
                 : 'Bank: unopened (weekly cycle starts on first visit).'
 
-            const summary = `Fast-forwarded ${days} day${days === 1 ? '' : 's'}: Day ${before.day} → ${after.day}. ${econLine} ${moodLine} ${decreeLine} ${bankLine}`
+            const summary = `Fast-forwarded ${days} day${days === 1 ? '' : 's'}: Day ${before.day} ? ${after.day}. ${econLine} ${moodLine} ${decreeLine} ${bankLine}`
 
             addLog(`Cheat: ${summary}`, 'system')
             simResult.textContent = summary
@@ -1400,7 +1400,7 @@ export function createCheatsMenu({
         const diagContent = diagSec.body
         const diagInfo = document.createElement('p')
         diagInfo.className = 'modal-subtitle'
-        diagInfo.textContent = 'Tools to catch “stuck progression” or contradictory flags during testing.'
+        diagInfo.textContent = 'Tools to catch "stuck progression" or contradictory flags during testing.'
         diagContent.appendChild(diagInfo)
 
         const diagRow = document.createElement('div')
@@ -1501,7 +1501,7 @@ export function createCheatsMenu({
                 const g = Number(gearedStats[k] || 0)
                 const d = g - b
                 const sign = d > 0 ? '+' : ''
-                lines.push(k.padEnd(12) + ': ' + String(b).padEnd(8) + ' → ' + String(g).padEnd(8) + ' (' + sign + d + ')')
+                lines.push(k.padEnd(12) + ': ' + String(b).padEnd(8) + ' ? ' + String(g).padEnd(8) + ' (' + sign + d + ')')
             }
 
             const report = lines.join('\n')
@@ -1773,7 +1773,7 @@ const lootRow = document.createElement('div')
             gambleStatus.textContent =
                 'Mode: ' +
                 modeLabel +
-                ' • Payout Multiplier: x' +
+                ' * Payout Multiplier: x' +
                 mult.toFixed(2)
         }
 
@@ -2195,7 +2195,7 @@ const lootRow = document.createElement('div')
 
                     govSummary.textContent =
                         summary.realmName +
-                        ' — stability ' +
+                        ' - stability ' +
                         st +
                         ', prosperity ' +
                         pr +
@@ -2203,7 +2203,7 @@ const lootRow = document.createElement('div')
                         rp +
                         ', corruption ' +
                         co +
-                        ' • council: ' +
+                        ' * council: ' +
                         (summary.councilCount || 0) +
                         ' members'
                 } else {
@@ -2324,7 +2324,7 @@ const lootRow = document.createElement('div')
 
         function indexSearchables() {
             cheatSections.forEach((sec) => {
-                // Only index “action rows” and “field labels” so we don't hide helpful
+                // Only index "action rows" and "field labels" so we don't hide helpful
                 // subtitles/section hints while filtering.
                 const nodes = sec.body.querySelectorAll('.item-actions, label')
                 nodes.forEach((n) => {

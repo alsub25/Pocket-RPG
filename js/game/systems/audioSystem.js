@@ -435,7 +435,7 @@ export function playDoorOpenSfx(engine, state) {
             }
         }
 
-        // If autoplay is blocked, "ended" may never fire—fallback to finishing.
+        // If autoplay is blocked, "ended" may never fire-fallback to finishing.
         let safetyTimer = scheduleAfter(engine, 1500, finish, { owner: 'audio:doorSfx' })
 
         // Expose cancel so a subsequent door open can restart the sequence cleanly.
@@ -550,7 +550,7 @@ export function updateAreaMusic(state) {
             audioState.tracks && audioState.tracks.tavernAmbience
 
         if (tavernTrack && audioState.currentTrack === tavernTrack) {
-            // Keep playing through transitions (Tavern ↔ Gambling) and just keep volume in sync.
+            // Keep playing through transitions (Tavern ? Gambling) and just keep volume in sync.
             applyMasterVolumeTo(tavernTrack)
             if (tavernTrack.paused && tavernTrack.currentTime > 0) {
                 tryResumeAudioContext()

@@ -102,7 +102,7 @@ export function createChangelogModal(deps) {
                     if (openFirst && index === 0) details.open = true
 
                     const summary = document.createElement('summary')
-                    summary.innerHTML = `<strong>${entry.version}${entry.title ? ' – ' + entry.title : ''}</strong>`
+                    summary.innerHTML = `<strong>${entry.version}${entry.title ? ' - ' + entry.title : ''}</strong>`
                     details.appendChild(summary)
 
                     entry.sections.forEach((section) => {

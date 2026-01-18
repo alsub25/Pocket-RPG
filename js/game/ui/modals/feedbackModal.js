@@ -37,7 +37,7 @@ export function createFeedbackModal(deps) {
         lines.push('')
 
         lines.push('Build:')
-        lines.push(`- Patch: ${GAME_PATCH}${GAME_PATCH_NAME ? ' — ' + GAME_PATCH_NAME : ''}`)
+        lines.push(`- Patch: ${GAME_PATCH}${GAME_PATCH_NAME ? ' - ' + GAME_PATCH_NAME : ''}`)
         lines.push(`- Save Schema: ${SAVE_SCHEMA}`)
         lines.push('')
 
@@ -106,8 +106,8 @@ export function createFeedbackModal(deps) {
         const payload = buildFeedbackPayload(type, text)
 
         copyFeedbackToClipboard(payload)
-            .then(() => (status.textContent = '✅ Copied! Paste this into your tracker.'))
-            .catch(() => (status.textContent = '❌ Could not access clipboard.'))
+            .then(() => (status.textContent = '[check] Copied! Paste this into your tracker.'))
+            .catch(() => (status.textContent = '? Could not access clipboard.'))
     }
 
     function handleCreateGitHubIssue() {
@@ -120,17 +120,17 @@ export function createFeedbackModal(deps) {
         const text = (textEl.value || '').trim()
 
         if (!text) {
-            status.textContent = '⚠️ Please provide some details about your feedback.'
+            status.textContent = '?? Please provide some details about your feedback.'
             return
         }
 
         // Build issue title based on type
         const typeLabels = {
-            'ui': '🎨 UI Issue',
-            'bug': '🐛 Bug Report',
-            'balance': '⚖️ Balance Issue',
-            'suggestion': '💡 Suggestion',
-            'other': '📝 Feedback'
+            'ui': '? UI Issue',
+            'bug': '? Bug Report',
+            'balance': '?? Balance Issue',
+            'suggestion': '? Suggestion',
+            'other': '? Feedback'
         }
         const issueTitle = `${typeLabels[type] || 'Feedback'}: ${text.substring(0, GITHUB_ISSUE_TITLE_MAX_LENGTH)}${text.length > GITHUB_ISSUE_TITLE_MAX_LENGTH ? '...' : ''}`
 
@@ -144,16 +144,16 @@ export function createFeedbackModal(deps) {
 
         // Validate URL length (conservative browser limit)
         if (githubUrl.length > GITHUB_URL_MAX_LENGTH) {
-            status.textContent = '⚠️ Feedback too long for URL. Please use "Copy to Clipboard" instead.'
+            status.textContent = '?? Feedback too long for URL. Please use "Copy to Clipboard" instead.'
             return
         }
 
         // Open in new tab
         try {
             window.open(githubUrl, '_blank')
-            status.textContent = '✅ Opening GitHub issue page...'
+            status.textContent = '[check] Opening GitHub issue page...'
         } catch (error) {
-            status.textContent = '❌ Could not open GitHub. Please copy feedback manually.'
+            status.textContent = '? Could not open GitHub. Please copy feedback manually.'
         }
     }
 
@@ -163,7 +163,7 @@ export function createFeedbackModal(deps) {
         // Build GitHub issue button HTML only if on GitHub Pages
         const githubButtonHtml = isGitHubPages ? `
         <button class="btn primary small" id="btnCreateGitHubIssue">
-          📝 Create GitHub Issue
+          ? Create GitHub Issue
         </button>
         ` : ''
         
@@ -229,8 +229,8 @@ export function createFeedbackModal(deps) {
                 btnBundle.addEventListener('click', () => {
                     const status = document.getElementById('feedbackStatus')
                     copyBugReportBundleToClipboard()
-                        .then(() => status && (status.textContent = '✅ Copied JSON bundle!'))
-                        .catch(() => status && (status.textContent = '❌ Could not access clipboard.'))
+                        .then(() => status && (status.textContent = '[check] Copied JSON bundle!'))
+                        .catch(() => status && (status.textContent = '? Could not access clipboard.'))
                 })
             }
 
@@ -242,7 +242,7 @@ export function createFeedbackModal(deps) {
 
                 btnClearCrash.addEventListener('click', () => {
                     safeStorageRemove(_STORAGE_DIAG_KEY_LAST_CRASH)
-                    if (status) status.textContent = '🧹 Cleared last crash report.'
+                    if (status) status.textContent = '? Cleared last crash report.'
                     btnClearCrash.disabled = true
                 })
             }

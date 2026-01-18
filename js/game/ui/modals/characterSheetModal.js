@@ -52,7 +52,7 @@ export function createCharacterSheetModal(deps) {
             if (mainQuest.status === 'completed') {
                 questLine = `${mainQuest.name} (Completed)`
             } else {
-                questLine = `${mainQuest.name} – Step ${mainQuest.step}`
+                questLine = `${mainQuest.name} - Step ${mainQuest.step}`
             }
         }
 
@@ -140,7 +140,7 @@ export function createCharacterSheetModal(deps) {
           <div class="sheet-title-row">
             <div>
               <div class="sheet-title">${escapeHtml(p.name || 'Hero')}</div>
-              <div class="sheet-subtitle">${escapeHtml(cls ? cls.name : 'Unknown Class')} • Lv ${finiteNumber(p.level, 1)}</div>
+              <div class="sheet-subtitle">${escapeHtml(cls ? cls.name : 'Unknown Class')} * Lv ${finiteNumber(p.level, 1)}</div>
             </div>
             <div class="sheet-subtitle">${escapeHtml(areaName)}</div>
           </div>
@@ -260,32 +260,32 @@ export function createCharacterSheetModal(deps) {
         <div class="char-section-title">Hero</div>
         <div class="stat-grid">
           <div class="stat-label">
-            <span class="char-stat-icon">🏷</span>Name
+            <span class="char-stat-icon">?</span>Name
           </div>
           <div class="stat-value">${p.name}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🎭</span>Class
+            <span class="char-stat-icon">?</span>Class
           </div>
           <div class="stat-value">${cls ? cls.name : 'Unknown'}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">⚖</span>Difficulty
+            <span class="char-stat-icon">?</span>Difficulty
           </div>
           <div class="stat-value">${diff ? diff.name : ''}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">⭐</span>Level
+            <span class="char-stat-icon">?</span>Level
           </div>
           <div class="stat-value">${p.level}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">📈</span>XP
+            <span class="char-stat-icon">?</span>XP
           </div>
           <div class="stat-value">${p.xp} / ${p.nextLevelXp}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">📍</span>Location
+            <span class="char-stat-icon">?</span>Location
           </div>
           <div class="stat-value">${areaName}</div>
         </div>
@@ -298,39 +298,39 @@ export function createCharacterSheetModal(deps) {
         <div class="char-section-title">Core Stats</div>
         <div class="stat-grid">
           <div class="stat-label">
-            <span class="char-stat-icon">❤️</span>HP
+            <span class="char-stat-icon">??</span>HP
           </div>
           <div class="stat-value"><span class="sheet-core-hp">${Math.round(p.hp)} / ${p.maxHp}</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">💧</span>${p.resourceName}
+            <span class="char-stat-icon">?</span>${p.resourceName}
           </div>
           <div class="stat-value"><span class="sheet-core-resource">${Math.round(p.resource)} / ${
                 p.maxResource
             }</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">⚔</span>Attack
+            <span class="char-stat-icon">?</span>Attack
           </div>
           <div class="stat-value stat-attack">${p.stats.attack}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">✨</span>Magic
+            <span class="char-stat-icon">?</span>Magic
           </div>
           <div class="stat-value stat-magic">${p.stats.magic}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🛡</span>Armor
+            <span class="char-stat-icon">?</span>Armor
           </div>
           <div class="stat-value stat-armor">${p.stats.armor}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🌀</span>Speed
+            <span class="char-stat-icon">?</span>Speed
           </div>
           <div class="stat-value stat-speed">${p.stats.speed}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">💰</span>Gold
+            <span class="char-stat-icon">?</span>Gold
           </div>
           <div class="stat-value"><span class="sheet-core-gold">${p.gold}</span></div>
         </div>
@@ -341,57 +341,57 @@ export function createCharacterSheetModal(deps) {
         <div class="char-section-title">Gear Affixes</div>
         <div class="stat-grid">
           <div class="stat-label">
-            <span class="char-stat-icon">🎯</span>Crit Chance
+            <span class="char-stat-icon">?</span>Crit Chance
           </div>
           <div class="stat-value"><span class="sheet-stat-crit">${statCritChance}%</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">💨</span>Dodge Chance
+            <span class="char-stat-icon">?</span>Dodge Chance
           </div>
           <div class="stat-value"><span class="sheet-stat-dodge">${statDodgeChance}%</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🧿</span>Resist All
+            <span class="char-stat-icon">?</span>Resist All
           </div>
           <div class="stat-value"><span class="sheet-stat-resistall">${statResistAll}%</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🩸</span>Life Steal
+            <span class="char-stat-icon">?</span>Life Steal
           </div>
           <div class="stat-value"><span class="sheet-stat-lifesteal">${statLifeSteal}%</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🪓</span>Armor Pen
+            <span class="char-stat-icon">?</span>Armor Pen
           </div>
           <div class="stat-value"><span class="sheet-stat-armorpen">${statArmorPen}%</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">⏱</span>Haste
+            <span class="char-stat-icon">?</span>Haste
           </div>
           <div class="stat-value"><span class="sheet-stat-haste">${statHaste}%</span></div>
 
 	      <div class="stat-label">
-	            <span class="char-stat-icon">🌩</span>Elemental Bonus
+	            <span class="char-stat-icon">?</span>Elemental Bonus
 	          </div>
 	      <div class="stat-value"><span class="sheet-stat-element-bonus">${escapeHtml(_elemSummary.elementalBonusSummary)}</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🔮</span>Weapon Element
+            <span class="char-stat-icon">?</span>Weapon Element
           </div>
 	          <div class="stat-value"><span class="sheet-stat-weapon-element">${escapeHtml(_elemSummary.weaponElement)}</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🧊</span>Elemental Resists
+            <span class="char-stat-icon">?</span>Elemental Resists
           </div>
 	          <div class="stat-value"><span class="sheet-stat-element-resists">${escapeHtml(_elemSummary.elementalResistSummary)}</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🦔</span>Thorns
+            <span class="char-stat-icon">?</span>Thorns
           </div>
           <div class="stat-value"><span class="sheet-stat-thorns">${statThorns}</span></div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">➕</span>HP Regen
+            <span class="char-stat-icon">?</span>HP Regen
           </div>
           <div class="stat-value"><span class="sheet-stat-hpregen">${statHpRegen}</span></div>
         </div>
@@ -406,7 +406,7 @@ export function createCharacterSheetModal(deps) {
         <div class="char-section-title">Derived Breakdown</div>
         <div class="stat-grid">
           <div class="stat-label">
-            <span class="char-stat-icon">⚔</span>Attack
+            <span class="char-stat-icon">?</span>Attack
           </div>
           <div class="stat-value">
             ${baseStats.attack}
@@ -416,7 +416,7 @@ export function createCharacterSheetModal(deps) {
           </div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">❤️</span>HP Max
+            <span class="char-stat-icon">??</span>HP Max
           </div>
           <div class="stat-value">
             ${baseStats.maxHp}
@@ -426,7 +426,7 @@ export function createCharacterSheetModal(deps) {
           </div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">✨</span>Magic
+            <span class="char-stat-icon">?</span>Magic
           </div>
           <div class="stat-value">
             ${baseStats.magic}
@@ -436,7 +436,7 @@ export function createCharacterSheetModal(deps) {
           </div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🛡</span>Armor
+            <span class="char-stat-icon">?</span>Armor
           </div>
           <div class="stat-value">
             ${baseStats.armor}
@@ -446,7 +446,7 @@ export function createCharacterSheetModal(deps) {
           </div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">💧</span>${p.resourceName} Max
+            <span class="char-stat-icon">?</span>${p.resourceName} Max
           </div>
           <div class="stat-value">
             ${baseRes}
@@ -464,22 +464,22 @@ export function createCharacterSheetModal(deps) {
         <div class="char-section-title">Skills</div>
         <div class="stat-grid">
           <div class="stat-label">
-            <span class="char-stat-icon">💪</span>Strength
+            <span class="char-stat-icon">?</span>Strength
           </div>
           <div class="stat-value">${sk.strength}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🛡</span>Endurance
+            <span class="char-stat-icon">?</span>Endurance
           </div>
           <div class="stat-value">${sk.endurance}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🧠</span>Willpower
+            <span class="char-stat-icon">?</span>Willpower
           </div>
           <div class="stat-value">${sk.willpower}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">⭐</span>Skill Points
+            <span class="char-stat-icon">?</span>Skill Points
           </div>
           <div class="stat-value">${p.skillPoints || 0}</div>
         </div>
@@ -533,42 +533,42 @@ export function createCharacterSheetModal(deps) {
         <div class="char-section-title">Equipment</div>
         <div class="stat-grid">
           <div class="stat-label">
-            <span class="char-stat-icon">⚔</span>Weapon
+            <span class="char-stat-icon">?</span>Weapon
           </div>
           <div class="stat-value">${weaponName}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🛡</span>Armor (Body)
+            <span class="char-stat-icon">?</span>Armor (Body)
           </div>
           <div class="stat-value">${armorName}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🪖</span>Head
+            <span class="char-stat-icon">?</span>Head
           </div>
           <div class="stat-value">${headName}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🧤</span>Hands
+            <span class="char-stat-icon">?</span>Hands
           </div>
           <div class="stat-value">${handsName}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🥾</span>Feet
+            <span class="char-stat-icon">?</span>Feet
           </div>
           <div class="stat-value">${feetName}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">🎗</span>Belt
+            <span class="char-stat-icon">?</span>Belt
           </div>
           <div class="stat-value">${beltName}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">📿</span>Neck
+            <span class="char-stat-icon">?</span>Neck
           </div>
           <div class="stat-value">${neckName}</div>
 
           <div class="stat-label">
-            <span class="char-stat-icon">💍</span>Ring
+            <span class="char-stat-icon">?</span>Ring
           </div>
           <div class="stat-value">${ringName}</div>
         </div>
@@ -598,22 +598,22 @@ export function createCharacterSheetModal(deps) {
           <div class="char-section-title">Companion</div>
           <div class="stat-grid">
             <div class="stat-label">
-              <span class="char-stat-icon">🧍</span>Name
+              <span class="char-stat-icon">?</span>Name
             </div>
             <div class="stat-value">${comp.name}</div>
 
             <div class="stat-label">
-              <span class="char-stat-icon">🎯</span>Role
+              <span class="char-stat-icon">?</span>Role
             </div>
             <div class="stat-value">${comp.role}</div>
 
             <div class="stat-label">
-              <span class="char-stat-icon">⚔</span>Attack
+              <span class="char-stat-icon">?</span>Attack
             </div>
             <div class="stat-value stat-attack">${comp.attack}</div>
 
             <div class="stat-label">
-              <span class="char-stat-icon">❤️</span>HP Bonus
+              <span class="char-stat-icon">??</span>HP Bonus
             </div>
             <div class="stat-value">${comp.hpBonus}</div>
           </div>

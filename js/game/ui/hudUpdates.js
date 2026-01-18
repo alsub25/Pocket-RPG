@@ -69,7 +69,7 @@ export function createHUDUpdaters(deps) {
             nameEl.textContent = p.name || 'Nameless'
             classDiffEl.textContent =
                 (classDef ? classDef.name : 'Adventurer') +
-                ' • ' +
+                ' * ' +
                 (diff ? diff.name : '')
 
             const maxHp = Math.max(1, Math.floor(finiteNumber(p.maxHp, 1)))
@@ -91,7 +91,7 @@ export function createHUDUpdaters(deps) {
                 // Some classes / corrupted saves may temporarily have no resource pool.
                 resFill.style.width = '0%'
                 resFill.className = 'bar-fill resource-fill ' + rk
-                resLabel.textContent = resName + ' —'
+                resLabel.textContent = resName + ' -'
             } else {
                 const resNow = clampFinite(p.resource, 0, maxRes, maxRes)
                 const resPercent = Math.max(0, Math.min(100, (resNow / maxRes) * 100))
@@ -106,7 +106,7 @@ export function createHUDUpdaters(deps) {
             classDiffEl.textContent =
                 comp.role.charAt(0).toUpperCase() +
                 comp.role.slice(1) +
-                ' • Swipe to switch'
+                ' * Swipe to switch'
 
             // Use bars to show companion stats instead of HP/resource
             // HP bar -> Attack
@@ -124,7 +124,7 @@ export function createHUDUpdaters(deps) {
         // (Show again immediately after combat ends.)
         if (hudLevel) {
             hudLevel.textContent =
-                'Lv ' + p.level + ' • ' + p.xp + '/' + p.nextLevelXp + ' XP'
+                'Lv ' + p.level + ' * ' + p.xp + '/' + p.nextLevelXp + ' XP'
         }
         if (hudGold) {
             hudGold.innerHTML = '<span class="gold">' + p.gold + '</span> Gold'

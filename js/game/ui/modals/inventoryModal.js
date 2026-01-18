@@ -52,7 +52,7 @@ export function createInventoryModal({
             const search = document.createElement('input')
             search.className = 'inv-search'
             search.type = 'text'
-            search.placeholder = 'Search…'
+            search.placeholder = 'Search...'
             search.autocomplete = 'off'
             searchWrap.appendChild(search)
 
@@ -170,8 +170,8 @@ export function createInventoryModal({
             function compareLine(item) {
                 const d = powerDelta(item)
                 if (!d) return null
-                if (Math.abs(d.delta) < 0.1) return '≈ same power'
-                return (d.delta > 0 ? '▲ ' : '▼ ') + Math.abs(d.delta) + ' power'
+                if (Math.abs(d.delta) < 0.1) return '? same power'
+                return (d.delta > 0 ? '? ' : '? ') + Math.abs(d.delta) + ' power'
             }
 
             function renderList() {
@@ -260,7 +260,7 @@ export function createInventoryModal({
                     name.textContent =
                         item.name +
                         (item.type === 'potion' && (item.quantity || 1) > 1
-                            ? '  ×' + (item.quantity || 1)
+                            ? '  ?' + (item.quantity || 1)
                             : '')
                     left.appendChild(name)
 
@@ -269,8 +269,8 @@ export function createInventoryModal({
                     const bits = []
                     if (item.type) bits.push(item.type.charAt(0).toUpperCase() + item.type.slice(1))
                     if (item.itemLevel) bits.push('Lv' + item.itemLevel)
-                    if (isEquipped) bits.push('★ Equipped')
-                    sub.textContent = bits.join(' • ')
+                    if (isEquipped) bits.push('? Equipped')
+                    sub.textContent = bits.join(' * ')
                     left.appendChild(sub)
 
                     summary.appendChild(left)

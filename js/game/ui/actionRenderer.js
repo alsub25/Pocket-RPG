@@ -61,7 +61,7 @@ export function createActionRenderer(deps) {
         const inVillage = state.area === 'village'
         const showVillageMenu = inVillage && ui.villageActionsOpen
 
-        // 🔹 VILLAGE SUBMENU MODE ---------------------------------------------------
+        // ? VILLAGE SUBMENU MODE ---------------------------------------------------
         if (showVillageMenu) {
             actionsEl.appendChild(
                 makeActionButton('Elder Rowan', () => {
@@ -105,17 +105,17 @@ export function createActionRenderer(deps) {
             return
         }
 
-        // 🔹 DEFAULT (NON-VILLAGE or VILLAGE NORMAL BAR) ----------------------------
+        // ? DEFAULT (NON-VILLAGE or VILLAGE NORMAL BAR) ----------------------------
         // Village-only: button to enter the village submenu
         if (inVillage) {
             actionsEl.appendChild(
-                makeActionButton('Village ▸', () => {
+                makeActionButton('Village ?', () => {
                     ui.villageActionsOpen = true
                     renderActions()
                 })
             )
 
-            // ✅ Only show Realm & Council if you're in the village
+            // [check] Only show Realm & Council if you're in the village
             actionsEl.appendChild(
                 makeActionButton('Realm & Council', () => {
                     if (!dispatchGameCommand('GAME_OPEN_GOVERNMENT', {})) openGovernmentModal()
@@ -155,7 +155,7 @@ export function createActionRenderer(deps) {
         )
 
         // Cheats button removed from the main action bar.
-        // In dev-cheat mode, Cheats are accessed via the 🛠️ HUD pill next to 🧪 and the Menu button.
+        // In dev-cheat mode, Cheats are accessed via the ?? HUD pill next to ? and the Menu button.
     }
 
     function renderCombatActions(actionsEl) {
