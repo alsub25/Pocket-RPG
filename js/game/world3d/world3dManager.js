@@ -26,41 +26,23 @@ export function initWorld3DManager(engine) {
     }
   };
   
-  // Expose game modal opening functions
+  // Building name to modal function mapping
+  const buildingModals = {
+    'Tavern': 'openTavern',
+    'Bank': 'openBank',
+    'Town Hall': 'openTownHall',
+    'Merchant': 'openMerchant'
+  };
+  
+  // Expose game modal opening function
   window.openGameModal = (buildingName) => {
     console.log(`Opening modal for ${buildingName}`);
-    // Call appropriate modal function based on building name
-    switch(buildingName) {
-      case 'Tavern':
-        if (window.openTavern) {
-          window.openTavern();
-        } else {
-          console.warn('openTavern function not available');
-        }
-        break;
-      case 'Bank':
-        if (window.openBank) {
-          window.openBank();
-        } else {
-          console.warn('openBank function not available');
-        }
-        break;
-      case 'Town Hall':
-        if (window.openTownHall) {
-          window.openTownHall();
-        } else {
-          console.warn('openTownHall function not available');
-        }
-        break;
-      case 'Merchant':
-        if (window.openMerchant) {
-          window.openMerchant();
-        } else {
-          console.warn('openMerchant function not available');
-        }
-        break;
-      default:
-        console.warn(`No modal handler for ${buildingName}`);
+    const modalFunctionName = buildingModals[buildingName];
+    
+    if (modalFunctionName && window[modalFunctionName]) {
+      window[modalFunctionName]();
+    } else {
+      console.warn(`No modal handler for ${buildingName}`);
     }
   };
   

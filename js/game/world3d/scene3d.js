@@ -442,28 +442,12 @@ function checkBuildingArrival() {
     const buildingName = pendingBuildingModal;
     pendingBuildingModal = null;
     
-    // Open the appropriate game modal via window functions
+    // Open the appropriate game modal
     if (window.openGameModal) {
       window.openGameModal(buildingName);
     } else {
-      // Fallback - try direct functions
-      switch(buildingName) {
-        case 'Tavern':
-          if (window.openTavern) window.openTavern();
-          break;
-        case 'Bank':
-          if (window.openBank) window.openBank();
-          break;
-        case 'Town Hall':
-          if (window.openTownHall) window.openTownHall();
-          break;
-        case 'Merchant':
-          if (window.openMerchant) window.openMerchant();
-          break;
-        default:
-          console.warn(`No modal handler for ${buildingName}`);
-          alert(`Entered ${buildingName}`);
-      }
+      console.warn(`Modal system not available for ${buildingName}`);
+      alert(`Entered ${buildingName}`);
     }
   }
 }
@@ -510,14 +494,21 @@ function updateMovement() {
 /**
  * Update NPCs - wandering behavior
  */
+let lastFrameTime = performance.now();
+
 function updateNPCs() {
   const area = areas[currentArea];
   if (!area.npcs) return;
   
+  // Calculate delta time for frame-independent animation
+  const currentTime = performance.now();
+  const deltaTime = (currentTime - lastFrameTime) / 1000; // Convert to seconds
+  lastFrameTime = currentTime;
+  
   for (const npc of area.npcs) {
     // Check if paused
     if (npc.pauseTime > 0) {
-      npc.pauseTime -= 0.016; // Assume ~60fps
+      npc.pauseTime -= deltaTime;
       continue;
     }
     
