@@ -397,11 +397,14 @@ async function loadGameVersion(version, { onFail } = {}) {
     const errorMsg = e && e.message ? e.message : String(e);
     const errorStack = e && e.stack ? e.stack : '';
     
-    // For module syntax errors, the actual problematic file is often in the import chain
-    // We need to trace back through the imports to find the real culprit
-    let fileLocation = 'unknown';
+    // For ES module syntax errors, the browser doesn't provide a detailed stack trace
+    // because the error occurs during parsing, not execution.
+    // The stack will typically just be "SyntaxError: <message>" with no file info.
     
-    // First, try to parse the stack to find files OTHER than bootstrap/boot files
+    let fileLocation = 'unknown';
+    let isSyntaxError = errorMsg.includes('Unexpected token') || errorMsg.includes('Unexpected end') || e.name === 'SyntaxError';
+    
+    // Try to parse the stack to find files OTHER than bootstrap/boot files
     if (errorStack) {
       const lines = errorStack.split('\n');
       const relevantFiles = [];
@@ -427,7 +430,7 @@ async function loadGameVersion(version, { onFail } = {}) {
         }
       }
       
-      // Use the first relevant file found (closest to the actual error)
+      // Use the first relevant file found
       if (relevantFiles.length > 0) {
         fileLocation = relevantFiles[0];
       }
@@ -444,18 +447,25 @@ async function loadGameVersion(version, { onFail } = {}) {
     console.error(`[bootstrap] ❌ Failed to load module`);
     console.error(`  Entry: ${entryUrl}`);
     if (fileLocation !== 'unknown') {
-      console.error(`  📍 Actual location: ${fileLocation}`);
+      console.error(`  📍 Location: ${fileLocation}`);
+    } else if (isSyntaxError) {
+      console.error(`  ⚠️  Syntax error in imported module (check browser DevTools > Sources tab)`);
     }
     console.error(`  Error: ${errorMsg}`);
-    if (errorStack) {
+    if (errorStack && errorStack.length > 100) {
       console.error(`  Stack trace:\n${errorStack}`);
     }
     
+    // Provide helpful message for syntax errors where we can't determine the file
+    let helpText = isSyntaxError && fileLocation === 'unknown'
+      ? `\n⚠️  The error is in a module imported by ${entryUrl.split('/').pop()}.\nCheck browser DevTools > Sources or Network tab to find the file.`
+      : '';
+    
     alert(`Failed to load game module:\n\n` +
           `Entry: ${entryUrl}\n` +
-          (fileLocation !== 'unknown' ? `📍 Actual location: ${fileLocation}\n` : '') +
-          `Error: ${errorMsg}\n\n` +
-          `Check DevTools Console for full stack trace.`);
+          (fileLocation !== 'unknown' ? `📍 Location: ${fileLocation}\n` : '') +
+          `Error: ${errorMsg}${helpText}\n\n` +
+          `Check DevTools Console for details.`);
     BootLoader.hide();
     try {
       // Include the actual file location in the diagnostic push
@@ -464,7 +474,9 @@ async function loadGameVersion(version, { onFail } = {}) {
         version: version.id, 
         message: String(e && e.message ? e.message : e),
         location: fileLocation !== 'unknown' ? fileLocation : String(entryUrl || ''),
-        stack: errorStack
+        stack: errorStack,
+        isSyntaxError,
+        note: isSyntaxError && fileLocation === 'unknown' ? 'Syntax error in imported module - check DevTools Sources tab' : undefined
       });
       if (window.PQ_BOOT_DIAG && window.PQ_BOOT_DIAG.renderOverlay) window.PQ_BOOT_DIAG.renderOverlay();
     } catch (_) {}
