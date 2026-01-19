@@ -137,25 +137,28 @@ function updateMovement() {
     player.angle += ROTATE_SPEED;
   }
   
-  // Touch controls
+  // Touch controls - improved for mobile
   if (isTouching) {
     const deltaX = touchMoveX - touchStartX;
     const deltaY = touchMoveY - touchStartY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
     
-    // Swipe up/down to move forward/backward
-    if (Math.abs(deltaY) > 20) {
-      if (deltaY < 0) {
-        player.x += Math.sin(player.angle) * MOVE_SPEED;
-        player.z += Math.cos(player.angle) * MOVE_SPEED;
+    // Only respond if gesture is significant enough
+    if (distance > 10) {
+      // Determine primary direction
+      const isVertical = Math.abs(deltaY) > Math.abs(deltaX);
+      
+      if (isVertical) {
+        // Vertical swipe - move forward/backward
+        const direction = deltaY < 0 ? 1 : -1;
+        const intensity = Math.min(Math.abs(deltaY) / 100, 1);
+        player.x += Math.sin(player.angle) * MOVE_SPEED * direction * intensity;
+        player.z += Math.cos(player.angle) * MOVE_SPEED * direction * intensity;
       } else {
-        player.x -= Math.sin(player.angle) * MOVE_SPEED;
-        player.z -= Math.cos(player.angle) * MOVE_SPEED;
+        // Horizontal swipe - rotate
+        const rotateAmount = deltaX * 0.0005;
+        player.angle += rotateAmount;
       }
-    }
-    
-    // Swipe left/right to rotate
-    if (Math.abs(deltaX) > 20) {
-      player.angle += deltaX * 0.001;
     }
   }
 }
@@ -425,95 +428,138 @@ function renderTree(obj) {
 function renderBuilding(obj) {
   const { corners, building } = obj;
   
-  // Draw walls with color and texture
+  // Project the top corners of the building
+  const topCorners = [
+    project(building.x - building.width/2, building.height, building.z - building.depth/2),
+    project(building.x + building.width/2, building.height, building.z - building.depth/2),
+    project(building.x + building.width/2, building.height, building.z + building.depth/2),
+    project(building.x - building.width/2, building.height, building.z + building.depth/2)
+  ];
+  
+  // Check if all corners are visible
+  const allVisible = corners.every(c => c !== null) && topCorners.every(c => c !== null);
+  if (!allVisible) return;
+  
+  // Draw front wall (facing camera) - base quadrilateral
   ctx.fillStyle = building.color || '#a0826d';
   ctx.strokeStyle = '#6b5d50';
   ctx.lineWidth = 2;
   
   ctx.beginPath();
   ctx.moveTo(corners[0].x, corners[0].y);
-  for (let i = 1; i < 4; i++) {
-    ctx.lineTo(corners[i].x, corners[i].y);
-  }
+  ctx.lineTo(corners[1].x, corners[1].y);
+  ctx.lineTo(topCorners[1].x, topCorners[1].y);
+  ctx.lineTo(topCorners[0].x, topCorners[0].y);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
   
-  // Add brick/plank texture
+  // Draw right wall (slightly darker for depth)
+  ctx.fillStyle = shadeColor(building.color || '#a0826d', -15);
+  ctx.beginPath();
+  ctx.moveTo(corners[1].x, corners[1].y);
+  ctx.lineTo(corners[2].x, corners[2].y);
+  ctx.lineTo(topCorners[2].x, topCorners[2].y);
+  ctx.lineTo(topCorners[1].x, topCorners[1].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // Add brick/plank texture to front wall
   const avgScale = corners[0].scale;
-  const brickSize = Math.max(2, 8 * avgScale / 100);
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
   ctx.lineWidth = 1;
   
-  // Horizontal lines
+  // Horizontal lines on front wall
   for (let i = 1; i < 5; i++) {
-    const y = corners[0].y - (corners[0].y - corners[1].y) * i / 5;
+    const ratio = i / 5;
+    const y1 = corners[0].y + (topCorners[0].y - corners[0].y) * ratio;
+    const y2 = corners[1].y + (topCorners[1].y - corners[1].y) * ratio;
     ctx.beginPath();
-    ctx.moveTo(corners[0].x, y);
-    ctx.lineTo(corners[1].x, y);
+    ctx.moveTo(corners[0].x, y1);
+    ctx.lineTo(corners[1].x, y2);
     ctx.stroke();
   }
   
-  // Draw windows
+  // Vertical lines for brick pattern
+  for (let i = 1; i < 4; i++) {
+    const ratio = i / 4;
+    const x = corners[0].x + (corners[1].x - corners[0].x) * ratio;
+    const y1 = corners[0].y + (topCorners[0].y - corners[0].y) * ratio;
+    const y2 = topCorners[0].y + (topCorners[1].y - topCorners[0].y) * ratio;
+    ctx.beginPath();
+    ctx.moveTo(x, corners[0].y);
+    ctx.lineTo(x, y2);
+    ctx.stroke();
+  }
+  
+  // Draw windows on front wall
   const windowWidth = Math.max(3, 15 * avgScale / 100);
   const windowHeight = Math.max(3, 20 * avgScale / 100);
-  const centerX = (corners[0].x + corners[1].x) / 2;
-  const centerY = (corners[0].y + corners[2].y) / 2;
+  const wallCenterX = (corners[0].x + corners[1].x) / 2;
+  const wallCenterY = (corners[0].y + topCorners[0].y) / 2;
   
   ctx.fillStyle = '#4a6fa5';
   ctx.strokeStyle = '#2a3f5f';
   ctx.lineWidth = 1;
   
-  // Two windows
+  // Two windows on front wall
   [-1, 1].forEach(offset => {
-    const windowX = centerX + offset * windowWidth * 1.5;
-    ctx.fillRect(windowX - windowWidth / 2, centerY - windowHeight / 2, windowWidth, windowHeight);
-    ctx.strokeRect(windowX - windowWidth / 2, centerY - windowHeight / 2, windowWidth, windowHeight);
+    const windowX = wallCenterX + offset * windowWidth * 1.5;
+    ctx.fillRect(windowX - windowWidth / 2, wallCenterY - windowHeight / 2, windowWidth, windowHeight);
+    ctx.strokeRect(windowX - windowWidth / 2, wallCenterY - windowHeight / 2, windowWidth, windowHeight);
     
     // Window cross
     ctx.beginPath();
-    ctx.moveTo(windowX, centerY - windowHeight / 2);
-    ctx.lineTo(windowX, centerY + windowHeight / 2);
-    ctx.moveTo(windowX - windowWidth / 2, centerY);
-    ctx.lineTo(windowX + windowWidth / 2, centerY);
+    ctx.moveTo(windowX, wallCenterY - windowHeight / 2);
+    ctx.lineTo(windowX, wallCenterY + windowHeight / 2);
+    ctx.moveTo(windowX - windowWidth / 2, wallCenterY);
+    ctx.lineTo(windowX + windowWidth / 2, wallCenterY);
     ctx.stroke();
   });
   
-  // Draw roof (simple quadrilateral on top)
-  const roofCorners = [
-    { x: building.x - building.width/2, z: building.z - building.depth/2 },
-    { x: building.x + building.width/2, z: building.z - building.depth/2 },
-    { x: building.x + building.width/2, z: building.z + building.depth/2 },
-    { x: building.x - building.width/2, z: building.z + building.depth/2 }
-  ];
-  
-  const topCorners = roofCorners.map(corner => 
-    project(corner.x, building.height, corner.z)
-  ).filter(p => p !== null);
-  
-  if (topCorners.length >= 4) {
-    ctx.fillStyle = '#8b0000';
-    ctx.strokeStyle = '#5a0000';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(topCorners[0].x, topCorners[0].y);
-    for (let i = 1; i < topCorners.length; i++) {
-      ctx.lineTo(topCorners[i].x, topCorners[i].y);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    
-    // Add roof tiles pattern
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-    for (let i = 1; i < 4; i++) {
-      const y = topCorners[0].y + (topCorners[2].y - topCorners[0].y) * i / 4;
-      ctx.beginPath();
-      ctx.moveTo(topCorners[0].x, y);
-      ctx.lineTo(topCorners[1].x, y);
-      ctx.stroke();
-    }
+  // Draw roof
+  ctx.fillStyle = '#8b0000';
+  ctx.strokeStyle = '#5a0000';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(topCorners[0].x, topCorners[0].y);
+  for (let i = 1; i < topCorners.length; i++) {
+    ctx.lineTo(topCorners[i].x, topCorners[i].y);
   }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // Add roof tiles pattern
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+  for (let i = 1; i < 4; i++) {
+    const ratio = i / 4;
+    const y1 = topCorners[0].y + (topCorners[3].y - topCorners[0].y) * ratio;
+    const y2 = topCorners[1].y + (topCorners[2].y - topCorners[1].y) * ratio;
+    ctx.beginPath();
+    ctx.moveTo(topCorners[0].x, y1);
+    ctx.lineTo(topCorners[1].x, y2);
+    ctx.stroke();
+  }
+  
+  // Draw door on front wall
+  const doorWidth = Math.max(2, 12 * avgScale / 100);
+  const doorHeight = Math.max(4, 25 * avgScale / 100);
+  const doorX = wallCenterX;
+  const doorY = corners[0].y;
+  
+  ctx.fillStyle = '#654321';
+  ctx.strokeStyle = '#3a2510';
+  ctx.lineWidth = 1;
+  ctx.fillRect(doorX - doorWidth / 2, doorY - doorHeight, doorWidth, doorHeight);
+  ctx.strokeRect(doorX - doorWidth / 2, doorY - doorHeight, doorWidth, doorHeight);
+  
+  // Door handle
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath();
+  ctx.arc(doorX + doorWidth / 3, doorY - doorHeight / 2, Math.max(1, 2 * avgScale / 100), 0, Math.PI * 2);
+  ctx.fill();
   
   // Draw building name if close enough
   if (obj.distance < 5) {
@@ -522,9 +568,24 @@ function renderBuilding(obj) {
     ctx.lineWidth = 3;
     ctx.font = 'bold 16px Arial';
     ctx.textAlign = 'center';
-    ctx.strokeText(building.name, corners[0].x, corners[0].y - 20);
-    ctx.fillText(building.name, corners[0].x, corners[0].y - 20);
+    ctx.strokeText(building.name, wallCenterX, topCorners[0].y - 10);
+    ctx.fillText(building.name, wallCenterX, topCorners[0].y - 10);
   }
+}
+
+/**
+ * Helper function to shade a color
+ */
+function shadeColor(color, percent) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = (num >> 16) + amt;
+  const G = (num >> 8 & 0x00FF) + amt;
+  const B = (num & 0x0000FF) + amt;
+  return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+    (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+    (B < 255 ? B < 1 ? 0 : B : 255))
+    .toString(16).slice(1);
 }
 
 /**
