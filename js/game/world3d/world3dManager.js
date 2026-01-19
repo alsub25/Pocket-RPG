@@ -1,7 +1,7 @@
 // js/game/world3d/world3dManager.js
 // Manages the 3D world integration with the game
 
-import { init3DWorld, dispose3DWorld, getPlayerPosition, setPlayerPosition, getWorldBounds, getWorldObjects } from './scene3d.js';
+import { init3DWorld, dispose3DWorld, getPlayerPosition, setPlayerPosition } from './scene3d.js';
 
 let is3DActive = false;
 let world3DContainer = null;
