@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>3D World Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      z-index: 1001;
+    }
+    #container {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <h3>🌍 3D World Test</h3>
+    <p><strong>Forward/Back:</strong> W/S or Up/Down</p>
+    <p><strong>Strafe:</strong> A/D</p>
+    <p><strong>Turn:</strong> Left/Right arrows</p>
+  </div>
+  <div id="container"></div>
+  <script type="module">
+    // Import the 3D world module
+    import { init3DWorld, setupControls } from './js/game/world3d/scene3d.js';
+    
+    // Initialize
+    const container = document.getElementById('container');
+    init3DWorld(container);
+    setupControls();
+    
+    console.log('3D World test initialized');
+  </script>
+</body>
+</html>
