@@ -4,6 +4,7 @@ import { GAME_FULL_LABEL } from '../game/systems/version.js';
 import { safeStorageGet, safeStorageSet } from './lib/safeStorage.js';
 import { BootLoader } from './bootLoader.js';
 import { showSplashSequence } from './splashScreen.js';
+import { trackedImport, getImportChain } from './importTracker.js';
 
 // Persisted boot timings for QA / bug reports.
 const BOOT_METRICS_KEY = 'ew-last-boot-metrics';
@@ -350,7 +351,7 @@ async function loadGameVersion(version, { onFail } = {}) {
     if (location.protocol === 'file:') {
       await loadModuleViaScriptTag(entryUrl);
     } else {
-      await import(entryUrl);
+      await trackedImport(entryUrl);
     }
     mark('importEnd');
     console.log(`[bootstrap] ✅ Loaded successfully: ${entryUrl}`);
@@ -397,15 +398,28 @@ async function loadGameVersion(version, { onFail } = {}) {
     const errorMsg = e && e.message ? e.message : String(e);
     const errorStack = e && e.stack ? e.stack : '';
     
-    // For ES module syntax errors, the browser doesn't provide a detailed stack trace
-    // because the error occurs during parsing, not execution.
-    // The stack will typically just be "SyntaxError: <message>" with no file info.
-    
+    // Check if we have enhanced error info from trackedImport
     let fileLocation = 'unknown';
     let isSyntaxError = errorMsg.includes('Unexpected token') || errorMsg.includes('Unexpected end') || e.name === 'SyntaxError';
     
-    // Try to parse the stack to find files OTHER than bootstrap/boot files
-    if (errorStack) {
+    // First, check if trackedImport provided actualFile information
+    if (e.actualFile) {
+      fileLocation = e.actualFile;
+      console.log(`[bootstrap] 📍 Import tracker identified file: ${fileLocation}`);
+    }
+    
+    // Try to get import chain information
+    const importChain = getImportChain();
+    if (fileLocation === 'unknown' && importChain.failedImports && importChain.failedImports.length > 0) {
+      const lastFailed = importChain.failedImports[importChain.failedImports.length - 1];
+      if (lastFailed.actualFile) {
+        fileLocation = lastFailed.actualFile;
+        console.log(`[bootstrap] 📍 Import chain identified file: ${fileLocation}`);
+      }
+    }
+    
+    // Fallback: Try to parse the stack to find files OTHER than bootstrap/boot files
+    if (fileLocation === 'unknown' && errorStack) {
       const lines = errorStack.split('\n');
       const relevantFiles = [];
       
@@ -416,6 +430,7 @@ async function loadGameVersion(version, { onFail } = {}) {
             line.includes('userAcceptance.js') ||
             line.includes('bootLoader.js') ||
             line.includes('splashScreen.js') ||
+            line.includes('importTracker.js') ||
             line.includes('safeStorage.js')) {
           continue;
         }
@@ -436,7 +451,7 @@ async function loadGameVersion(version, { onFail } = {}) {
       }
     }
     
-    // If we still don't have a file, check for fileName property (Firefox)
+    // Fallback: Check for fileName property (Firefox)
     if (fileLocation === 'unknown' && e.fileName) {
       const fileName = e.fileName.split('/').pop();
       const line = e.lineNumber || '';
@@ -447,13 +462,21 @@ async function loadGameVersion(version, { onFail } = {}) {
     console.error(`[bootstrap] ❌ Failed to load module`);
     console.error(`  Entry: ${entryUrl}`);
     if (fileLocation !== 'unknown') {
-      console.error(`  📍 Location: ${fileLocation}`);
+      console.error(`  📍 Actual location: ${fileLocation}`);
     } else if (isSyntaxError) {
       console.error(`  ⚠️  Syntax error in imported module (check browser DevTools > Sources tab)`);
     }
     console.error(`  Error: ${errorMsg}`);
     if (errorStack && errorStack.length > 100) {
       console.error(`  Stack trace:\n${errorStack}`);
+    }
+    
+    // Log import chain for debugging
+    if (importChain.failedImports && importChain.failedImports.length > 0) {
+      console.error(`  Import chain:`);
+      importChain.failedImports.forEach((imp, idx) => {
+        console.error(`    ${idx + 1}. ${imp.url} ${imp.actualFile ? `→ ${imp.actualFile}` : ''}`);
+      });
     }
     
     // Provide helpful message for syntax errors where we can't determine the file
@@ -463,7 +486,7 @@ async function loadGameVersion(version, { onFail } = {}) {
     
     alert(`Failed to load game module:\n\n` +
           `Entry: ${entryUrl}\n` +
-          (fileLocation !== 'unknown' ? `📍 Location: ${fileLocation}\n` : '') +
+          (fileLocation !== 'unknown' ? `📍 Actual location: ${fileLocation}\n` : '') +
           `Error: ${errorMsg}${helpText}\n\n` +
           `Check DevTools Console for details.`);
     BootLoader.hide();
@@ -474,8 +497,10 @@ async function loadGameVersion(version, { onFail } = {}) {
         version: version.id, 
         message: String(e && e.message ? e.message : e),
         location: fileLocation !== 'unknown' ? fileLocation : String(entryUrl || ''),
+        actualFile: fileLocation !== 'unknown' ? fileLocation : undefined,
         stack: errorStack,
         isSyntaxError,
+        importChain: importChain.failedImports || [],
         note: isSyntaxError && fileLocation === 'unknown' ? 'Syntax error in imported module - check DevTools Sources tab' : undefined
       });
       if (window.PQ_BOOT_DIAG && window.PQ_BOOT_DIAG.renderOverlay) window.PQ_BOOT_DIAG.renderOverlay();
