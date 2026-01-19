@@ -1,20 +1,24 @@
-# Locus Engine (js/engine)
+# 🎮 Locus Engine
 
-**Locus** is Emberwood's proprietary **game-agnostic engine core**: a modular runtime that provides a robust foundation for browser-based games without requiring build tools or bundlers.
+The **engine** folder contains Locus, Emberwood's proprietary **game-agnostic engine core**: a modular runtime that provides a robust foundation for browser-based games without requiring build tools or bundlers.
 
-## Table of Contents
+---
 
-- [Design Philosophy](#design-philosophy)
-- [Core Architecture](#core-architecture)
-- [What Locus Provides](#what-locus-provides)
-- [Getting Started](#getting-started)
-- [Plugin Development](#plugin-development)
-- [Service Integration Patterns](#service-integration-patterns)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
-- [File Map](#file-map)
+## 📋 Table of Contents
 
-## Design Philosophy
+- [🎯 Design Philosophy](#-design-philosophy)
+- [🏗️ Core Architecture](#️-core-architecture)
+- [⚙️ What Locus Provides](#️-what-locus-provides)
+- [🚀 Getting Started](#-getting-started)
+- [🔌 Plugin Development](#-plugin-development)
+- [🔗 Service Integration Patterns](#-service-integration-patterns)
+- [✅ Best Practices](#-best-practices)
+- [🔍 Troubleshooting](#-troubleshooting)
+- [📁 File Map](#-file-map)
+
+---
+
+## 🎯 Design Philosophy
 
 Locus separates the **platform concerns** (state management, events, scheduling, persistence) from **game content** (combat rules, quests, items, dialogue). This separation enables:
 
@@ -26,7 +30,9 @@ Locus separates the **platform concerns** (state management, events, scheduling,
 
 **Content lives in `js/game/`**, gameplay rules stay out of the engine. Locus is intentionally kept **content-free** so it can be reused across refactors and patches without pulling gameplay dependencies into the engine core.
 
-## Core Architecture
+---
+
+## 🏗️ Core Architecture
 
 ### Layered Design
 
@@ -62,7 +68,9 @@ Locus separates the **platform concerns** (state management, events, scheduling,
 6. **Persistence**: Snapshot save/load with migrations
 7. **Diagnostics**: Structured logging, profiling, error boundaries
 
-## What Locus Provides
+---
+
+## ⚙️ What Locus Provides
 
 ### State Store
 - `engine.getState()` / `engine.setState(next)` provide a single authoritative state object
@@ -460,7 +468,9 @@ engine.harness.run([
 ]);
 ```
 
-## Getting Started
+---
+
+## 🚀 Getting Started
 
 ### Creating an Engine Instance
 
@@ -514,7 +524,9 @@ combat.startBattle([enemy1, enemy2]);
 engine.stop();
 ```
 
-## Plugin Development
+---
+
+## 🔌 Plugin Development
 
 ### Plugin Structure
 
@@ -653,7 +665,9 @@ init(engine) {
 }
 ```
 
-## Service Integration Patterns
+---
+
+## 🔗 Service Integration Patterns
 
 ### Pattern 1: Direct Service Access
 
@@ -733,7 +747,9 @@ function openTavernModal() {
 }
 ```
 
-## Best Practices
+---
+
+## ✅ Best Practices
 
 ### 1. Use Owner-Based Cleanup
 
@@ -853,7 +869,9 @@ engine.log.info('combat', 'Attack dealt damage', {
 console.log('Attack: 45');
 ```
 
-## Troubleshooting
+---
+
+## 🔍 Troubleshooting
 
 ### Plugin Not Starting
 
@@ -985,7 +1003,9 @@ console.log(`Operation took ${duration}ms`);
 console.log(engine.schedule.listTasks());
 ```
 
-## Engine Capabilities Overview
+---
+
+## 📊 Engine Capabilities Overview
 
 This section is the **connection map**: what Locus exposes and which Emberwood plugins/modules currently touch it.
 
@@ -1030,7 +1050,9 @@ This section is the **connection map**: what Locus exposes and which Emberwood p
 | gameRng | ew.rngBridge | Legacy RNG helpers | Legacy game code |
 | audio | ew.audioBridge | Audio helpers | UI runtime |
 
-## File Map
+---
+
+## 📁 File Map
 
 Complete list of engine modules:
 
@@ -1062,7 +1084,9 @@ Complete list of engine modules:
 - **`qa.js`** — QA utilities and smoke test helpers
 - **`README.md`** — This file
 
-## Quick Usage Example
+---
+
+## 💡 Quick Usage Example
 
 ```javascript
 import { createEngine } from './js/engine/engine.js';
@@ -1097,7 +1121,9 @@ engine.schedule.cancelOwner('modal:tavern');
 engine.stop();
 ```
 
-## Migration Guide
+---
+
+## 🔄 Migration Guide
 
 ### Moving from Direct Imports to Engine Services
 
@@ -1181,7 +1207,7 @@ function takeDamage(engine, amount) {
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 When adding new engine features:
 
@@ -1191,7 +1217,9 @@ When adding new engine features:
 4. **Version migrations**: If state structure changes, add migration
 5. **Follow patterns**: Use existing patterns (services, events, ownership)
 
-## License
+---
+
+## 📜 License
 
 See repository root for license information.
 
