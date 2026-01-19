@@ -1,7 +1,7 @@
 // js/game/world3d/world3dManager.js
 // Manages the 3D world integration with the game
 
-import { init3DWorld, dispose3DWorld, getPlayerPosition, setPlayerPosition, changeArea, getCurrentArea, getAvailableAreas } from './scene3d.js';
+import { init3DWorld, dispose3DWorld, getPlayerPosition, setPlayerPosition, changeArea, getCurrentArea, getAvailableAreas, syncFromGameArea } from './scene3d.js';
 
 let is3DActive = false;
 let world3DContainer = null;
@@ -25,6 +25,39 @@ export function initWorld3DManager(engine) {
       changeArea(areaName);
     }
   };
+  
+  // Expose building modal handler
+  window.openBuildingModal = (buildingName) => {
+    // This will be called when a building is clicked
+    if (engine && engine.emit) {
+      engine.emit('map:buildingClick', { building: buildingName });
+    }
+    console.log(`Building clicked: ${buildingName}`);
+    // For now, show alert - game system should provide modal
+    alert(`Entered ${buildingName}\n\nThis will open the ${buildingName} modal when integrated with game systems.`);
+  };
+  
+  // Listen for game area changes to sync the map
+  if (engine && engine.on) {
+    engine.on('area:enter', (data) => {
+      if (is3DActive && data && data.id) {
+        syncFromGameArea(data.id);
+      }
+    });
+  }
+  
+  // Expose setArea from game for map to use
+  if (engine && engine.getState) {
+    const state = engine.getState();
+    if (state && state.area) {
+      // Get setArea function from runtime
+      window.gameSetArea = (areaId, opts) => {
+        if (engine.emit) {
+          engine.emit('game:setArea', { area: areaId, ...opts });
+        }
+      };
+    }
+  }
 }
 
 /**
@@ -50,8 +83,10 @@ function createWorld3DContainer() {
   instructions.innerHTML = `
     <div class="instructions-panel">
       <h3>🗺️ World Map</h3>
-      <p><strong>Click/Tap:</strong> Move to location</p>
-      <p><strong>Areas:</strong> Town, Forest, Mountains</p>
+      <p><strong>Tap/Click:</strong> Move or enter buildings</p>
+      <p><strong>Drag:</strong> Pan camera</p>
+      <p><strong>Pinch/Wheel:</strong> Zoom in/out</p>
+      <p><strong>Buildings:</strong> Tavern, Bank, Town Hall, Merchant</p>
     </div>
   `;
   instructions.style.cssText = `

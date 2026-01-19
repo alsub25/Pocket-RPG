@@ -8,12 +8,20 @@ let player = { x: 0, y: 0, angle: 0, targetX: 0, targetY: 0, isMoving: false };
 let moveState = { forward: false, backward: false, left: false, right: false, rotateLeft: false, rotateRight: false };
 const MOVE_SPEED = 0.1;
 
+// Camera offset for panning
+let cameraOffset = { x: 0, y: 0 };
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+let lastTouchDistance = null;
+
 // Responsive zoom - smaller on mobile for better view
 const getZoom = () => {
   const isMobile = window.innerWidth < 768;
   return isMobile ? 15 : 30; // Pixels per world unit
 };
 let ZOOM = getZoom();
+const MIN_ZOOM = 5;
+const MAX_ZOOM = 60;
 
 // Current area/map
 let currentArea = 'town';
@@ -47,9 +55,23 @@ export function init3DWorld(container) {
   // Handle window resize
   window.addEventListener('resize', onWindowResize);
   
-  // Set up click/tap to move
+  // Set up click/tap to move and building interactions
   canvas.addEventListener('click', handleMapClick);
   canvas.addEventListener('touchend', handleMapTouch);
+  
+  // Set up camera panning (drag with mouse or two fingers)
+  canvas.addEventListener('mousedown', handlePanStart);
+  canvas.addEventListener('mousemove', handlePanMove);
+  canvas.addEventListener('mouseup', handlePanEnd);
+  canvas.addEventListener('mouseleave', handlePanEnd);
+  
+  // Touch events for panning and pinch-to-zoom
+  canvas.addEventListener('touchstart', handleTouchStart);
+  canvas.addEventListener('touchmove', handleTouchMove);
+  canvas.addEventListener('touchend', handleTouchEnd);
+  
+  // Mouse wheel for zoom
+  canvas.addEventListener('wheel', handleWheel, { passive: false });
   
   // Start render loop
   animate();
@@ -60,16 +82,12 @@ export function init3DWorld(container) {
  * Initialize world objects for all areas
  */
 function initWorldObjects() {
-  // Town area - lots of buildings
+  // Town area - buildings per user spec (Tavern, Bank, Town Hall, Merchant)
   const town = areas.town;
-  town.buildings.push({ x: 10, y: 5, width: 4, height: 3, name: 'Tavern', color: '#a0826d' });
-  town.buildings.push({ x: -10, y: 5, width: 4, height: 4, name: 'Shop', color: '#8b7355' });
-  town.buildings.push({ x: 0, y: -15, width: 5, height: 5, name: 'Town Hall', color: '#9a8a7a' });
-  town.buildings.push({ x: 15, y: -10, width: 3, height: 3, name: 'House', color: '#b8a490' });
-  town.buildings.push({ x: -15, y: -8, width: 3.5, height: 3, name: 'Cottage', color: '#a89580' });
-  town.buildings.push({ x: 20, y: 8, width: 3, height: 3, name: 'Smithy', color: '#7a6a5a' });
-  town.buildings.push({ x: -20, y: -5, width: 3, height: 3, name: 'Inn', color: '#b89070' });
-  town.buildings.push({ x: 8, y: -20, width: 4, height: 3, name: 'Market', color: '#c4a57b' });
+  town.buildings.push({ x: 10, y: 5, width: 4, height: 3, name: 'Tavern', color: '#a0826d', clickable: true });
+  town.buildings.push({ x: -10, y: 5, width: 4, height: 4, name: 'Bank', color: '#8b7355', clickable: true });
+  town.buildings.push({ x: 0, y: -15, width: 5, height: 5, name: 'Town Hall', color: '#9a8a7a', clickable: true });
+  town.buildings.push({ x: 15, y: -10, width: 4, height: 3, name: 'Merchant', color: '#c4a57b', clickable: true });
   
   // Town trees (sparse)
   for (let i = 0; i < 15; i++) {
@@ -167,49 +185,241 @@ function onWindowResize() {
 }
 
 /**
- * Handle map click - tap to move
+ * Handle map click - tap to move or interact with building
  */
 function handleMapClick(event) {
+  // Don't trigger click if we were dragging
+  if (isDragging) {
+    isDragging = false;
+    return;
+  }
+  
   const rect = canvas.getBoundingClientRect();
   const clickX = event.clientX - rect.left;
   const clickY = event.clientY - rect.top;
   
-  // Convert screen coordinates to world coordinates (fixed camera)
-  const worldX = (clickX - canvas.width / 2) / ZOOM;
-  const worldY = -(clickY - canvas.height / 2) / ZOOM;
+  // Convert screen coordinates to world coordinates (with camera offset)
+  const worldX = (clickX - canvas.width / 2) / ZOOM - cameraOffset.x;
+  const worldY = -(clickY - canvas.height / 2) / ZOOM - cameraOffset.y;
   
-  // Set target
-  player.targetX = worldX;
-  player.targetY = worldY;
-  player.isMoving = true;
+  // Check if clicking on a clickable building
+  const area = areas[currentArea];
+  for (const building of area.buildings) {
+    if (building.clickable) {
+      const halfW = building.width / 2;
+      const halfH = building.height / 2;
+      if (worldX >= building.x - halfW && worldX <= building.x + halfW &&
+          worldY >= building.y - halfH && worldY <= building.y + halfH) {
+        // Clicked on building - open modal
+        onBuildingClick(building.name);
+        return;
+      }
+    }
+  }
   
-  console.log(`Moving to (${worldX.toFixed(2)}, ${worldY.toFixed(2)})`);
+  // Check collision with buildings
+  let canMove = true;
+  for (const building of area.buildings) {
+    const halfW = building.width / 2;
+    const halfH = building.height / 2;
+    if (worldX >= building.x - halfW && worldX <= building.x + halfW &&
+        worldY >= building.y - halfH && worldY <= building.y + halfH) {
+      canMove = false;
+      console.log(`Cannot move into ${building.name}`);
+      break;
+    }
+  }
+  
+  if (canMove) {
+    // Set target
+    player.targetX = worldX;
+    player.targetY = worldY;
+    player.isMoving = true;
+    
+    console.log(`Moving to (${worldX.toFixed(2)}, ${worldY.toFixed(2)})`);
+  }
 }
 
 /**
- * Handle touch tap - same as click
+ * Handle touch tap - same as click but handle multi-touch
  */
 function handleMapTouch(event) {
-  event.preventDefault();
-  if (event.changedTouches.length > 0) {
+  // For single touch, treat as click
+  if (event.changedTouches.length === 1 && !isDragging) {
     const touch = event.changedTouches[0];
     const rect = canvas.getBoundingClientRect();
     const clickX = touch.clientX - rect.left;
     const clickY = touch.clientY - rect.top;
     
-    // Convert screen coordinates to world coordinates
-    const worldX = (clickX - canvas.width / 2) / ZOOM;
-    const worldY = -(clickY - canvas.height / 2) / ZOOM;
+    // Convert screen coordinates to world coordinates (with camera offset)
+    const worldX = (clickX - canvas.width / 2) / ZOOM - cameraOffset.x;
+    const worldY = -(clickY - canvas.height / 2) / ZOOM - cameraOffset.y;
     
-    // Set target
-    player.targetX = worldX;
-    player.targetY = worldY;
-    player.isMoving = true;
+    // Check if clicking on a clickable building
+    const area = areas[currentArea];
+    for (const building of area.buildings) {
+      if (building.clickable) {
+        const halfW = building.width / 2;
+        const halfH = building.height / 2;
+        if (worldX >= building.x - halfW && worldX <= building.x + halfW &&
+            worldY >= building.y - halfH && worldY <= building.y + halfH) {
+          // Clicked on building - open modal
+          onBuildingClick(building.name);
+          return;
+        }
+      }
+    }
+    
+    // Check collision with buildings
+    let canMove = true;
+    for (const building of area.buildings) {
+      const halfW = building.width / 2;
+      const halfH = building.height / 2;
+      if (worldX >= building.x - halfW && worldX <= building.x + halfW &&
+          worldY >= building.y - halfH && worldY <= building.y + halfH) {
+        canMove = false;
+        break;
+      }
+    }
+    
+    if (canMove) {
+      // Set target
+      player.targetX = worldX;
+      player.targetY = worldY;
+      player.isMoving = true;
+    }
+  }
+  
+  isDragging = false;
+  lastTouchDistance = null;
+}
+
+/**
+ * Handle camera panning - mouse down
+ */
+function handlePanStart(event) {
+  isDragging = true;
+  dragStart.x = event.clientX;
+  dragStart.y = event.clientY;
+}
+
+/**
+ * Handle camera panning - mouse move
+ */
+function handlePanMove(event) {
+  if (!isDragging) return;
+  
+  const dx = event.clientX - dragStart.x;
+  const dy = event.clientY - dragStart.y;
+  
+  // Update camera offset
+  cameraOffset.x += dx / ZOOM;
+  cameraOffset.y -= dy / ZOOM; // Invert Y
+  
+  dragStart.x = event.clientX;
+  dragStart.y = event.clientY;
+}
+
+/**
+ * Handle camera panning - mouse up
+ */
+function handlePanEnd(event) {
+  isDragging = false;
+}
+
+/**
+ * Handle touch start for panning and pinch-to-zoom
+ */
+function handleTouchStart(event) {
+  if (event.touches.length === 2) {
+    // Two fingers - pinch to zoom
+    const touch1 = event.touches[0];
+    const touch2 = event.touches[1];
+    const distance = Math.hypot(
+      touch2.clientX - touch1.clientX,
+      touch2.clientY - touch1.clientY
+    );
+    lastTouchDistance = distance;
+    isDragging = true;
+  } else if (event.touches.length === 1) {
+    // One finger - pan
+    isDragging = true;
+    dragStart.x = event.touches[0].clientX;
+    dragStart.y = event.touches[0].clientY;
   }
 }
 
 /**
- * Update player movement - now moves toward target
+ * Handle touch move for panning and pinch-to-zoom
+ */
+function handleTouchMove(event) {
+  event.preventDefault();
+  
+  if (event.touches.length === 2 && lastTouchDistance) {
+    // Pinch to zoom
+    const touch1 = event.touches[0];
+    const touch2 = event.touches[1];
+    const distance = Math.hypot(
+      touch2.clientX - touch1.clientX,
+      touch2.clientY - touch1.clientY
+    );
+    
+    const zoomFactor = distance / lastTouchDistance;
+    ZOOM = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, ZOOM * zoomFactor));
+    
+    lastTouchDistance = distance;
+  } else if (event.touches.length === 1 && isDragging) {
+    // Pan
+    const dx = event.touches[0].clientX - dragStart.x;
+    const dy = event.touches[0].clientY - dragStart.y;
+    
+    cameraOffset.x += dx / ZOOM;
+    cameraOffset.y -= dy / ZOOM;
+    
+    dragStart.x = event.touches[0].clientX;
+    dragStart.y = event.touches[0].clientY;
+  }
+}
+
+/**
+ * Handle touch end
+ */
+function handleTouchEnd(event) {
+  if (event.touches.length < 2) {
+    lastTouchDistance = null;
+  }
+  if (event.touches.length === 0) {
+    isDragging = false;
+  }
+}
+
+/**
+ * Handle mouse wheel for zoom
+ */
+function handleWheel(event) {
+  event.preventDefault();
+  
+  const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+  ZOOM = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, ZOOM * zoomFactor));
+}
+
+/**
+ * Handle building click - open modal
+ */
+function onBuildingClick(buildingName) {
+  console.log(`Clicked on ${buildingName}`);
+  
+  // Emit event for game system to handle
+  if (window.openBuildingModal) {
+    window.openBuildingModal(buildingName);
+  } else {
+    // Fallback - show alert
+    alert(`Entered ${buildingName} - Modal integration pending`);
+  }
+}
+
+/**
+ * Update player movement - now moves toward target with collision detection
  */
 function updateMovement() {
   if (player.isMoving) {
@@ -226,19 +436,41 @@ function updateMovement() {
       // Move toward target
       const angle = Math.atan2(dx, dy);
       player.angle = angle; // Face movement direction
-      player.x += Math.sin(angle) * MOVE_SPEED;
-      player.y += Math.cos(angle) * MOVE_SPEED;
+      
+      const newX = player.x + Math.sin(angle) * MOVE_SPEED;
+      const newY = player.y + Math.cos(angle) * MOVE_SPEED;
+      
+      // Check collision with buildings
+      const area = areas[currentArea];
+      let colliding = false;
+      for (const building of area.buildings) {
+        const halfW = building.width / 2;
+        const halfH = building.height / 2;
+        if (newX >= building.x - halfW && newX <= building.x + halfW &&
+            newY >= building.y - halfH && newY <= building.y + halfH) {
+          colliding = true;
+          break;
+        }
+      }
+      
+      if (!colliding) {
+        player.x = newX;
+        player.y = newY;
+      } else {
+        // Stop if we hit a building
+        player.isMoving = false;
+      }
     }
   }
 }
 
 /**
- * Convert world coordinates to screen coordinates (fixed camera)
+ * Convert world coordinates to screen coordinates (with camera offset)
  */
 function worldToScreen(wx, wy) {
-  // Fixed camera - no rotation, simple translation
-  const sx = canvas.width / 2 + wx * ZOOM;
-  const sy = canvas.height / 2 - wy * ZOOM; // Invert Y for screen coordinates
+  // Apply camera offset
+  const sx = canvas.width / 2 + (wx + cameraOffset.x) * ZOOM;
+  const sy = canvas.height / 2 - (wy + cameraOffset.y) * ZOOM; // Invert Y for screen coordinates
   
   return { x: sx, y: sy };
 }
@@ -497,7 +729,22 @@ export function changeArea(areaName) {
     player.x = 0;
     player.y = 0;
     player.isMoving = false;
+    // Reset camera offset
+    cameraOffset.x = 0;
+    cameraOffset.y = 0;
     console.log(`Changed to area: ${areaName}`);
+    
+    // Map area names to game area IDs
+    const areaMap = {
+      'town': 'emberwood-village',
+      'forest': 'emberwood-forest',
+      'mountains': 'emberwood-mountains'
+    };
+    
+    // If game has setArea function, sync the game state
+    if (window.gameSetArea && areaMap[areaName]) {
+      window.gameSetArea(areaMap[areaName], { source: 'map' });
+    }
   } else {
     console.warn(`Area not found: ${areaName}`);
   }
@@ -515,4 +762,28 @@ export function getCurrentArea() {
  */
 export function getAvailableAreas() {
   return Object.keys(areas);
+}
+
+/**
+ * Sync map area from game area (called when game changes areas)
+ * @param {string} gameArea - Game area ID
+ */
+export function syncFromGameArea(gameArea) {
+  const gameToMap = {
+    'emberwood-village': 'town',
+    'emberwood-forest': 'forest',
+    'emberwood-mountains': 'mountains'
+  };
+  
+  const mapArea = gameToMap[gameArea];
+  if (mapArea && mapArea !== currentArea) {
+    currentArea = mapArea;
+    // Reset player to center of new area
+    player.x = 0;
+    player.y = 0;
+    player.isMoving = false;
+    cameraOffset.x = 0;
+    cameraOffset.y = 0;
+    console.log(`Map synced to game area: ${mapArea}`);
+  }
 }
