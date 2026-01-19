@@ -35,6 +35,6 @@ export const DIFFICULTY_CONFIG = {
         playerDmgMod: 1,
         aiSmartness: 0.8
     }
-}
+};
 
-export const MAX_PLAYER_LEVEL = 50 // used by dev cheats; raise if you want a longer grind
+export const MAX_PLAYER_LEVEL = 50; // used by dev cheats; raise if you want a longer grind
