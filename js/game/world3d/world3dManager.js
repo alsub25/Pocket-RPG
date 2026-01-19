@@ -64,33 +64,6 @@ function createWorld3DContainer() {
   const exitButton = document.createElement('button');
   exitButton.className = 'world-3d-exit-btn';
   exitButton.innerHTML = '✕ Exit 3D World';
-  exitButton.style.cssText = `
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: rgba(220, 53, 69, 0.9);
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-family: var(--font, Arial, sans-serif);
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    z-index: 1001;
-    pointer-events: auto;
-    transition: all 0.2s;
-  `;
-  
-  // Add hover effect via event listeners
-  exitButton.addEventListener('mouseenter', () => {
-    exitButton.style.background = 'rgba(220, 53, 69, 1)';
-    exitButton.style.transform = 'scale(1.05)';
-  });
-  exitButton.addEventListener('mouseleave', () => {
-    exitButton.style.background = 'rgba(220, 53, 69, 0.9)';
-    exitButton.style.transform = 'scale(1)';
-  });
   
   exitButton.addEventListener('click', () => {
     // Close the 3D world

@@ -15,6 +15,7 @@ const trees = [];
 const buildings = [];
 const rocks = [];
 const paths = [];
+const grassPattern = []; // Pre-generated grass texture positions
 
 // Touch controls state
 let touchStartX = 0;
@@ -63,12 +64,17 @@ function initWorldObjects() {
     });
   }
   
-  // Create rocks
+  // Create rocks with pre-generated random values for consistent appearance
   for (let i = 0; i < 20; i++) {
+    const randomValues = [];
+    for (let j = 0; j < 6; j++) {
+      randomValues.push(0.8 + Math.random() * 0.4);
+    }
     rocks.push({
       x: (Math.random() - 0.5) * 60,
       z: (Math.random() - 0.5) * 60,
-      size: 0.3 + Math.random() * 0.5
+      size: 0.3 + Math.random() * 0.5,
+      randomValues: randomValues
     });
   }
   
@@ -82,6 +88,14 @@ function initWorldObjects() {
   buildings.push({ x: 0, z: -15, width: 5, depth: 5, height: 5, name: 'Town Hall', color: '#9a8a7a' });
   buildings.push({ x: 15, z: -10, width: 3, depth: 3, height: 3.5, name: 'House', color: '#b8a490' });
   buildings.push({ x: -15, z: -8, width: 3.5, depth: 3, height: 3, name: 'Cottage', color: '#a89580' });
+  
+  // Pre-generate grass texture pattern (done once for consistent appearance)
+  for (let i = 0; i < 100; i++) {
+    grassPattern.push({
+      x: Math.random(),
+      y: Math.random()
+    });
+  }
 }
 
 /**
@@ -186,13 +200,13 @@ function render() {
   const groundY = canvas.height / 2;
   ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
   
-  // Add grass texture pattern
+  // Add grass texture pattern (using pre-generated positions)
   ctx.fillStyle = 'rgba(34, 139, 34, 0.1)';
-  for (let i = 0; i < 100; i++) {
-    const x = Math.random() * canvas.width;
-    const y = groundY + Math.random() * (canvas.height - groundY);
+  grassPattern.forEach(pos => {
+    const x = pos.x * canvas.width;
+    const y = groundY + pos.y * (canvas.height - groundY);
     ctx.fillRect(x, y, 2, 1);
-  }
+  });
   
   // Collect all renderable objects with distances
   const renderables = [];
@@ -315,7 +329,7 @@ function renderRock(obj) {
   
   const size = Math.max(2, rock.size * 30 * center.scale / 100);
   
-  // Draw rock as irregular polygon
+  // Draw rock as irregular polygon (using pre-generated random values)
   ctx.fillStyle = '#696969';
   ctx.strokeStyle = '#505050';
   ctx.lineWidth = 1;
@@ -324,7 +338,7 @@ function renderRock(obj) {
   const points = 6;
   for (let i = 0; i < points; i++) {
     const angle = (i / points) * Math.PI * 2;
-    const radius = size * (0.8 + Math.random() * 0.4);
+    const radius = size * rock.randomValues[i];
     const x = center.x + Math.cos(angle) * radius;
     const y = center.y + Math.sin(angle) * radius * 0.5;
     
