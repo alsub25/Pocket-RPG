@@ -269,40 +269,44 @@ export function installBootDiagnostics() {
       overlay.style.position = 'fixed';
       overlay.style.inset = '0';
       overlay.style.zIndex = '999999';
-      overlay.style.background = 'rgba(0,0,0,0.86)';
+      overlay.style.background = 'rgba(0,0,0,0.95)';
       overlay.style.color = '#fff';
       overlay.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
-      overlay.style.padding = '16px';
+      overlay.style.padding = '20px';
       overlay.style.overflow = 'auto';
+      overlay.style.WebkitOverflowScrolling = 'touch'; // Smooth scrolling on iOS
 
       const title = document.createElement('div');
-      title.style.fontSize = '18px';
+      title.style.fontSize = '22px';
       title.style.fontWeight = '700';
-      title.style.marginBottom = '10px';
+      title.style.marginBottom = '12px';
+      title.style.lineHeight = '1.3';
       title.textContent = `Boot Diagnostics (Patch ${getGamePatch()})`;
       overlay.appendChild(title);
 
       const sub = document.createElement('div');
-      sub.style.fontSize = '12px';
+      sub.style.fontSize = '14px';
       sub.style.opacity = '0.85';
-      sub.style.marginBottom = '12px';
+      sub.style.marginBottom = '16px';
+      sub.style.lineHeight = '1.5';
       sub.textContent = 'If the game fails to load, screenshot this overlay. Use Copy Report for a text bug report.';
       overlay.appendChild(sub);
 
       // Add error summary section if there are errors
       if (diag.errors && diag.errors.length > 0) {
         const errorSummary = document.createElement('div');
-        errorSummary.style.background = 'rgba(255, 0, 0, 0.15)';
-        errorSummary.style.border = '1px solid rgba(255, 0, 0, 0.4)';
-        errorSummary.style.borderRadius = '4px';
-        errorSummary.style.padding = '12px';
-        errorSummary.style.marginBottom = '12px';
-        errorSummary.style.fontSize = '13px';
+        errorSummary.style.background = 'rgba(220, 38, 38, 0.2)';
+        errorSummary.style.border = '2px solid rgba(220, 38, 38, 0.5)';
+        errorSummary.style.borderRadius = '8px';
+        errorSummary.style.padding = '16px';
+        errorSummary.style.marginBottom = '20px';
         
         const summaryTitle = document.createElement('div');
         summaryTitle.style.fontWeight = '700';
-        summaryTitle.style.marginBottom = '8px';
-        summaryTitle.style.color = '#ff6b6b';
+        summaryTitle.style.fontSize = '18px';
+        summaryTitle.style.marginBottom = '12px';
+        summaryTitle.style.color = '#fca5a5';
+        summaryTitle.style.lineHeight = '1.3';
         summaryTitle.textContent = `${diag.errors.length} Error${diag.errors.length === 1 ? '' : 's'} Detected`;
         errorSummary.appendChild(summaryTitle);
         
@@ -310,35 +314,41 @@ export function installBootDiagnostics() {
         const recentErrors = diag.errors.slice(-3).reverse();
         recentErrors.forEach((err, idx) => {
           const errDiv = document.createElement('div');
-          errDiv.style.marginBottom = idx < recentErrors.length - 1 ? '8px' : '0';
+          errDiv.style.marginBottom = idx < recentErrors.length - 1 ? '16px' : '0';
+          errDiv.style.paddingBottom = idx < recentErrors.length - 1 ? '12px' : '0';
+          errDiv.style.borderBottom = idx < recentErrors.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none';
           
           // Show error type
           const typeSpan = document.createElement('div');
-          typeSpan.style.fontSize = '11px';
+          typeSpan.style.fontSize = '12px';
           typeSpan.style.opacity = '0.7';
-          typeSpan.style.marginBottom = '2px';
+          typeSpan.style.marginBottom = '6px';
           typeSpan.textContent = `[${err.kind}] ${err.t || ''}`;
           errDiv.appendChild(typeSpan);
           
           // Show file location prominently if available
           if (err.location && err.location !== 'unknown location') {
             const locDiv = document.createElement('div');
-            locDiv.style.fontFamily = 'Monaco, Consolas, monospace';
-            locDiv.style.fontSize = '13px';
+            locDiv.style.fontFamily = 'Monaco, Consolas, "Courier New", monospace';
+            locDiv.style.fontSize = '16px';
             locDiv.style.fontWeight = '700';
-            locDiv.style.color = '#ffd43b';
-            locDiv.style.marginBottom = '4px';
+            locDiv.style.color = '#fbbf24';
+            locDiv.style.marginBottom = '8px';
+            locDiv.style.lineHeight = '1.4';
+            locDiv.style.wordBreak = 'break-all';
             locDiv.setAttribute('aria-label', `Location: ${err.location}`);
-            locDiv.textContent = `📍 ${err.location}`;
+            locDiv.textContent = `📍  ${err.location}`;
             errDiv.appendChild(locDiv);
           }
           
           // Show message
           const msgDiv = document.createElement('div');
-          msgDiv.style.fontFamily = 'Monaco, Consolas, monospace';
-          msgDiv.style.fontSize = '12px';
+          msgDiv.style.fontFamily = 'Monaco, Consolas, "Courier New", monospace';
+          msgDiv.style.fontSize = '14px';
+          msgDiv.style.lineHeight = '1.5';
           msgDiv.style.whiteSpace = 'pre-wrap';
           msgDiv.style.wordBreak = 'break-word';
+          msgDiv.style.color = '#e5e7eb';
           msgDiv.textContent = err.displayMessage || err.message || 'Unknown error';
           errDiv.appendChild(msgDiv);
           
@@ -350,14 +360,24 @@ export function installBootDiagnostics() {
 
       const actions = document.createElement('div');
       actions.style.display = 'flex';
-      actions.style.gap = '8px';
-      actions.style.marginBottom = '12px';
+      actions.style.gap = '12px';
+      actions.style.marginBottom = '20px';
+      actions.style.flexWrap = 'wrap';
 
       const mkBtn = (label) => {
         const b = document.createElement('button');
         b.textContent = label;
-        b.style.padding = '8px 10px';
+        b.style.padding = '12px 16px';
+        b.style.fontSize = '15px';
+        b.style.fontWeight = '600';
+        b.style.borderRadius = '6px';
+        b.style.border = '1px solid rgba(255,255,255,0.3)';
+        b.style.background = 'rgba(255,255,255,0.1)';
+        b.style.color = '#fff';
         b.style.cursor = 'pointer';
+        b.style.minHeight = '44px'; // iOS touch target minimum
+        b.style.minWidth = '90px';
+        b.style.touchAction = 'manipulation'; // Prevent double-tap zoom
         return b;
       };
 
@@ -389,11 +409,33 @@ export function installBootDiagnostics() {
       actions.appendChild(btnClose);
       overlay.appendChild(actions);
 
+      // Collapsible JSON report section
+      const jsonSection = document.createElement('details');
+      jsonSection.style.marginTop = '16px';
+      
+      const jsonSummary = document.createElement('summary');
+      jsonSummary.style.fontSize = '14px';
+      jsonSummary.style.fontWeight = '600';
+      jsonSummary.style.padding = '12px';
+      jsonSummary.style.background = 'rgba(255,255,255,0.05)';
+      jsonSummary.style.borderRadius = '6px';
+      jsonSummary.style.cursor = 'pointer';
+      jsonSummary.style.marginBottom = '8px';
+      jsonSummary.textContent = 'Show Full Report (JSON)';
+      jsonSection.appendChild(jsonSummary);
+      
       const pre = document.createElement('pre');
       pre.style.whiteSpace = 'pre-wrap';
       pre.style.fontSize = '12px';
+      pre.style.lineHeight = '1.5';
+      pre.style.background = 'rgba(0,0,0,0.5)';
+      pre.style.padding = '12px';
+      pre.style.borderRadius = '6px';
+      pre.style.overflow = 'auto';
       pre.textContent = JSON.stringify(diag.buildReport(), null, 2);
-      overlay.appendChild(pre);
+      jsonSection.appendChild(pre);
+      
+      overlay.appendChild(jsonSection);
 
       document.body.appendChild(overlay);
     } catch (_) {}
