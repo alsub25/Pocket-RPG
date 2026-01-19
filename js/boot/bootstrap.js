@@ -398,9 +398,12 @@ async function loadGameVersion(version, { onFail } = {}) {
     const errorStack = e && e.stack ? e.stack : '';
     
     // Extract file location from error if available
+    // Match common stack trace patterns: at <location> (file:line:col) or at file:line:col
+    // Examples: "at Module.load (file.js:10:5)" or "at file.js:10:5"
+    const STACK_TRACE_REGEX = /at\s+(?:.*?\s+\()?([^):\s]+):(\d+):(\d+)/;
     let fileLocation = 'unknown';
     if (errorStack) {
-      const stackMatch = errorStack.match(/at\s+(?:.*?\s+\()?([^):\s]+):(\d+):(\d+)/);
+      const stackMatch = errorStack.match(STACK_TRACE_REGEX);
       if (stackMatch) {
         fileLocation = `${stackMatch[1]}:${stackMatch[2]}:${stackMatch[3]}`;
       }

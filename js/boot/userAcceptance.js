@@ -107,16 +107,21 @@ export function installBootDiagnostics() {
     
     if (stack) {
       // Match common stack trace patterns: at <location> (file:line:col) or at file:line:col
-      const stackMatch = stack.match(/at\s+(?:.*?\s+\()?([^):\s]+):(\d+):(\d+)/);
+      // Examples: "at Module.load (file.js:10:5)" or "at file.js:10:5"
+      const STACK_TRACE_REGEX = /at\s+(?:.*?\s+\()?([^):\s]+):(\d+):(\d+)/;
+      const stackMatch = stack.match(STACK_TRACE_REGEX);
       if (stackMatch) {
         const [, file, line, col] = stackMatch;
         location = `${file}:${line}:${col}`;
         displayMessage = `${message}\n  at ${location}`;
-      } else if (stack.split('\n').length > 1) {
-        // If no match but we have a stack, show first meaningful line
-        const lines = stack.split('\n').filter(l => l.trim() && !l.includes('addEventListener'));
-        if (lines.length > 1) {
-          displayMessage = `${message}\n  ${lines[1].trim()}`;
+      } else {
+        const stackLines = stack.split('\n');
+        if (stackLines.length > 1) {
+          // If no match but we have a stack, show first meaningful line
+          const meaningfulLines = stackLines.filter(l => l.trim() && !l.includes('addEventListener'));
+          if (meaningfulLines.length > 1) {
+            displayMessage = `${message}\n  ${meaningfulLines[1].trim()}`;
+          }
         }
       }
     }
@@ -205,6 +210,7 @@ export function installBootDiagnostics() {
             locDiv.style.fontWeight = '700'
             locDiv.style.color = '#ffd43b'
             locDiv.style.marginBottom = '4px'
+            locDiv.setAttribute('aria-label', `Location: ${err.location}`)
             locDiv.textContent = `📍 ${err.location}`
             errDiv.appendChild(locDiv)
           }
