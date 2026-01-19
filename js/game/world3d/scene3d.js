@@ -97,11 +97,7 @@ function pointToLineDistance(px, py, x1, y1, x2, y2) {
   
   const dot = A * C + B * D;
   const lenSq = C * C + D * D;
-  let param = -1;
-  
-  if (lenSq !== 0) {
-    param = dot / lenSq;
-  }
+  const param = lenSq !== 0 ? dot / lenSq : 0;
   
   let xx, yy;
   
