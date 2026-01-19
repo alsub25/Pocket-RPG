@@ -43,10 +43,10 @@ function createWorld3DContainer() {
   instructions.innerHTML = `
     <div class="instructions-panel">
       <h3>🎮 3D World Controls</h3>
-      <p><strong>Movement:</strong> W/A/S/D or Arrow Keys</p>
-      <p><strong>Camera:</strong> Click and drag to rotate view</p>
-      <p><strong>Zoom:</strong> Mouse wheel</p>
-      <p>Press "Toggle 3D World" to return to the game</p>
+      <p><strong>Move Forward/Back:</strong> W/S or Up/Down arrows</p>
+      <p><strong>Strafe Left/Right:</strong> A/D keys</p>
+      <p><strong>Turn Left/Right:</strong> Left/Right arrow keys</p>
+      <p>Press the 🌍 button to return to the game</p>
     </div>
   `;
   instructions.style.cssText = `
