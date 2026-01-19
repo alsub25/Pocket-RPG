@@ -42,9 +42,9 @@ function createWorld3DContainer() {
   instructions.className = 'world-3d-instructions';
   instructions.innerHTML = `
     <div class="instructions-panel">
-      <h3>🎮 3D World Controls</h3>
-      <p><strong>Desktop:</strong> W/A/S/D + Arrow keys to move and turn</p>
-      <p><strong>Mobile:</strong> Swipe to move forward/back and turn left/right</p>
+      <h3>🗺️ 2D Top-Down View</h3>
+      <p><strong>Desktop:</strong> W/A/S/D to move, Arrow keys to rotate</p>
+      <p><strong>Mobile:</strong> Swipe to move and turn</p>
     </div>
   `;
   instructions.style.cssText = `
@@ -63,7 +63,7 @@ function createWorld3DContainer() {
   // Add exit button
   const exitButton = document.createElement('button');
   exitButton.className = 'world-3d-exit-btn';
-  exitButton.innerHTML = '✕ Exit 3D World';
+  exitButton.innerHTML = '✕ Exit Map View';
   
   exitButton.addEventListener('click', () => {
     // Close the 3D world
@@ -92,8 +92,8 @@ function setupToggleButton(engine) {
   const toggleButton = document.createElement('button');
   toggleButton.id = 'btn3DWorld';
   toggleButton.className = 'icon-btn';
-  toggleButton.title = '3D World';
-  toggleButton.innerHTML = '🌍';
+  toggleButton.title = 'Map View';
+  toggleButton.innerHTML = '🗺️';
   
   // Insert before the menu button
   const menuButton = document.getElementById('btnGameMenu');
