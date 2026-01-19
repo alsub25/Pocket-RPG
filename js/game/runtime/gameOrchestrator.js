@@ -57,6 +57,9 @@ import { createKingdomGovernmentPlugin } from '../plugins/kingdomGovernmentPlugi
 import { createLootGeneratorPlugin } from '../plugins/lootGeneratorPlugin.js'
 import { createQuestSystemPlugin } from '../plugins/questSystemPlugin.js'
 
+// 3D World Integration
+import { initWorld3DManager } from '../world3d/world3dManager.js'
+
 // Refactored modules (Patch 1.2.72 - Intensive Refactor & Hardening)
 import {
     runDailyTicks as runDailyTicksImpl,
@@ -20785,5 +20788,15 @@ export function bootGame(engine) {
             }, { owner: 'system:boot' })
         }
     } catch (_) {}
+
+    // =============================================================================
+    // Initialize 3D World Manager
+    // =============================================================================
+    try {
+        initWorld3DManager(_engine)
+        console.log('[bootGame] 3D World Manager initialized')
+    } catch (e) {
+        try { console.error('[bootGame] 3D World Manager failed to initialize', e) } catch (_) {}
+    }
 
 }
