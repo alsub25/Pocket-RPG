@@ -397,22 +397,54 @@ async function loadGameVersion(version, { onFail } = {}) {
     const errorMsg = e && e.message ? e.message : String(e);
     const errorStack = e && e.stack ? e.stack : '';
     
-    // Extract file location from error if available
-    // Match common stack trace patterns: at <location> (file:line:col) or at file:line:col
-    // Examples: "at Module.load (file.js:10:5)" or "at file.js:10:5"
-    const STACK_TRACE_REGEX = /at\s+(?:.*?\s+\()?([^):\s]+):(\d+):(\d+)/;
+    // For module syntax errors, the actual problematic file is often in the import chain
+    // We need to trace back through the imports to find the real culprit
     let fileLocation = 'unknown';
+    
+    // First, try to parse the stack to find files OTHER than bootstrap/boot files
     if (errorStack) {
-      const stackMatch = errorStack.match(STACK_TRACE_REGEX);
-      if (stackMatch) {
-        fileLocation = `${stackMatch[1]}:${stackMatch[2]}:${stackMatch[3]}`;
+      const lines = errorStack.split('\n');
+      const relevantFiles = [];
+      
+      for (const line of lines) {
+        // Skip all boot infrastructure files
+        if (line.includes('bootstrap.js') || 
+            line.includes('bootDiagnostics.js') || 
+            line.includes('userAcceptance.js') ||
+            line.includes('bootLoader.js') ||
+            line.includes('splashScreen.js') ||
+            line.includes('safeStorage.js')) {
+          continue;
+        }
+        
+        // Match full URLs with line/col numbers
+        const urlMatch = line.match(/(https?:\/\/[^\s)]+\.js)(?::(\d+):(\d+))?/);
+        if (urlMatch) {
+          const [, url, lineNum, col] = urlMatch;
+          const fileName = url.split('/').pop();
+          const location = lineNum ? `${fileName}:${lineNum}:${col}` : fileName;
+          relevantFiles.push(location);
+        }
       }
+      
+      // Use the first relevant file found (closest to the actual error)
+      if (relevantFiles.length > 0) {
+        fileLocation = relevantFiles[0];
+      }
+    }
+    
+    // If we still don't have a file, check for fileName property (Firefox)
+    if (fileLocation === 'unknown' && e.fileName) {
+      const fileName = e.fileName.split('/').pop();
+      const line = e.lineNumber || '';
+      const col = e.columnNumber || '';
+      fileLocation = line ? `${fileName}:${line}:${col}` : fileName;
     }
     
     console.error(`[bootstrap] ❌ Failed to load module`);
     console.error(`  Entry: ${entryUrl}`);
     if (fileLocation !== 'unknown') {
-      console.error(`  Location: ${fileLocation}`);
+      console.error(`  📍 Actual location: ${fileLocation}`);
     }
     console.error(`  Error: ${errorMsg}`);
     if (errorStack) {
@@ -421,12 +453,19 @@ async function loadGameVersion(version, { onFail } = {}) {
     
     alert(`Failed to load game module:\n\n` +
           `Entry: ${entryUrl}\n` +
-          (fileLocation !== 'unknown' ? `Location: ${fileLocation}\n` : '') +
+          (fileLocation !== 'unknown' ? `📍 Actual location: ${fileLocation}\n` : '') +
           `Error: ${errorMsg}\n\n` +
           `Check DevTools Console for full stack trace.`);
     BootLoader.hide();
     try {
-      diagPush('scriptLoadError', { src: String(entryUrl || ''), version: version.id, message: String(e && e.message ? e.message : e) });
+      // Include the actual file location in the diagnostic push
+      diagPush('scriptLoadError', { 
+        src: String(entryUrl || ''), 
+        version: version.id, 
+        message: String(e && e.message ? e.message : e),
+        location: fileLocation !== 'unknown' ? fileLocation : String(entryUrl || ''),
+        stack: errorStack
+      });
       if (window.PQ_BOOT_DIAG && window.PQ_BOOT_DIAG.renderOverlay) window.PQ_BOOT_DIAG.renderOverlay();
     } catch (_) {}
     BootLoader.hide();
