@@ -43,10 +43,8 @@ function createWorld3DContainer() {
   instructions.innerHTML = `
     <div class="instructions-panel">
       <h3>🎮 3D World Controls</h3>
-      <p><strong>Move Forward/Back:</strong> W/S or Up/Down arrows</p>
-      <p><strong>Strafe Left/Right:</strong> A/D keys</p>
-      <p><strong>Turn Left/Right:</strong> Left/Right arrow keys</p>
-      <p>Press the 🌍 button to return to the game</p>
+      <p><strong>Desktop:</strong> W/A/S/D + Arrow keys to move and turn</p>
+      <p><strong>Mobile:</strong> Swipe to move forward/back and turn left/right</p>
     </div>
   `;
   instructions.style.cssText = `
@@ -55,14 +53,54 @@ function createWorld3DContainer() {
     left: 20px;
     background: rgba(0, 0, 0, 0.8);
     color: white;
-    padding: 20px;
+    padding: 15px 20px;
     border-radius: 10px;
     font-family: var(--font, Arial, sans-serif);
     z-index: 1001;
     pointer-events: none;
   `;
   
+  // Add exit button
+  const exitButton = document.createElement('button');
+  exitButton.className = 'world-3d-exit-btn';
+  exitButton.innerHTML = '✕ Exit 3D World';
+  exitButton.style.cssText = `
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: var(--font, Arial, sans-serif);
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1001;
+    pointer-events: auto;
+    transition: all 0.2s;
+  `;
+  
+  // Add hover effect via event listeners
+  exitButton.addEventListener('mouseenter', () => {
+    exitButton.style.background = 'rgba(220, 53, 69, 1)';
+    exitButton.style.transform = 'scale(1.05)';
+  });
+  exitButton.addEventListener('mouseleave', () => {
+    exitButton.style.background = 'rgba(220, 53, 69, 0.9)';
+    exitButton.style.transform = 'scale(1)';
+  });
+  
+  exitButton.addEventListener('click', () => {
+    // Close the 3D world
+    world3DContainer.classList.add('hidden');
+    is3DActive = false;
+    console.log('3D World exited via exit button');
+  });
+  
   world3DContainer.appendChild(instructions);
+  world3DContainer.appendChild(exitButton);
   document.body.appendChild(world3DContainer);
 }
 
