@@ -3,6 +3,261 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.2.90",
+    "title": "Combat & Companion System Integration",
+    "sections": [
+      {
+        "heading": "New Engine-Integrated Services",
+        "items": [
+          {
+            "title": "Combat System Service",
+            "bullets": [
+              "Created engine-integrated combat system service with immutable state updates via engine.setState()",
+              "All combat state mutations now go through engine with spread operators for immutability",
+              "Added comprehensive event system for combat: combat:started, combat:ended, combat:enemyDamaged, combat:enemyDefeated, combat:playerDamaged, combat:playerDefeated, combat:statusApplied, combat:turnAdvanced",
+              "Service provides clean API: startCombat(), endCombat(), damageEnemy(), damagePlayer(), applyEnemyStatus(), applyPlayerStatus(), nextTurn(), getCombatState()"
+            ]
+          },
+          {
+            "title": "Companion System Service",
+            "bullets": [
+              "Created engine-integrated companion system service with event-driven loyalty progression",
+              "All companion state mutations now go through engine with immutable updates",
+              "Added comprehensive event system: companion:initialized, companion:unlocked, companion:activeChanged, companion:loyaltyChanged, companion:levelUp",
+              "Companion loyalty automatically advances through combat victories and enemy defeats",
+              "Service provides clean API: initializeState(), unlockCompanion(), setActiveCompanion(), addLoyalty(), getCompanion(), getAllCompanions(), getActiveCompanion()"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Companions (2)",
+        "items": [
+          {
+            "title": "Emberborn Phoenix",
+            "bullets": [
+              "DPS/Support role with devastating fire-based attacks",
+              "Flaming Strike: Heavy fire damage with burn DoT",
+              "Healing Flames: Restores player HP over time with purifying fire",
+              "Phoenix Rebirth: Self-resurrects once per combat at 50% HP (passive)",
+              "Inferno Blast: Massive fire explosion dealing 2.2x damage"
+            ]
+          },
+          {
+            "title": "Shade Walker (Shadow Assassin)",
+            "bullets": [
+              "Burst DPS role specializing in stealth and precision strikes",
+              "Shadow Strike: High damage attack with increased crit chance",
+              "Vanish: Avoids all damage for 1 turn by disappearing into shadows",
+              "Backstab: Brutal attack dealing 2.0x damage with bleeding effect",
+              "Poison Dart: Moderate damage with stacking poison DoT"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Companion Loyalty System",
+        "items": [
+          {
+            "title": "Loyalty Progression",
+            "bullets": [
+              "Companions gain loyalty points through combat victories and enemy defeats",
+              "5 loyalty points awarded for each combat victory",
+              "2 loyalty points for each normal enemy defeated, 10 for bosses",
+              "Loyalty levels cap at 10, with increasing point requirements per level (1.2x multiplier)",
+              "Loyalty progression tracked per-companion in engine state"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Enemy Types (3)",
+        "items": [
+          {
+            "title": "Corrupted Dryad",
+            "bullets": [
+              "Level 16 nature healer enemy with healing abilities",
+              "200 HP, balanced attack/magic stats (18/22)",
+              "Weak to fire (1.2x), resistant to nature (0.8x)",
+              "Healer behavior - can restore ally HP during combat",
+              "125 XP, 40-88 gold reward"
+            ]
+          },
+          {
+            "title": "Ember Imp",
+            "bullets": [
+              "Level 12 fire swarm enemy with lower HP (80)",
+              "Appears in groups for tactical challenges",
+              "Weak to frost (1.25x), resistant to fire (0.7x)",
+              "Aggressive behavior - high attack frequency",
+              "65 XP, 22-48 gold reward"
+            ]
+          },
+          {
+            "title": "Ancient Frost Giant",
+            "bullets": [
+              "Level 20 ice tank enemy with massive HP pool (450)",
+              "High armor (12) and strong physical attacks (36)",
+              "Weak to fire (1.3x), heavily resistant to frost (0.6x)",
+              "Aggressive behavior with slow, devastating strikes",
+              "195 XP, 55-130 gold reward"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Boss: The Forgotten King",
+        "items": [
+          {
+            "title": "Multi-Phase Boss Encounter",
+            "bullets": [
+              "Level 25 boss with 800 HP and dual attack/magic capabilities",
+              "Phase 1 (100-51% HP): Summons skeleton warriors for reinforcements",
+              "Phase 2 (50-26% HP): Shadow magic attacks with 1.3x damage bonus",
+              "Phase 3 (25-0% HP): Life drain abilities healing 15% of damage dealt",
+              "High armor (14) and magic resistance (12) for endgame challenge",
+              "500 XP, 300-500 gold reward, bossForgottenKing behavior pattern"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Status Effects (5)",
+        "items": [
+          {
+            "title": "Exposed",
+            "bullets": [
+              "Next attack against target deals 50% bonus damage",
+              "Single-use: automatically removed after being hit",
+              "Tactical debuff for burst damage setups",
+              "Icon: 🎯"
+            ]
+          },
+          {
+            "title": "Fortified",
+            "bullets": [
+              "Reduces incoming damage by 25% per stack",
+              "Stackable up to 3 times (maximum 75% reduction)",
+              "Defensive buff for tank builds",
+              "Icon: 🛡️"
+            ]
+          },
+          {
+            "title": "Cursed",
+            "bullets": [
+              "Prevents target from being healed",
+              "Debuff for disrupting healer/sustain strategies",
+              "Duration-based effect",
+              "Icon: 💀"
+            ]
+          },
+          {
+            "title": "Blessed",
+            "bullets": [
+              "Increases healing received by 50%",
+              "Synergizes with healing spells and companions",
+              "Support buff for sustain builds",
+              "Icon: ✨"
+            ]
+          },
+          {
+            "title": "Dazed",
+            "bullets": [
+              "Reduces accuracy/damage output by 30%",
+              "Debuff for reducing enemy threat",
+              "Affects both physical and magical attacks",
+              "Icon: 💫"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Additional Status Effects",
+        "items": [
+          {
+            "title": "Burning, Poisoned, Vanished",
+            "bullets": [
+              "Burning: Fire damage over time (8 damage per turn)",
+              "Poisoned: Stackable poison DoT (6 damage per turn, max 5 stacks)",
+              "Vanished: Complete damage evasion (used by Shadow Assassin's Vanish ability)",
+              "Support helper functions for status effect calculations and interactions"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Service Plugins",
+        "items": [
+          {
+            "title": "combatSystemPlugin",
+            "bullets": [
+              "Registers combat system service with engine using proper lifecycle hooks",
+              "Automatically bridges combat events to world events (world:enemyDefeated, world:playerDefeated)",
+              "Includes proper init/start/stop/dispose lifecycle for memory leak prevention",
+              "Service registered as 'combat.system' for access from other systems"
+            ]
+          },
+          {
+            "title": "companionSystemPlugin",
+            "bullets": [
+              "Registers companion system service with engine using proper lifecycle hooks",
+              "Automatically subscribes to combat:ended and combat:enemyDefeated for loyalty progression",
+              "Awards loyalty points based on combat outcomes (5 per victory, 2-10 per enemy)",
+              "Includes proper init/start/stop/dispose lifecycle for memory leak prevention",
+              "Service registered as 'companion.system' for access from other systems"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Architecture Improvements",
+        "items": [
+          {
+            "title": "Completed Core System Integration",
+            "bullets": [
+              "Combat and companion systems now follow engine integration pattern from ENGINE_INTEGRATION_GUIDE.md",
+              "All major game systems (village, kingdom, loot, quest, combat, companion) now integrated with engine",
+              "Consistent service pattern across all systems with immutable state updates",
+              "Event-driven architecture enables better system decoupling and telemetry"
+            ]
+          },
+          {
+            "title": "Status Effect System Enhancement",
+            "bullets": [
+              "New centralized status effect definitions in data/statusEffects.js",
+              "Helper functions for status calculations: damage modifiers, healing modifiers, fortified reduction",
+              "Status effects now support stacking, consumption on hit, and complex interactions",
+              "Foundation for future status effect expansions and combat mechanics"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Technical Details",
+        "items": [
+          {
+            "title": "Files Added",
+            "bullets": [
+              "js/game/services/combatSystemService.js - Combat state management service",
+              "js/game/services/companionSystemService.js - Companion state management service",
+              "js/game/plugins/combatSystemPlugin.js - Combat system plugin",
+              "js/game/plugins/companionSystemPlugin.js - Companion system plugin",
+              "js/game/data/statusEffects.js - Status effect definitions and helpers"
+            ]
+          },
+          {
+            "title": "Files Modified",
+            "bullets": [
+              "js/game/systems/version.js - Updated to 1.2.90",
+              "js/game/data/companions.js - Added Phoenix and Shadow Assassin companions with abilities",
+              "js/game/runtime/gameOrchestrator.js - Added new enemies, boss, and registered new plugins"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.2.85",
     "title": "Engine Integration Expansion - Kingdom, Loot & Quest Systems",
     "sections": [

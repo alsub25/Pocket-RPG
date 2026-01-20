@@ -56,6 +56,8 @@ import { createTimeServicePlugin } from '../plugins/timeServicePlugin.js'
 import { createKingdomGovernmentPlugin } from '../plugins/kingdomGovernmentPlugin.js'
 import { createLootGeneratorPlugin } from '../plugins/lootGeneratorPlugin.js'
 import { createQuestSystemPlugin } from '../plugins/questSystemPlugin.js'
+import { createCombatSystemPlugin } from '../plugins/combatSystemPlugin.js'
+import { createCompanionSystemPlugin } from '../plugins/companionSystemPlugin.js'
 
 // Refactored modules (Patch 1.2.72 - Intensive Refactor & Hardening)
 import {
@@ -2357,7 +2359,77 @@ const ENEMY_TEMPLATES = {
         behavior: 'bossLich'
     },
 
-    // --- Obsidian Keep ------------------------------------------------------
+    // --- Patch 1.2.90: New Enemy Types -------------------------------------
+    corruptedDryad: {
+        id: 'corruptedDryad',
+        name: 'Corrupted Dryad',
+        baseLevel: 16,
+        maxHp: 200,
+        attack: 18,
+        magic: 22,
+        armor: 5,
+        magicRes: 6,
+        xp: 125,
+        goldMin: 40,
+        goldMax: 88,
+        isBoss: false,
+        behavior: 'healer',
+        affinities: { weak: { fire: 1.2 }, resist: { nature: 0.8 } }
+    },
+    emberImp: {
+        id: 'emberImp',
+        name: 'Ember Imp',
+        baseLevel: 12,
+        maxHp: 80,
+        attack: 16,
+        magic: 12,
+        armor: 2,
+        magicRes: 3,
+        xp: 65,
+        goldMin: 22,
+        goldMax: 48,
+        isBoss: false,
+        behavior: 'aggressive',
+        affinities: { weak: { frost: 1.25 }, resist: { fire: 0.7 } }
+    },
+    frostGiantNew: {
+        id: 'frostGiantNew',
+        name: 'Ancient Frost Giant',
+        baseLevel: 20,
+        maxHp: 450,
+        attack: 36,
+        magic: 12,
+        armor: 12,
+        magicRes: 7,
+        xp: 195,
+        goldMin: 55,
+        goldMax: 130,
+        isBoss: false,
+        behavior: 'aggressive',
+        affinities: { weak: { fire: 1.3 }, resist: { frost: 0.6 } }
+    },
+    theForgottenKing: {
+        id: 'theForgottenKing',
+        name: 'The Forgotten King',
+        baseLevel: 25,
+        maxHp: 800,
+        attack: 38,
+        magic: 45,
+        armor: 14,
+        magicRes: 12,
+        xp: 500,
+        goldMin: 300,
+        goldMax: 500,
+        isBoss: true,
+        behavior: 'bossForgottenKing',
+        phases: [
+            { threshold: 1.0, behavior: 'summon', summonType: 'skeletonWarrior' },
+            { threshold: 0.5, behavior: 'shadow', damageBonus: 1.3 },
+            { threshold: 0.25, behavior: 'lifeDrain', healPerHit: 0.15 }
+        ]
+    },
+
+    // --- Obsidian Keep (continued) ------------------------------------------
     darkKnight: {
         id: 'darkKnight',
         name: 'Dark Knight',
@@ -20733,6 +20805,12 @@ export function bootGame(engine) {
 
         // 21) Quest system service - Engine-integrated quest state management
         _engine.use(createQuestSystemPlugin())
+
+        // 22) Combat system service - Engine-integrated combat state management (Patch 1.2.90)
+        _engine.use(createCombatSystemPlugin())
+
+        // 23) Companion system service - Engine-integrated companion state management (Patch 1.2.90)
+        _engine.use(createCompanionSystemPlugin())
 
         // 18) Replay recorder/player (records command dispatches)
         _engine.use(createReplayBridgePlugin({ getState: () => state }))

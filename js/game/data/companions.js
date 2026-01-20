@@ -106,6 +106,28 @@ export const COMPANION_DEFS = {
         baseHpBonus: 0,
         behavior: 'mimic',
         abilities: ['mirrorBurst', 'echoStrike', 'shadowLatch', 'mimicSurge']
+    },
+    phoenix: {
+        id: 'phoenix',
+        name: 'Emberborn Phoenix',
+        role: 'DPS/Support',
+        description:
+            'A mythical firebird that deals devastating fire damage and can resurrect once per combat.',
+        baseAttack: 12,
+        baseHpBonus: 0,
+        behavior: 'aggressive',
+        abilities: ['flamingStrike', 'healingFlames', 'phoenixRebirth', 'infernoBlast']
+    },
+    shadowAssassin: {
+        id: 'shadowAssassin',
+        name: 'Shade Walker',
+        role: 'Burst DPS',
+        description:
+            'A master of shadows that strikes from darkness with lethal precision.',
+        baseAttack: 14,
+        baseHpBonus: 0,
+        behavior: 'cunning',
+        abilities: ['shadowStrike', 'vanish', 'backstab', 'poisonDart']
     }
 }
 
@@ -421,5 +443,80 @@ export const COMPANION_ABILITIES = {
         cooldown: 6,
         type: 'damage',
         potency: 1.8
+    },
+
+    // PHOENIX
+    flamingStrike: {
+        id: 'flamingStrike',
+        name: 'Flaming Strike',
+        desc: 'A searing fire attack that deals heavy damage and applies a burn DoT.',
+        cooldown: 3,
+        type: 'damage+debuff',
+        potency: 1.5,
+        element: 'fire',
+        debuffTurns: 3
+    },
+    healingFlames: {
+        id: 'healingFlames',
+        name: 'Healing Flames',
+        desc: 'Channels purifying flames to restore player HP over 2 turns.',
+        cooldown: 4,
+        type: 'heal',
+        potency: 0.3
+    },
+    phoenixRebirth: {
+        id: 'phoenixRebirth',
+        name: 'Phoenix Rebirth',
+        desc: 'Self-resurrects once per combat when defeated, returning with 50% HP.',
+        cooldown: 999,
+        type: 'passive',
+        potency: 0.5
+    },
+    infernoBlast: {
+        id: 'infernoBlast',
+        name: 'Inferno Blast',
+        desc: 'Unleashes a devastating fire explosion dealing massive damage.',
+        cooldown: 5,
+        type: 'damage',
+        potency: 2.2,
+        element: 'fire'
+    },
+
+    // SHADOW ASSASSIN
+    shadowStrike: {
+        id: 'shadowStrike',
+        name: 'Shadow Strike',
+        desc: 'A precise strike from the shadows dealing high damage with increased crit chance.',
+        cooldown: 3,
+        type: 'damage',
+        potency: 1.7,
+        critSpike: 0.5
+    },
+    vanish: {
+        id: 'vanish',
+        name: 'Vanish',
+        desc: 'Disappears into shadows, avoiding all damage for 1 turn.',
+        cooldown: 5,
+        type: 'buff',
+        potency: 0,
+        buffTurns: 1
+    },
+    backstab: {
+        id: 'backstab',
+        name: 'Backstab',
+        desc: 'A brutal attack from behind dealing massive damage and applying bleeding.',
+        cooldown: 4,
+        type: 'damage+debuff',
+        potency: 2.0,
+        debuffTurns: 3
+    },
+    poisonDart: {
+        id: 'poisonDart',
+        name: 'Poison Dart',
+        desc: 'Throws a poisoned dart that deals moderate damage and applies stacking poison DoT.',
+        cooldown: 3,
+        type: 'damage+debuff',
+        potency: 1.1,
+        debuffTurns: 4
     }
 }
