@@ -4,7 +4,7 @@
 export const CHANGELOG = [
   {
     "version": "1.2.90",
-    "title": "Enhanced Class Complexity & Depth",
+    "title": "Chapter V: The Crimson Pact - Enhanced Class Complexity & Major Story Expansion",
     "sections": [
       {
         "heading": "Class System Enhancements",
@@ -87,6 +87,103 @@ export const CHANGELOG = [
               "Each class now has clearer identity with distinct passive abilities",
               "Strengths and weaknesses provide strategic considerations for class selection",
               "Special mechanics descriptions help players understand unique class systems"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Chapter V: The Crimson Pact - Major Story Expansion",
+        "items": [
+          {
+            "title": "4 New Zones Added",
+            "bullets": [
+              "✨ Crimson Canopy (Levels 28-32) - Ancient treetop city with political intrigue and powerful guardians",
+              "✨ Thornheart Grotto (Levels 32-36) - Corrupted underground cavern where nature has turned dark",
+              "✨ Whisperwind Plateau (Levels 36-40) - Storm-swept highlands ruled by elemental forces",
+              "✨ Emberfall Sanctum (Levels 40-45) - Ancient temple holding the secrets of Eternal Flame"
+            ]
+          },
+          {
+            "title": "20 New Enemies to Battle",
+            "bullets": [
+              "Crimson Canopy: Canopy Guardian, Thornweaver Mystic, Crimson Stalker, Skybound Sentinel, Elder Treelord (Boss)",
+              "Thornheart Grotto: Blightspawn, Thornheart Hulk, Corrupted Dryad, Venom Spitter, Thornheart Queen (Boss)",
+              "Whisperwind Plateau: Stormcaller Shaman, Windwraith, Sky Terror, Ancient Harpy, Storm Sovereign (Boss)",
+              "Emberfall Sanctum: Emberfallen Knight, Flamewarden, Ashguard Sentinel, Primordial Flame, The Eternitykeeper (Final Boss)",
+              "Each enemy features unique abilities, behaviors, and elemental affinities",
+              "Progressive difficulty curve from level 28-45 for endgame content"
+            ]
+          },
+          {
+            "title": "8 New NPCs to Meet",
+            "bullets": [
+              "Voice-Keeper - Mysterious messenger who brings word of the forest's call",
+              "Seraph Thornwind - Leader of the Canopy Council with ambitions beyond the treetops",
+              "Warden Mycellia - Guardian of Thornheart Grotto who seeks aid against corruption",
+              "Sage Aeris - Peaceful scholar at the Wind Shrine who advocates diplomacy",
+              "Keeper Pyralis - Ancient guardian of Emberfall Sanctum who tests worthiness",
+              "Plus 3 supporting characters woven throughout the story",
+              "Each NPC offers unique perspectives and choices for the player"
+            ]
+          },
+          {
+            "title": "Player Choice System - Branching Narrative",
+            "bullets": [
+              "🔀 5 Major Choice Points that shape the story:",
+              "Choice 1: Accept or refuse membership in the Canopy Council (Step 32.5)",
+              "Choice 2: Purge or bind the Thornheart Queen (Step 36)",
+              "Choice 3: Side with Sage Aeris (diplomacy) or Seraph Thornwind (conquest) (Step 41)",
+              "Choice 4: Determine the fate of the Eternal Flame - rekindle, extinguish, or reshape (Step 44)",
+              "Choice 5: FINAL DECISION - Accept the crown, break all oaths, or forge a new path for Emberwood (Step 46)",
+              "Player choices have meaningful consequences on story progression",
+              "Multiple endings based on final choice at step 46"
+            ]
+          },
+          {
+            "title": "17 New Quest Steps (Steps 31-47)",
+            "bullets": [
+              "Complete three-act story structure continuing seamlessly from Chapter IV",
+              "Act I: The Call of the Canopy - Explore ancient treetop civilization",
+              "Act II: Roots of Corruption - Battle through corrupted grotto and storm-swept highlands",
+              "Act III: The Eternal Flame - Uncover secrets of Emberfall Sanctum and make final choice",
+              "7 new objective sets with kill counts and collectible items",
+              "Story explores themes of power, duty, and the cost of leadership",
+              "Epic conclusion to the Blackbark Oath saga"
+            ]
+          },
+          {
+            "title": "Quest Objectives",
+            "bullets": [
+              "Step 33: Break Canopy patrols (8 kills) + Recover Crimson Seals (3 items)",
+              "Step 35: Defeat Thornheart thralls (10 kills) + Collect Corruption Samples (5 items)",
+              "Step 36: Slay Thornheart Queen + Claim Queen's Heart",
+              "Step 39: Defeat Storm Cultists (12 kills) + Gather Storm Totems (4 items)",
+              "Step 40: Vanquish Storm Sovereign + Obtain Sovereign's Crown",
+              "Step 43: Eliminate Emberfallen Knights (15 kills) + Secure Flame Sigils (6 items)",
+              "Step 45: Defeat The Eternitykeeper (Final Boss) + Claim Eternal Flame Shard"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Content Additions",
+        "items": [
+          {
+            "title": "Gameplay Enhancements",
+            "bullets": [
+              "Over 900 lines of new game content added",
+              "Smooth difficulty progression for endgame players (Levels 28-45)",
+              "Rich narrative with investigation, boss battles, and moral dilemmas",
+              "Thematic consistency with forest magic and oath mechanics from earlier chapters",
+              "Complete integration with existing quest and combat systems"
+            ]
+          },
+          {
+            "title": "Documentation",
+            "bullets": [
+              "EXPANSION_CONTENT.md - Comprehensive guide to Chapter V content",
+              "CHAPTER_V_QUEST_FLOW.md - Detailed quest flowchart and progression guide",
+              "EXPANSION_SUMMARY.md - Quick reference for new features and content"
             ]
           }
         ]
