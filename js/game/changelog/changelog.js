@@ -3,6 +3,79 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.2.90",
+    "title": "Content Expansion - New Enemies, Talents & Abilities",
+    "sections": [
+      {
+        "heading": "New Player Abilities",
+        "items": [
+          {
+            "title": "Enhanced Class Arsenal",
+            "bullets": [
+              "Added Chain Lightning for Mage - A powerful lightning spell that can strike multiple foes (Level 6 unlock)",
+              "Added Steel Guard for Warrior - Defensive stance that reflects damage and provides temporary armor (Level 6 unlock)",
+              "Added Crimson Tide for Blood Knight - Channel blood magic to deal damage and heal over multiple turns (Level 9 unlock)",
+              "Added Explosive Shot for Ranger - Fire an explosive arrow that deals area damage (Level 9 unlock)",
+              "Added Divine Protection for Paladin - Invoke divine power to create a protective shield (Level 9 unlock)",
+              "Added Venom Strike for Rogue - Apply deadly toxin dealing heavy poison damage over time (Level 6 unlock)",
+              "All new abilities integrate seamlessly with existing class mechanics and talent synergies"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Enemy Abilities",
+        "items": [
+          {
+            "title": "Expanded Enemy Tactics",
+            "bullets": [
+              "Added Frost Bite - Chilling attack that slows and damages (3 turn cooldown)",
+              "Added Shadow Strike - Strike from shadows with increased damage and telegraph (4 turn cooldown)",
+              "Added Earth Shatter - Ground smash dealing damage and stunning (5 turn cooldown)",
+              "Added Venomous Strike - Toxic strike causing severe poisoning (4 turn cooldown)",
+              "Added Lightning Bolt - Pure electrical energy attack (3 turn cooldown)",
+              "Added Holy Smite - Divine judgment dealing high holy damage (4 turn cooldown)",
+              "Created new boss ability set 'Forest Guardian' combining earth, nature, and physical attacks",
+              "Enhanced enemy diversity with new elemental damage types (lightning, earth, enhanced poison)"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "New Talent Options",
+        "items": [
+          {
+            "title": "Shared Talent Pool",
+            "bullets": [
+              "Added Lightning Focus (Tier 2) - Increase lightning spell damage by 10%",
+              "Added Earth Mastery (Tier 2) - Increase earth spell damage by 10%",
+              "Added Poison Ward (Tier 3) - Gain 15% poison resistance",
+              "Added Storm Ward (Tier 3) - Gain 15% lightning resistance",
+              "Added Fortitude (Tier 3) - Increase maximum HP by 15",
+              "Added Swift Strikes (Tier 4) - Gain 5% haste bonus",
+              "New shared talents provide cross-class elemental customization options",
+              "Enhanced build diversity with new defensive and offensive talent choices"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Balance & Quality of Life",
+        "items": [
+          {
+            "title": "Content Integration",
+            "bullets": [
+              "All new abilities follow existing cost and balance conventions",
+              "New enemy abilities use standard telegraph and cooldown systems",
+              "Talents integrated into existing tier progression structure",
+              "New content prepared for future boss encounters and quest chains"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.2.85",
     "title": "Engine Integration Expansion - Kingdom, Loot & Quest Systems",
     "sections": [

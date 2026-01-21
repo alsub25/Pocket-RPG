@@ -159,6 +159,17 @@ export const TALENT_DEFS = {
 
         { id: 'vampire_crimson_crit', tier: 4, levelReq: 12, name: 'Crimson Crit', desc: 'Gain +10% Crit Chance.' },
         { id: 'vampire_mistward', tier: 4, levelReq: 12, name: 'Mistward', desc: 'Gain 15% Frost resistance.' }
+    ],
+
+    // NEW TALENTS - Patch 1.2.90
+    // Additional talents for existing classes to enhance build diversity
+    shared: [
+        { id: 'shared_lightning_focus', tier: 2, levelReq: 6, name: 'Lightning Focus', desc: 'Lightning spells deal +10% damage.' },
+        { id: 'shared_earth_mastery', tier: 2, levelReq: 6, name: 'Earth Mastery', desc: 'Earth spells deal +10% damage.' },
+        { id: 'shared_poison_resistance', tier: 3, levelReq: 9, name: 'Poison Ward', desc: 'Gain 15% Poison resistance.' },
+        { id: 'shared_lightning_resistance', tier: 3, levelReq: 9, name: 'Storm Ward', desc: 'Gain 15% Lightning resistance.' },
+        { id: 'shared_fortitude', tier: 3, levelReq: 9, name: 'Fortitude', desc: 'Increase maximum HP by 15.' },
+        { id: 'shared_swift_strikes', tier: 4, levelReq: 12, name: 'Swift Strikes', desc: 'Gain +5% Haste.' }
     ]
 
 }

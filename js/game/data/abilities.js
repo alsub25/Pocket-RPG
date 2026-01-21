@@ -617,5 +617,60 @@ export const ABILITIES = {
         cost: { essence: 45 },
         note: 'A brutal eclipse: huge shadow damage and healing. (Unlocks at level 12)'
     },
+
+    // NEW ABILITIES - Patch 1.2.90
+    // MAGE - Lightning Mastery
+    chainLightning: {
+        id: 'chainLightning',
+        name: 'Chain Lightning',
+        classId: 'mage',
+        cost: { mana: 25 },
+        note: 'Unleash a bolt of lightning that can strike multiple foes. (Unlocks at level 6)'
+    },
+
+    // WARRIOR - Defensive Stance
+    steelGuard: {
+        id: 'steelGuard',
+        name: 'Steel Guard',
+        classId: 'warrior',
+        cost: { fury: 18 },
+        note: 'Take a defensive stance, reflecting damage and gaining temporary armor. (Unlocks at level 6)'
+    },
+
+    // BLOOD KNIGHT - Vampiric Drain
+    crimsonTide: {
+        id: 'crimsonTide',
+        name: 'Crimson Tide',
+        classId: 'blood',
+        cost: { blood: 25 },
+        note: 'Channel blood magic to deal damage and heal over multiple turns. (Unlocks at level 9)'
+    },
+
+    // RANGER - Explosive Arrow
+    explosiveShot: {
+        id: 'explosiveShot',
+        name: 'Explosive Shot',
+        classId: 'ranger',
+        cost: { fury: 30 },
+        note: 'Fire an explosive arrow that deals area damage. (Unlocks at level 9)'
+    },
+
+    // PALADIN - Divine Shield
+    divineProtection: {
+        id: 'divineProtection',
+        name: 'Divine Protection',
+        classId: 'paladin',
+        cost: { mana: 25 },
+        note: 'Invoke divine power to shield yourself from harm. (Unlocks at level 9)'
+    },
+
+    // ROGUE - Deadly Poison
+    venomStrike: {
+        id: 'venomStrike',
+        name: 'Venom Strike',
+        classId: 'rogue',
+        cost: { fury: 22 },
+        note: 'Apply a deadly toxin that deals heavy poison damage over time. (Unlocks at level 6)'
+    },
 }
 

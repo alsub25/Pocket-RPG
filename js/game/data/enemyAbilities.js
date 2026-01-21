@@ -294,5 +294,89 @@ export const ENEMY_ABILITY_SETS = {
         'lichCurse',
         'lifeDrain',
         'shatterShield'
+    ],
+
+    // NEW ABILITIES - Patch 1.2.90
+    frostBite: {
+        id: 'frostBite',
+        name: 'Frost Bite',
+        desc: 'A chilling attack that slows and damages.',
+        cooldown: 3,
+        type: 'damage+debuff',
+        damageType: 'magic',
+        elementType: 'frost',
+        potency: 1.25,
+        slowTurns: 2
+    },
+
+    shadowStrike: {
+        id: 'shadowStrike',
+        name: 'Shadow Strike',
+        desc: 'Strike from the shadows with increased damage.',
+        cooldown: 4,
+        type: 'damage',
+        damageType: 'physical',
+        elementType: 'shadow',
+        potency: 1.6,
+        telegraphTurns: 1,
+        telegraphText: 'melts into the shadows...'
+    },
+
+    earthShatter: {
+        id: 'earthShatter',
+        name: 'Earth Shatter',
+        desc: 'Smash the ground, dealing damage and stunning.',
+        cooldown: 5,
+        type: 'damage+debuff',
+        damageType: 'physical',
+        elementType: 'earth',
+        potency: 1.4,
+        stunTurns: 1,
+        telegraphTurns: 1,
+        telegraphText: 'charges earth energy...'
+    },
+
+    venomousStrike: {
+        id: 'venomousStrike',
+        name: 'Venomous Strike',
+        desc: 'A toxic strike that causes severe poisoning.',
+        cooldown: 4,
+        type: 'damage+bleed',
+        damageType: 'physical',
+        elementType: 'poison',
+        potency: 1.15,
+        bleedTurns: 5,
+        bleedBase: 4
+    },
+
+    lightningBolt: {
+        id: 'lightningBolt',
+        name: 'Lightning Bolt',
+        desc: 'A crackling bolt of pure electrical energy.',
+        cooldown: 3,
+        type: 'damage',
+        damageType: 'magic',
+        elementType: 'lightning',
+        potency: 1.5
+    },
+
+    holySmite: {
+        id: 'holySmite',
+        name: 'Holy Smite',
+        desc: 'Divine judgment that purges darkness.',
+        cooldown: 4,
+        type: 'damage',
+        damageType: 'magic',
+        elementType: 'holy',
+        potency: 1.55
+    },
+
+    // New boss ability set for future content
+    bossForestGuardian: [
+        'heavyCleave',
+        'earthShatter',
+        'venomousStrike',
+        'guardUp',
+        'enrageHowl'
     ]
 }
