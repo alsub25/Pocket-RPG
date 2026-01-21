@@ -3219,3 +3219,198 @@ body.no-motion .spell-card.meter-buffed::after{
   line-height:1.25;
 }
 
+
+/* =============================================================================
+   LANGUAGE SELECTOR STYLES
+   ============================================================================= */
+
+/* Language Selector Container */
+.language-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+}
+
+.language-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.language-icon {
+  font-size: 18px;
+}
+
+.language-text {
+  white-space: nowrap;
+}
+
+.language-dropdown {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tight);
+  font-family: var(--font);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--t-med) var(--ease);
+}
+
+.language-dropdown:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.language-dropdown:focus {
+  outline: var(--focus);
+  outline-offset: var(--focus-offset);
+  border-color: var(--accent);
+}
+
+.language-dropdown option {
+  background: var(--surface-1);
+  color: var(--text);
+  padding: 8px;
+}
+
+/* Language Switcher Button (Inline) */
+.language-switcher-btn {
+  padding: 8px 12px;
+  background: var(--btn-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tight);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all var(--t-med) var(--ease);
+  box-shadow: var(--shadow-card);
+}
+
+.language-switcher-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.language-switcher-btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-inset);
+}
+
+.language-switcher-btn:focus {
+  outline: var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* Language Settings Section */
+.language-settings-section {
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+.language-settings-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.language-settings-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.language-settings-option:last-child {
+  border-bottom: none;
+}
+
+.language-settings-label {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.language-settings-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Translation Status Indicator */
+.translation-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--pill);
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.translation-status.active {
+  background: rgba(79, 195, 247, 0.3);
+}
+
+.translation-status.local {
+  background: var(--surface-selected);
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+/* Translatable elements with loading state */
+[data-i18n] {
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+[data-i18n].translating {
+  opacity: 0.6;
+}
+
+/* Language change notification */
+.language-change-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  box-shadow: var(--shadow-pop);
+  animation: slideInRight var(--t-med) var(--ease);
+  z-index: 10000;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
