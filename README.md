@@ -4,14 +4,14 @@
 
 ### *A Browser-Based Fantasy RPG & Living Village Simulator*
 
-[![Version](https://img.shields.io/badge/version-1.2.85-blue.svg)](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
+[![Version](https://img.shields.io/badge/version-1.2.90-blue.svg)](https://github.com/alsub25/Emberwood-The-Blackbark-Oath)
 [![License](https://img.shields.io/badge/license-See%20License%20Section-green.svg)](#-license)
 [![No Build Required](https://img.shields.io/badge/build-none-brightgreen.svg)](#-quick-start)
 [![ES Modules](https://img.shields.io/badge/modules-native%20ES-orange.svg)](#-quick-start)
 
 **[🎮 Play Now](#-quick-start) • [📖 Features](#-key-features) • [🚀 Deploy](#-deployment) • [🐛 Report Bug](#-testing--debugging)**
 
-> **Current Patch:** v1.2.85 — *Engine Integration Expansion - Kingdom, Loot & Quest Systems*
+> **Current Patch:** v1.2.90 — *Enhanced Class Complexity & Depth*
 
 </div>
 

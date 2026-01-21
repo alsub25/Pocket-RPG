@@ -297,6 +297,38 @@ export function createCombatMath(deps) {
           }
       }
 
+      // ===== CLASS PASSIVE ABILITIES (Patch 1.2.90) =====
+
+      // Blood Knight: Crimson Pact - Deal 1% more damage per 10% missing HP
+      if (p && p.classId === 'blood' && p.maxHp > 0) {
+          const playerHpPct = p.hp / p.maxHp
+          const missingHpPct = 1 - playerHpPct
+          const crimsonBonus = missingHpPct * 10 // 1% per 10% missing
+          if (crimsonBonus > 0) {
+              dmg *= 1 + crimsonBonus / 100
+          }
+      }
+
+      // Ranger: Hunter's Mark - Deal 10% bonus damage to bleeding targets
+      if (p && p.classId === 'ranger' && enemy && enemy.bleedTurns && enemy.bleedTurns > 0) {
+          dmg *= 1.10
+      }
+
+      // Rogue: Assassin's Edge - 15% increased critical strike damage
+      if (p && p.classId === 'rogue' && crit) {
+          dmg *= 1.15
+      }
+
+      // Berserker: Rage - Deal 2% more damage per 10% missing HP (max 20%)
+      if (p && p.classId === 'berserker' && p.maxHp > 0) {
+          const playerHpPct = p.hp / p.maxHp
+          const missingHpPct = 1 - playerHpPct
+          const rageBonus = Math.min(missingHpPct * 20, 20) // 2% per 10% missing, cap at 20%
+          if (rageBonus > 0) {
+              dmg *= 1 + rageBonus / 100
+          }
+      }
+
       // Patch 1.2.52: unified damage breakdown for combat log + debugging.
       const breakdown = {
           actor: 'player',
@@ -495,6 +527,43 @@ export function createCombatMath(deps) {
           }
       }
 
+      // ===== CLASS PASSIVE ABILITIES (Patch 1.2.90) =====
+
+      // Mage: Arcane Mastery - Spell damage scales 15% better with Magic stat (applied to base)
+      if (p && p.classId === 'mage') {
+          dmg *= 1.15
+      }
+
+      // Blood Knight: Crimson Pact - Deal 1% more damage per 10% missing HP
+      if (p && p.classId === 'blood' && p.maxHp > 0) {
+          const playerHpPct = p.hp / p.maxHp
+          const missingHpPct = 1 - playerHpPct
+          const crimsonBonus = missingHpPct * 10 // 1% per 10% missing
+          if (crimsonBonus > 0) {
+              dmg *= 1 + crimsonBonus / 100
+          }
+      }
+
+      // Shaman: Elemental Attunement - Deal 8% more damage with Nature and Lightning
+      if (p && p.classId === 'shaman' && (et === 'nature' || et === 'lightning')) {
+          dmg *= 1.08
+      }
+
+      // Rogue: Assassin's Edge - 15% increased critical strike damage
+      if (p && p.classId === 'rogue' && crit) {
+          dmg *= 1.15
+      }
+
+      // Berserker: Rage - Deal 2% more damage per 10% missing HP (max 20%)
+      if (p && p.classId === 'berserker' && p.maxHp > 0) {
+          const playerHpPct = p.hp / p.maxHp
+          const missingHpPct = 1 - playerHpPct
+          const rageBonus = Math.min(missingHpPct * 20, 20) // 2% per 10% missing, cap at 20%
+          if (rageBonus > 0) {
+              dmg *= 1 + rageBonus / 100
+          }
+      }
+
       // Patch 1.2.52: unified damage breakdown for combat log + debugging.
       const breakdown = {
           actor: 'player',
@@ -685,6 +754,17 @@ export function createCombatMath(deps) {
           if (mhp > 0) {
               const hpPct = Number(enemy.hp || 0) / mhp
               if (hpPct > 0 && hpPct <= 0.30) dmg *= 1.15
+          }
+      }
+
+      // ===== CLASS PASSIVE ABILITIES (Patch 1.2.90) =====
+
+      // Warrior: Battle Hardened - Gain 2% damage reduction per combat turn (max 10%)
+      if (p && p.classId === 'warrior') {
+          const combatTurn = state.combatTurn || 0
+          const battleHardenedReduction = Math.min(combatTurn * 2, 10) // 2% per turn, max 10%
+          if (battleHardenedReduction > 0) {
+              dmg *= 1 - battleHardenedReduction / 100
           }
       }
 

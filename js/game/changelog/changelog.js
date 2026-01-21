@@ -3,6 +3,97 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.2.90",
+    "title": "Enhanced Class Complexity & Depth",
+    "sections": [
+      {
+        "heading": "Class System Enhancements",
+        "items": [
+          {
+            "title": "Added Class Passive Abilities (FUNCTIONAL)",
+            "bullets": [
+              "✅ Mage: Arcane Mastery - Spell damage scales 15% better with Magic stat (IMPLEMENTED)",
+              "✅ Warrior: Battle Hardened - Gain 2% damage reduction per combat turn (max 10%) (IMPLEMENTED)",
+              "✅ Blood Knight: Crimson Pact - Deal 1% more damage per 10% missing HP (IMPLEMENTED)",
+              "✅ Ranger: Hunter's Mark - Deal 10% bonus damage to bleeding targets (IMPLEMENTED)",
+              "✅ Paladin: Divine Protection - Heal 3% max HP when dealing holy damage (IMPLEMENTED)",
+              "✅ Rogue: Assassin's Edge - 15% increased critical strike damage (IMPLEMENTED)",
+              "✅ Cleric: Sacred Blessing - Healing spells cost 10% less mana (IMPLEMENTED)",
+              "✅ Necromancer: Soul Harvest - Gain 5 mana when an enemy dies (IMPLEMENTED)",
+              "✅ Shaman: Elemental Attunement - Deal 8% more damage with Nature and Lightning (IMPLEMENTED)",
+              "✅ Berserker: Rage - Deal 2% more damage per 10% missing HP (max 20%) (IMPLEMENTED)",
+              "✅ Vampire: Vampiric Touch - Drain 5% of damage dealt as Essence (IMPLEMENTED)",
+              "All passive abilities are now fully functional in combat!"
+            ]
+          },
+          {
+            "title": "Added Class Strengths",
+            "bullets": [
+              "Each class now has defined strengths that highlight their optimal playstyle",
+              "Mage excels with Fire, Frost, and Arcane damage",
+              "Warrior specializes in Physical damage and High armor",
+              "Blood Knight masters Shadow damage and Lifesteal",
+              "Ranger dominates with Physical ranged attacks and Bleed effects",
+              "Paladin shines with Holy damage, Healing, and High defense",
+              "Rogue excels in Critical strikes, Poison, and High speed",
+              "Cleric specializes in Holy magic, Healing, and Cleansing",
+              "Necromancer masters Shadow damage, Minion summoning, and DoT effects",
+              "Shaman excels with Nature magic, Lightning, and Versatile playstyle",
+              "Berserker dominates with Raw physical damage and High HP",
+              "Vampire masters Shadow magic, Essence draining, and Lifesteal"
+            ]
+          },
+          {
+            "title": "Added Class Weaknesses",
+            "bullets": [
+              "Each class now has defined weaknesses that add strategic depth",
+              "Mage is vulnerable in Physical melee range",
+              "Warrior struggles against Magic damage and Status effects",
+              "Blood Knight is weak to Holy damage and HP costs",
+              "Ranger has Low armor and struggles in Close combat",
+              "Paladin is vulnerable to Shadow damage and Slow speed",
+              "Rogue has Very low armor and struggles in Sustained fights",
+              "Cleric is weak to Shadow damage and has Low armor",
+              "Necromancer is vulnerable to Holy damage and Very fragile",
+              "Shaman Requires totem setup and has Split focus",
+              "Berserker is vulnerable to Magic damage and Reckless playstyle",
+              "Vampire is weak to Holy damage and has Essence dependency"
+            ]
+          },
+          {
+            "title": "Added Special Mechanics Descriptions",
+            "bullets": [
+              "Mage: Rhythm System - Every 3rd spell is empowered",
+              "Warrior: Bulwark - Blocks damage periodically based on armor",
+              "Blood Knight: Bloodrush - Activates when below 50% HP for enhanced abilities",
+              "Ranger: Focus Aim - Critical strike chance increases with consecutive attacks",
+              "Paladin: Righteous Fury - Gains buffs when allies are wounded",
+              "Rogue: Combo Points - Build points with attacks for devastating finishers",
+              "Cleric: Prayer - Channel mana to boost next healing spell effectiveness",
+              "Necromancer: Undeath - Summon skeletal minions to fight alongside you",
+              "Shaman: Totems - Place totems that provide ongoing buffs and effects",
+              "Berserker: Frenzy - Damage increases as HP decreases, risky but powerful",
+              "Vampire: Hunger - Above 55% Essence, gain enhanced vampiric abilities"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Game Balance",
+        "items": [
+          {
+            "title": "Improved Class Identity",
+            "bullets": [
+              "Each class now has clearer identity with distinct passive abilities",
+              "Strengths and weaknesses provide strategic considerations for class selection",
+              "Special mechanics descriptions help players understand unique class systems"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.2.85",
     "title": "Engine Integration Expansion - Kingdom, Loot & Quest Systems",
     "sections": [
