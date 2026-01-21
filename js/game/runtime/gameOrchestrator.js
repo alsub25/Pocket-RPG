@@ -4213,26 +4213,26 @@ function toggleHudEntity() {
  * Character creation UI + translating choices into initial `state.player`.
  * ============================================================================= */
 
+// Extended icon map for ALL classes
+const CLASS_ICONS = {
+    mage: '🔥',
+    warrior: '🛡',
+    blood: '🩸',
+    ranger: '🎯',
+    paladin: '✝',
+    rogue: '🗡',
+    cleric: '⛨',
+    necromancer: '💀',
+    shaman: '🌩',
+    berserker: '💢',
+    vampire: '🦇'
+}
+
 function buildCharacterCreationOptions() {
     const classRow = document.getElementById('classOptions')
     const diffRow = document.getElementById('difficultyOptions')
     classRow.innerHTML = ''
     diffRow.innerHTML = ''
-
-    // Extended icon map for ALL classes
-    const CLASS_ICONS = {
-        mage: '🔥',
-        warrior: '🛡',
-        blood: '🩸',
-        ranger: '🎯',
-        paladin: '✝',
-        rogue: '🗡',
-        cleric: '⛨',
-        necromancer: '💀',
-        shaman: '🌩',
-        berserker: '💢',
-        vampire: '🦇'
-    }
 
     // Combat meters (shown in the combat HUD). Listed here so players know what the extra bar/dots mean.
     const CLASS_METERS = {
@@ -4379,7 +4379,7 @@ function showClassInfoModal(cls) {
                         <h4 style="margin: 0 0 6px 0; color: var(--muted); font-size: 0.95rem;">🎯 Starting Abilities</h4>
                         <div style="padding: 8px 12px; background: rgba(255, 255, 255, 0.05); border-radius: 4px; font-size: 0.9rem;">
                             ${cls.startingSpells.map(spell => {
-                                const ability = ABILITIES[spell]
+                                const ability = ABILITIES && ABILITIES[spell] ? ABILITIES[spell] : null
                                 return ability ? `<div style="margin-bottom: 6px;"><strong>${ability.name}</strong>: ${ability.note || 'No description'}</div>` : ''
                             }).join('')}
                         </div>
