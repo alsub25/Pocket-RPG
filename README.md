@@ -11,7 +11,7 @@
 
 **[🎮 Play Now](#-quick-start) • [📖 Features](#-key-features) • [🚀 Deploy](#-deployment) • [🐛 Report Bug](#-testing--debugging)**
 
-> **Current Patch:** v1.2.90 — *Enhanced Class Complexity & Depth*
+> **Current Patch:** v1.2.90 — *AI-Powered Localization & Multi-Language Support*
 
 </div>
 
@@ -26,16 +26,17 @@
 - **Deploy Anywhere** — Works on any static host (GitHub Pages, Netlify, etc.)
 - **Offline-First** — Runs entirely in-browser with localStorage persistence
 - **Developer-Friendly** — Comprehensive testing suite and deterministic debugging
+- **AI-Powered Localization** — Play in 10+ languages with optional AI translation support
 
 ### ✨ Key Features
 
-| 🎲 Combat | 🏘️ Village | ⚡ Progression | 🛠️ Dev Tools |
-|-----------|------------|---------------|---------------|
-| Turn-based tactical battles | Dynamic economy | Multiple classes | Smoke test suite |
-| Multi-enemy encounters | Merchant trading | Talent trees | Scenario runner |
-| Status effects & synergies | Banking & loans | Procedural loot | Bug reporting |
-| Elemental interactions | Town hall governance | Skill allocation | Performance profiling |
-| Enemy intent system | Population moods | Ability unlocks | Deterministic RNG |
+| 🎲 Combat | 🏘️ Village | ⚡ Progression | 🛠️ Dev Tools | 🌐 Localization |
+|-----------|------------|---------------|---------------|-----------------|
+| Turn-based tactical battles | Dynamic economy | Multiple classes | Smoke test suite | 10+ languages |
+| Multi-enemy encounters | Merchant trading | Talent trees | Scenario runner | AI translation |
+| Status effects & synergies | Banking & loans | Procedural loot | Bug reporting | Real-time switching |
+| Elemental interactions | Town hall governance | Skill allocation | Performance profiling | OpenAI/Google support |
+| Enemy intent system | Population moods | Ability unlocks | Deterministic RNG | Translation caching |
 
 ---
 
@@ -458,6 +459,35 @@ Living village with interconnected systems:
 
 **Economic Loop:** Player actions → Supply/Demand → Prices → Population Mood → Governance Options
 
+### Localization System
+
+**AI-Powered Multi-Language Support:**
+
+The game includes a comprehensive localization system with optional AI-powered translation:
+
+**Supported Languages:**
+- 🇺🇸 English (en-US)
+- 🇪🇸 Spanish (es-ES)
+- 🇫🇷 French (fr-FR)
+- 🇩🇪 German (de-DE)
+- 🇯🇵 Japanese (ja-JP)
+- 🇨🇳 Chinese (zh-CN)
+- 🇧🇷 Portuguese (pt-BR)
+- 🇷🇺 Russian (ru-RU)
+- 🇰🇷 Korean (ko-KR)
+- 🇮🇹 Italian (it-IT)
+
+**Features:**
+- Real-time language switching without reload
+- Local mode (pre-translated content, no API needed)
+- AI translation mode (OpenAI, Google Translate)
+- Intelligent caching to minimize API calls
+- Persistent language preferences
+
+**Usage:** Access language settings in the game's settings menu. Enable AI translation for dynamic content translation, or use local mode for instant, offline translations.
+
+**For Developers:** See `/js/game/data/locales/README.md` for detailed documentation on adding new languages and using the translation API.
+
 </details>
 
 ---
@@ -512,6 +542,17 @@ Living village with interconnected systems:
 2. Add default state in `questDefaults.js`
 3. Bind triggers in `questBindings.js` if special integration needed
 4. Verify with Smoke Tests → Quest Lifecycle
+
+</details>
+
+<details>
+<summary><b>Add a New Language</b></summary>
+
+1. Create a new locale file in `js/game/data/locales/` (e.g., `es-ES.js`)
+2. Export translations object with key-value pairs
+3. Import and register in `js/game/data/locales/index.js`
+4. Test language switching in game settings
+5. For detailed guide, see `js/game/data/locales/README.md`
 
 </details>
 
