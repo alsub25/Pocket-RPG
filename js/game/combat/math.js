@@ -300,7 +300,7 @@ export function createCombatMath(deps) {
       // ===== CLASS PASSIVE ABILITIES (Patch 1.2.90) =====
 
       // Blood Knight: Crimson Pact - Deal 1% more damage per 10% missing HP
-      if (p && p.classId === 'blood') {
+      if (p && p.classId === 'blood' && p.maxHp > 0) {
           const playerHpPct = p.hp / p.maxHp
           const missingHpPct = 1 - playerHpPct
           const crimsonBonus = missingHpPct * 10 // 1% per 10% missing
@@ -320,7 +320,7 @@ export function createCombatMath(deps) {
       }
 
       // Berserker: Rage - Deal 2% more damage per 10% missing HP (max 20%)
-      if (p && p.classId === 'berserker') {
+      if (p && p.classId === 'berserker' && p.maxHp > 0) {
           const playerHpPct = p.hp / p.maxHp
           const missingHpPct = 1 - playerHpPct
           const rageBonus = Math.min(missingHpPct * 20, 20) // 2% per 10% missing, cap at 20%
@@ -535,7 +535,7 @@ export function createCombatMath(deps) {
       }
 
       // Blood Knight: Crimson Pact - Deal 1% more damage per 10% missing HP
-      if (p && p.classId === 'blood') {
+      if (p && p.classId === 'blood' && p.maxHp > 0) {
           const playerHpPct = p.hp / p.maxHp
           const missingHpPct = 1 - playerHpPct
           const crimsonBonus = missingHpPct * 10 // 1% per 10% missing
@@ -555,7 +555,7 @@ export function createCombatMath(deps) {
       }
 
       // Berserker: Rage - Deal 2% more damage per 10% missing HP (max 20%)
-      if (p && p.classId === 'berserker') {
+      if (p && p.classId === 'berserker' && p.maxHp > 0) {
           const playerHpPct = p.hp / p.maxHp
           const missingHpPct = 1 - playerHpPct
           const rageBonus = Math.min(missingHpPct * 20, 20) // 2% per 10% missing, cap at 20%
