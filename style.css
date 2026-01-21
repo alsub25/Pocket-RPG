@@ -873,6 +873,7 @@ h3{ font-size:0.95rem; }
   gap:12px;
   align-items:center;
   transition:0.18s ease;
+  position:relative;
 }
 .class-card:hover{ background:#0b1122; border-color:var(--accent); }
 .class-card.selected{
@@ -884,6 +885,33 @@ h3{ font-size:0.95rem; }
 .class-card-content{ display:flex; flex-direction:column; gap:4px; }
 .class-card-name{ font-size:1rem; font-weight:600; letter-spacing:0.04em; }
 .class-card-desc{ color:var(--muted); font-size:0.8rem; line-height:1.2; }
+
+/* Info button on class cards */
+.class-info-btn{
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  color:var(--accent);
+  font-size:0.9rem;
+  font-weight:600;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:0.18s ease;
+  z-index:2;
+}
+.class-info-btn:hover{
+  background:var(--accent);
+  color:var(--bg);
+  border-color:var(--accent);
+  transform:scale(1.1);
+}
 
 /* =============================================================================
    11) IN-GAME HUD + PANELS
