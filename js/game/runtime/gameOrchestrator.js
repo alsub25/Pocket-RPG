@@ -14688,25 +14688,38 @@ function applyUITranslations() {
 
         // Find all elements with data-i18n attribute
         const elements = document.querySelectorAll('[data-i18n]')
+        let translatedCount = 0
+        
         elements.forEach(element => {
             const key = element.getAttribute('data-i18n')
             if (key) {
                 const translated = i18n.t(key)
-                // Update text content, preserving child elements if needed
-                if (element.children.length === 0) {
-                    element.textContent = translated
-                } else {
-                    // For elements with children, only update text nodes
-                    Array.from(element.childNodes).forEach(node => {
-                        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-                            node.textContent = translated
+                // Only update if translation was found (different from key)
+                if (translated && translated !== key) {
+                    // Update text content
+                    if (element.children.length === 0) {
+                        // Simple text node - replace directly
+                        element.textContent = translated
+                        translatedCount++
+                    } else {
+                        // Has children - only update first text node if it exists
+                        for (let i = 0; i < element.childNodes.length; i++) {
+                            const node = element.childNodes[i]
+                            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                                node.textContent = translated
+                                translatedCount++
+                                break // Only update the first text node
+                            }
                         }
-                    })
+                    }
                 }
             }
         })
 
-        console.log(`Applied translations for ${elements.length} elements`)
+        // Only log in development/debug mode
+        if (typeof DEBUG !== 'undefined' && DEBUG) {
+            console.log(`Applied translations for ${translatedCount} elements`)
+        }
     } catch (error) {
         console.error('Error applying UI translations:', error)
     }
