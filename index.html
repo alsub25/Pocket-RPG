@@ -478,6 +478,45 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Language / Localization -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">Language</div>
+
+                            <div class="settings-row">
+                                <div class="settings-left">
+                                    <div class="settings-label">Language</div>
+                                    <div class="settings-desc">Choose your preferred language for the game interface.</div>
+                                </div>
+                                <div class="settings-control">
+                                    <select id="settingsLanguage" class="settings-select" aria-label="Language">
+                                        <option value="en-US" selected>English</option>
+                                        <option value="es-ES">Español (Spanish)</option>
+                                        <option value="fr-FR">Français (French)</option>
+                                        <option value="de-DE">Deutsch (German)</option>
+                                        <option value="ja-JP">日本語 (Japanese)</option>
+                                        <option value="zh-CN">简体中文 (Chinese)</option>
+                                        <option value="pt-BR">Português (Portuguese)</option>
+                                        <option value="ru-RU">Русский (Russian)</option>
+                                        <option value="ko-KR">한국어 (Korean)</option>
+                                        <option value="it-IT">Italiano (Italian)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="settings-row">
+                                <div class="settings-left">
+                                    <div class="settings-label">AI translation</div>
+                                    <div class="settings-desc">Enable AI-powered translation for dynamic game content (requires API key).</div>
+                                </div>
+                                <div class="settings-control">
+                                    <label class="switch" aria-label="Toggle AI translation">
+                                        <input type="checkbox" id="settingsAiTranslationToggle" />
+                                        <span class="switch-track" aria-hidden="true"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="settings-footer">

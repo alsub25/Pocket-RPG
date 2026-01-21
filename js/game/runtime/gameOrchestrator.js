@@ -14500,9 +14500,11 @@ function initSettingsFromState() {
     const uiScaleEl = document.getElementById('settingsUiScale')
     const showCombatNumbersEl = document.getElementById('settingsShowCombatNumbers')
     const autoSaveEl = document.getElementById('settingsAutoSave')
+    const languageSelect = document.getElementById('settingsLanguage')
+    const aiTranslationToggle = document.getElementById('settingsAiTranslationToggle')
 
     // If controls aren't present, nothing to do
-    if (!volumeSlider && !textSpeedSlider && !settingsDifficulty && !autoEquipLootEl && !highContrastEl && !textSizeEl && !colorSchemeEl && !uiScaleEl && !showCombatNumbersEl && !autoSaveEl) return
+    if (!volumeSlider && !textSpeedSlider && !settingsDifficulty && !autoEquipLootEl && !highContrastEl && !textSizeEl && !colorSchemeEl && !uiScaleEl && !showCombatNumbersEl && !autoSaveEl && !languageSelect && !aiTranslationToggle) return
 
     // If state doesn't exist, bail
     if (typeof state === 'undefined' || !state) return
@@ -14566,6 +14568,18 @@ function initSettingsFromState() {
     if (autoSaveEl && !autoSaveEl.dataset.pqWired) {
         autoSaveEl.dataset.pqWired = '1'
         autoSaveEl.addEventListener('change', () => applySettingsChanges())
+    }
+
+    // Language select
+    if (languageSelect && !languageSelect.dataset.pqWired) {
+        languageSelect.dataset.pqWired = '1'
+        languageSelect.addEventListener('change', () => applySettingsChanges())
+    }
+
+    // AI translation toggle
+    if (aiTranslationToggle && !aiTranslationToggle.dataset.pqWired) {
+        aiTranslationToggle.dataset.pqWired = '1'
+        aiTranslationToggle.addEventListener('change', () => applySettingsChanges())
     }
 
     // Text speed should apply live (and avoid stacked listeners)
@@ -14638,6 +14652,24 @@ function initSettingsFromState() {
     if (settingsDifficulty && state.difficulty) {
         settingsDifficulty.value = state.difficulty
     }
+
+    // Language is stored in unified engine settings
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (languageSelect && settings && typeof settings.get === 'function') {
+            const lang = settings.get('localization.language', 'en-US')
+            languageSelect.value = String(lang)
+        }
+    } catch (_) {}
+
+    // AI translation toggle
+    try {
+        const settings = _engine && _engine.getService ? _engine.getService('settings') : null
+        if (aiTranslationToggle && settings && typeof settings.get === 'function') {
+            const enabled = settings.get('localization.aiTranslationEnabled', false)
+            aiTranslationToggle.checked = !!enabled
+        }
+    } catch (_) {}
 
     // Ensure audio volume is applied from saved settings
     setMasterVolumePercent(state.settingsVolume)
@@ -14745,6 +14777,34 @@ function applySettingsChanges() {
     if (autoSaveEl) {
         state.settingsAutoSave = !!autoSaveEl.checked
         try { engineSettings && engineSettings.set && engineSettings.set('gameplay.autoSave', !!state.settingsAutoSave) } catch (_) {}
+    }
+
+    // Language
+    const languageSelect = document.getElementById('settingsLanguage')
+    if (languageSelect) {
+        const lang = String(languageSelect.value || 'en-US')
+        try { 
+            engineSettings && engineSettings.set && engineSettings.set('localization.language', lang)
+            // Update i18n service locale
+            const i18n = _engine && _engine.getService ? _engine.getService('i18n') : null
+            if (i18n && typeof i18n.setLocale === 'function') {
+                i18n.setLocale(lang)
+            }
+        } catch (_) {}
+    }
+
+    // AI translation
+    const aiTranslationToggle = document.getElementById('settingsAiTranslationToggle')
+    if (aiTranslationToggle) {
+        const enabled = !!aiTranslationToggle.checked
+        try { 
+            engineSettings && engineSettings.set && engineSettings.set('localization.aiTranslationEnabled', enabled)
+            // Update i18n service
+            const i18n = _engine && _engine.getService ? _engine.getService('i18n') : null
+            if (i18n && typeof i18n.setAITranslationEnabled === 'function') {
+                i18n.setAITranslationEnabled(enabled)
+            }
+        } catch (_) {}
     }
 
     // Apply audio settings immediately
