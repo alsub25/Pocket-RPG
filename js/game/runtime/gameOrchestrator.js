@@ -14677,6 +14677,38 @@ function initSettingsFromState() {
     applyChannelMuteGains()
 }
 
+// Apply translations to UI elements marked with data-i18n attributes
+function applyUITranslations() {
+    try {
+        const i18n = _engine && _engine.getService ? _engine.getService('i18n') : null
+        if (!i18n || typeof i18n.t !== 'function') return
+
+        // Find all elements with data-i18n attribute
+        const elements = document.querySelectorAll('[data-i18n]')
+        elements.forEach(element => {
+            const key = element.getAttribute('data-i18n')
+            if (key) {
+                const translated = i18n.t(key)
+                // Update text content, preserving child elements if needed
+                if (element.children.length === 0) {
+                    element.textContent = translated
+                } else {
+                    // For elements with children, only update text nodes
+                    Array.from(element.childNodes).forEach(node => {
+                        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                            node.textContent = translated
+                        }
+                    })
+                }
+            }
+        })
+
+        console.log(`Applied translations for ${elements.length} elements`)
+    } catch (error) {
+        console.error('Error applying UI translations:', error)
+    }
+}
+
 function applySettingsChanges() {
     const volumeSlider = document.getElementById('settingsVolume')
     const textSpeedSlider = document.getElementById('settingsTextSpeed')
@@ -14789,6 +14821,8 @@ function applySettingsChanges() {
             const i18n = _engine && _engine.getService ? _engine.getService('i18n') : null
             if (i18n && typeof i18n.setLocale === 'function') {
                 i18n.setLocale(lang)
+                // Apply translations to UI elements with data-i18n attributes
+                applyUITranslations()
             }
         } catch (_) {}
     }

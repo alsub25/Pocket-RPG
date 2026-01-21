@@ -4,10 +4,12 @@
 export const translations = {
   // UI Common
   'ui.new_game': 'New Game',
-  'ui.continue': 'Continue',
+  'ui.continue': 'Load Game',
   'ui.save': 'Save',
   'ui.load': 'Load',
   'ui.settings': 'Settings',
+  'ui.changelog': 'Changelog',
+  'ui.feedback': 'Feedback / Bug Report',
   'ui.close': 'Close',
   'ui.cancel': 'Cancel',
   'ui.confirm': 'Confirm',

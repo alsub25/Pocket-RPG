@@ -32,7 +32,8 @@ export function createI18nPlugin({
 
       // Load base translations from locale data
       const baseTranslations = {
-        'en-US': getLocaleTranslations('en-US')
+        'en-US': getLocaleTranslations('en-US'),
+        'es-ES': getLocaleTranslations('es-ES')
       }
 
       // Merge with custom dictionaries if provided

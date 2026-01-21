@@ -2,10 +2,12 @@
 // Localization data index - exports all language translations
 
 import { translations as enUS } from './en-US.js'
+import { translations as esES } from './es-ES.js'
 
 // Export all translations by language code
 export const localeData = {
-  'en-US': enUS
+  'en-US': enUS,
+  'es-ES': esES
 }
 
 // Export function to get translations for a specific locale
