@@ -6969,7 +6969,26 @@ function openCheatMenu() {
             { id: 'ch4_seal', label: 'Chapter IV — Seal of Verdict (Step 28)', step: 28, area: 'keep', partIndex: 0 },
             { id: 'ch4_magistrate', label: 'Chapter IV — Rootbound Magistrate (Step 29)', step: 29, area: 'forest', partIndex: 2 },
             { id: 'ch4_answer', label: 'Chapter IV — Answer the Court (Step 30)', step: 30, area: 'village', partIndex: 0 },
-            { id: 'ch4_tbc', label: 'Chapter IV — To Be Continued (Step 31)', step: 31, area: 'village', partIndex: 0 }
+            
+            // Chapter V — The Crimson Pact
+            { id: 'ch5_start', label: 'Chapter V — Voice-Keeper Arrives (Step 31)', step: 31, area: 'village', partIndex: 0, force: { chapter5IntroQueued: true, chapter5IntroShown: false } },
+            { id: 'ch5_canopy', label: 'Chapter V — Crimson Canopy Council (Step 32)', step: 32, area: 'crimsonCanopy', partIndex: 0 },
+            { id: 'ch5_choice1', label: 'Chapter V — Council Choice (Step 32.5)', step: 32.5, area: 'crimsonCanopy', partIndex: 0 },
+            { id: 'ch5_patrols', label: 'Chapter V — Break Canopy Patrols (Step 33)', step: 33, area: 'crimsonCanopy', partIndex: 0 },
+            { id: 'ch5_grotto', label: 'Chapter V — Thornheart Grotto (Step 34)', step: 34, area: 'thornheartGrotto', partIndex: 0 },
+            { id: 'ch5_corruption', label: 'Chapter V — Clear Corruption (Step 35)', step: 35, area: 'thornheartGrotto', partIndex: 0 },
+            { id: 'ch5_choice2', label: 'Chapter V — Queen Choice (Step 36)', step: 36, area: 'thornheartGrotto', partIndex: 0 },
+            { id: 'ch5_plateau', label: 'Chapter V — Whisperwind Plateau (Step 37)', step: 37, area: 'whisperwindPlateau', partIndex: 0 },
+            { id: 'ch5_shrine', label: 'Chapter V — Wind Shrine (Sage Aeris) (Step 38)', step: 38, area: 'whisperwindPlateau', partIndex: 0 },
+            { id: 'ch5_cultists', label: 'Chapter V — Storm Cultists (Step 39)', step: 39, area: 'whisperwindPlateau', partIndex: 0 },
+            { id: 'ch5_sovereign', label: 'Chapter V — Storm Sovereign (Step 40)', step: 40, area: 'whisperwindPlateau', partIndex: 0 },
+            { id: 'ch5_choice3', label: 'Chapter V — Aeris or Thornwind (Step 41)', step: 41, area: 'whisperwindPlateau', partIndex: 0 },
+            { id: 'ch5_sanctum', label: 'Chapter V — Emberfall Sanctum (Step 42)', step: 42, area: 'emberfallSanctum', partIndex: 0 },
+            { id: 'ch5_trials', label: 'Chapter V — Trials of Ash (Step 43)', step: 43, area: 'emberfallSanctum', partIndex: 0 },
+            { id: 'ch5_choice4', label: 'Chapter V — Eternal Flame Choice (Step 44)', step: 44, area: 'emberfallSanctum', partIndex: 0 },
+            { id: 'ch5_eternitykeeper', label: 'Chapter V — The Eternitykeeper (Step 45)', step: 45, area: 'emberfallSanctum', partIndex: 0 },
+            { id: 'ch5_choice5', label: 'Chapter V — Final Choice (Step 46)', step: 46, area: 'village', partIndex: 0 },
+            { id: 'ch5_complete', label: 'Chapter V — Story Complete (Step 47)', step: 47, area: 'village', partIndex: 0 }
         ]
 
         function resetQuestStoryFlags() {
@@ -7104,11 +7123,68 @@ function openCheatMenu() {
                 if (!f.chapter4Ending) f.chapter4Ending = 'rewrite'
             }
 
+            // Chapter V prerequisites
+            if (n >= 31) {
+                f.chapter5Started = true
+                f.crimsonCanopyUnlocked = true
+                if (n === 31) {
+                    f.chapter5IntroQueued = true
+                    f.chapter5IntroShown = false
+                } else {
+                    f.chapter5IntroQueued = false
+                    f.chapter5IntroShown = true
+                }
+            }
+            if (n >= 32) f.chapter5MetCanopyCouncil = true
+            if (n >= 32.5) {
+                f.chapter5CanopyChoice = true
+                if (!f.chapter5CanopyChoiceValue) f.chapter5CanopyChoiceValue = 'accept'
+            }
+            if (n >= 33) f.chapter5CanopyPatrolsDefeated = true
+            if (n >= 34) {
+                f.thornheartGrottoUnlocked = true
+                f.chapter5MetWarden = true
+            }
+            if (n >= 35) f.chapter5CorruptionCleared = true
+            if (n >= 36) {
+                f.chapter5QueenDefeated = true
+                f.chapter5QueenChoice = true
+                if (!f.chapter5QueenChoiceValue) f.chapter5QueenChoiceValue = 'purge'
+            }
+            if (n >= 37) f.whisperwindPlateauUnlocked = true
+            if (n >= 38) f.chapter5MetSageAeris = true
+            if (n >= 39) f.chapter5CultistsDefeated = true
+            if (n >= 40) f.chapter5SovereignDefeated = true
+            if (n >= 41) {
+                f.chapter5AllianceChoice = true
+                if (!f.chapter5AllianceChoiceValue) f.chapter5AllianceChoiceValue = 'aeris'
+            }
+            if (n >= 42) {
+                f.emberfallSanctumUnlocked = true
+                f.chapter5MetKeeperPyralis = true
+            }
+            if (n >= 43) f.chapter5TrialsOfAshComplete = true
+            if (n >= 44) {
+                f.chapter5FlameChoice = true
+                if (!f.chapter5FlameChoiceValue) f.chapter5FlameChoiceValue = 'reshape'
+            }
+            if (n >= 45) f.chapter5EternitykeeperDefeated = true
+            if (n >= 46) {
+                f.chapter5FinalChoice = true
+                if (!f.chapter5FinalChoiceValue) f.chapter5FinalChoiceValue = 'forge'
+            }
+            if (n >= 47) f.chapter5Complete = true
+
             // Convenience: ensure base travel unlocks when late-story beats need them.
             if (n >= 19) {
                 f.catacombsUnlocked = true
                 f.keepUnlocked = true
             }
+            // Chapter V zones
+            if (n >= 32) f.crimsonCanopyUnlocked = true
+            if (n >= 34) f.thornheartGrottoUnlocked = true
+            if (n >= 37) f.whisperwindPlateauUnlocked = true
+            if (n >= 42) f.emberfallSanctumUnlocked = true
         }
 
         function setStoryPosition(step, opts = {}) {
