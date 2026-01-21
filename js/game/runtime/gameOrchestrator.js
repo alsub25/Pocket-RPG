@@ -14675,6 +14675,9 @@ function initSettingsFromState() {
     setMasterVolumePercent(state.settingsVolume)
     updateAreaMusic()
     applyChannelMuteGains()
+    
+    // Apply initial UI translations based on saved language
+    applyUITranslations()
 }
 
 // Apply translations to UI elements marked with data-i18n attributes
