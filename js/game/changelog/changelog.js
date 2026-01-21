@@ -154,13 +154,13 @@ export const CHANGELOG = [
           {
             "title": "Quest Objectives",
             "bullets": [
-              "Step 33: Break Canopy patrols (8 kills) + Recover Crimson Seals (3 items)",
-              "Step 35: Defeat Thornheart thralls (10 kills) + Collect Corruption Samples (5 items)",
-              "Step 36: Slay Thornheart Queen + Claim Queen's Heart",
-              "Step 39: Defeat Storm Cultists (12 kills) + Gather Storm Totems (4 items)",
-              "Step 40: Vanquish Storm Sovereign + Obtain Sovereign's Crown",
-              "Step 43: Eliminate Emberfallen Knights (15 kills) + Secure Flame Sigils (6 items)",
-              "Step 45: Defeat The Eternitykeeper (Final Boss) + Claim Eternal Flame Shard"
+              "Step 33: Defeat Thornweaver Mystics (5 kills) + Gather Crimson Thread samples (3 items)",
+              "Step 35: Clear Blightspawn corruption (6 kills) + Recover Grotto Heart Shards (2 items)",
+              "Step 36: Defeat the Thornheart Queen (Boss) + Claim the Queen's Crown Fragment",
+              "Step 39: Defeat Stormcaller Shamans (5 kills) + Collect Storm Totems (3 items)",
+              "Step 40: Challenge the Storm Sovereign (Boss) + Take the Sovereign's Sigil",
+              "Step 43: Defeat Ashguard Sentinels (4 kills) + Gather Trials of Ash Tokens (4 items)",
+              "Step 45: Defeat The Eternitykeeper (Final Boss) + Hold the Eternal Flame Shard"
             ]
           }
         ]

@@ -506,7 +506,7 @@ export const QUEST_DEFS = {
             33: [
                 {
                     type: 'kill',
-                    label: 'Investigate Thornweaver murders',
+                    label: 'Defeat Thornweaver Mystics',
                     required: 5,
                     enemyIds: ['thornweaver']
                 },
