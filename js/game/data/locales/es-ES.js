@@ -33,7 +33,7 @@ export const translations = {
   'hud.hero': 'Héroe',
   'hud.level_xp': 'Nv {level} • {xp}/{nextXp} EXP',
   'hud.gold': 'Oro',
-  'hud.hp': 'PS', // Puntos de Salud
+  'hud.hp': 'Vida', // Vida is more common in Spanish gaming
   'hud.resource': 'Recurso',
   'hud.enemy': 'Enemigo',
   
