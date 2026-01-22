@@ -12896,6 +12896,10 @@ function getAreaDisplayName(areaId) {
     if (areaId === 'oathgrove') return 'The Oathgrove'
     if (areaId === 'blackbarkDepths') return 'Blackbark Depths'
     if (areaId === 'starfallRidge') return 'Starfall Ridge'
+    if (areaId === 'crimsonCanopy') return 'Crimson Canopy'
+    if (areaId === 'thornheartGrotto') return 'Thornheart Grotto'
+    if (areaId === 'whisperwindPlateau') return 'Whisperwind Plateau'
+    if (areaId === 'emberfallSanctum') return 'Emberfall Sanctum'
     return areaId
 }
 // Main handler for clicking the Explore button
