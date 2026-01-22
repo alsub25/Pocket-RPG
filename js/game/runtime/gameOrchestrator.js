@@ -2990,7 +2990,8 @@ const ENEMY_TEMPLATES = {
         goldMax: 500,
         isBoss: false,
         behavior: 'cunning',
-        affinities: { weak: { frost: 1.3 }, resist: { fire: 0.5 } }
+        affinities: { weak: { frost: 1.3 } },
+        elementalResists: { fire: 50 }
     },
     flamewarden: {
         id: 'flamewarden',
@@ -3036,7 +3037,8 @@ const ENEMY_TEMPLATES = {
         goldMax: 620,
         isBoss: false,
         behavior: 'caster',
-        affinities: { weak: { frost: 1.4 }, resist: { fire: 0.3 } }
+        affinities: { weak: { frost: 1.4 } },
+        elementalResists: { fire: 70 }
     },
     eternitykeeper: {
         id: 'eternitykeeper',
