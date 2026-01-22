@@ -12967,6 +12967,23 @@ function openExploreModal() {
                 id: 'starfallRidge',
                 desc: 'A windswept ridge where fallen star‑iron hums in the stone.'
             }
+            ,
+            {
+                id: 'crimsonCanopy',
+                desc: 'An ancient treetop city where the Canopy Council rules from platforms among the highest boughs.'
+            },
+            {
+                id: 'thornheartGrotto',
+                desc: 'A corrupted cavern where nature has turned dark and thorned roots writhe with malice.'
+            },
+            {
+                id: 'whisperwindPlateau',
+                desc: 'Storm-swept highlands ruled by elemental forces and the enigmatic Storm Sovereign.'
+            },
+            {
+                id: 'emberfallSanctum',
+                desc: 'An ancient temple holding the secrets of the Eternal Flame and the final trial.'
+            }
         ]
 
         areas.forEach((info) => {
