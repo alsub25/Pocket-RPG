@@ -69,6 +69,30 @@
 
 ## 🚀 Quick Start
 
+### TypeScript Development
+
+Emberwood is now built with **TypeScript** for improved code quality and maintainability. The source code is in `/src` and compiles to JavaScript in `/dist`.
+
+**First-time setup:**
+
+```bash
+# Install TypeScript
+npm install
+
+# Build the project (compiles TypeScript to JavaScript)
+npm run build
+
+# Or watch for changes during development
+npm run watch
+```
+
+**Rebuild when needed:**
+
+```bash
+# Clean and rebuild
+npm run rebuild
+```
+
 ### Local Development
 
 Emberwood uses **native ES modules** which require a web server (CORS restrictions). Choose your method:
@@ -187,22 +211,27 @@ Emberwood-The-Blackbark-Oath/
 ├── index.html              # Entry point
 ├── style.css               # Global styles
 ├── assets/                 # Static assets
-└── js/
-    ├── boot/               # Bootstrap & initialization
-    ├── shared/             # Cross-layer utilities
-    ├── engine/             # Core game engine
-    └── game/               # Game-specific code
-        ├── main.js         # Game entry point
-        ├── runtime/        # Game orchestration
-        ├── plugins/        # Engine plugins
-        ├── persistence/    # Save system
-        ├── ui/             # User interface
-        ├── data/           # Game data (abilities, items, etc.)
-        ├── combat/         # Combat system
-        ├── systems/        # Core systems (time, RNG, loot, etc.)
-        ├── locations/      # Village, merchant, bank, tavern
-        ├── quests/         # Quest system
-        └── qa/             # Quality assurance tools
+├── package.json            # TypeScript dependencies
+├── tsconfig.json           # TypeScript configuration
+├── src/                    # TypeScript source code
+│   ├── boot/               # Bootstrap & initialization
+│   ├── shared/             # Cross-layer utilities
+│   ├── engine/             # Core game engine
+│   ├── types/              # TypeScript type declarations
+│   └── game/               # Game-specific code
+│       ├── main.ts         # Game entry point
+│       ├── runtime/        # Game orchestration
+│       ├── plugins/        # Engine plugins
+│       ├── persistence/    # Save system
+│       ├── ui/             # User interface
+│       ├── data/           # Game data (abilities, items, etc.)
+│       ├── combat/         # Combat system
+│       ├── systems/        # Core systems (time, RNG, loot, etc.)
+│       ├── locations/      # Village, merchant, bank, tavern
+│       ├── quests/         # Quest system
+│       └── qa/             # Quality assurance tools
+└── dist/                   # Compiled JavaScript output (generated)
+    └── (mirrors src/ structure)
 ```
 
 <details>
@@ -214,47 +243,57 @@ Emberwood-The-Blackbark-Oath/
 ├── index.html              # Main entry point
 ├── style.css               # Global styles & theme
 ├── README.md               # This file
+├── package.json            # TypeScript dependencies
+├── tsconfig.json           # TypeScript compiler config
+├── .gitignore              # Git ignore file (node_modules, dist)
 │
 ├── assets/                 # Static assets
 │
-└── js/                     # All JavaScript modules
-    ├── boot/               # Bootstrap & initialization
-    │   ├── bootstrap.js
-    │   ├── bootLoader.js
-    │   ├── userAcceptance.js
-    │   └── lib/safeStorage.js
-    │
-    ├── shared/             # Cross-layer utilities
-    │   └── storage/safeStorage.js
-    │
-    ├── engine/             # Core game engine
-    │   ├── engine.js
-    │   ├── perf.js
-    │   └── storageRuntime.js
-    │
-    └── game/               # Game-specific code
-        ├── main.js
-        ├── runtime/        # Game orchestration
-        ├── plugins/        # Engine plugins
-        ├── persistence/    # Save system
-        ├── ui/             # User interface
-        ├── data/           # Game data definitions
-        ├── combat/         # Combat system
-        ├── systems/        # Core game systems
-        ├── locations/      # Game locations (village, etc.)
-        ├── quests/         # Quest system
-        ├── changelog/      # Patch notes
-        ├── state/          # State management
-        ├── utils/          # Utility functions
-        └── qa/             # Quality assurance
+├── src/                    # TypeScript source code
+│   ├── boot/               # Bootstrap & initialization
+│   │   ├── bootstrap.ts
+│   │   ├── bootLoader.ts
+│   │   ├── userAcceptance.ts
+│   │   └── lib/safeStorage.ts
+│   │
+│   ├── types/              # TypeScript type declarations
+│   │   └── global.d.ts     # Global type extensions
+│   │
+│   ├── shared/             # Cross-layer utilities
+│   │   └── storage/safeStorage.ts
+│   │
+│   ├── engine/             # Core game engine
+│   │   ├── engine.ts
+│   │   ├── perf.ts
+│   │   └── storageRuntime.ts
+│   │
+│   └── game/               # Game-specific code
+│       ├── main.ts
+│       ├── runtime/        # Game orchestration
+│       ├── plugins/        # Engine plugins
+│       ├── persistence/    # Save system
+│       ├── ui/             # User interface
+│       ├── data/           # Game data definitions
+│       ├── combat/         # Combat system
+│       ├── systems/        # Core game systems
+│       ├── locations/      # Game locations (village, etc.)
+│       ├── quests/         # Quest system
+│       ├── changelog/      # Patch notes
+│       ├── state/          # State management
+│       ├── utils/          # Utility functions
+│       └── qa/             # Quality assurance
+│
+└── dist/                   # Compiled JavaScript (generated by TypeScript)
+    └── (mirrors src/ structure with .js files)
 ```
 
 </details>
 
 ### Import Strategy
 
-```javascript
-// ✅ Explicit relative imports with .js extension
+```typescript
+// ✅ TypeScript source files use .js extensions in imports (required by TypeScript)
+// Source files are .ts but imports reference .js (the compiled output)
 import { saveGame } from './persistence/saveManager.js';
 import { rollDice } from '../systems/rng/rng.js';
 
@@ -262,7 +301,11 @@ import { rollDice } from '../systems/rng/rng.js';
 import { saveGame } from '@/persistence/saveManager';
 ```
 
-**Principles:** ES Modules only, always include `.js`, use relative paths, no circular dependencies
+**Principles:** 
+- TypeScript source code is in `/src` with `.ts` extensions
+- Imports in TypeScript files use `.js` extensions (points to compiled output)
+- ES Modules only, use relative paths, no circular dependencies
+- Build process compiles TypeScript to JavaScript in `/dist`
 
 ---
 
@@ -563,9 +606,20 @@ Report includes: patch version, state snapshot, recent inputs/logs, performance 
 
 ### Code Style
 
-- **JavaScript**: ES6+, semicolons, single quotes, 2-space indent
+- **TypeScript**: Source files in `/src` with `.ts` extension
+- **JavaScript**: ES6+ output, semicolons, single quotes, 2-space indent
 - **Naming**: camelCase functions/variables, PascalCase classes, UPPERCASE constants
-- **Files**: camelCase names, `.js` extension required, relative imports
+- **Files**: camelCase names, `.ts` source / `.js` compiled, relative imports
+- **Types**: Permissive TypeScript config (strict types not required)
+
+### TypeScript Guidelines
+
+- Source code is in `/src` directory as TypeScript (`.ts` files)
+- Build process compiles to JavaScript in `/dist` directory
+- Use `npm run build` to compile after making changes
+- Use `npm run watch` for automatic recompilation during development
+- Import statements use `.js` extensions (pointing to compiled output)
+- Type annotations are optional (permissive TypeScript configuration)
 
 ### iOS/Safari Pitfalls to Avoid
 
