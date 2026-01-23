@@ -73,6 +73,8 @@
 
 Emberwood is now built with **TypeScript** for improved code quality and maintainability. The source code is in `/src` and compiles to JavaScript in `/dist`.
 
+**Important:** The `/dist` folder (compiled JavaScript) is committed to the repository to support GitHub Pages deployment. After making changes to TypeScript source files, rebuild and commit the updated `/dist` folder.
+
 **First-time setup:**
 
 ```bash
@@ -230,7 +232,7 @@ Emberwood-The-Blackbark-Oath/
 │       ├── locations/      # Village, merchant, bank, tavern
 │       ├── quests/         # Quest system
 │       └── qa/             # Quality assurance tools
-└── dist/                   # Compiled JavaScript output (generated)
+└── dist/                   # Compiled JavaScript output (committed for GitHub Pages)
     └── (mirrors src/ structure)
 ```
 
@@ -245,7 +247,7 @@ Emberwood-The-Blackbark-Oath/
 ├── README.md               # This file
 ├── package.json            # TypeScript dependencies
 ├── tsconfig.json           # TypeScript compiler config
-├── .gitignore              # Git ignore file (node_modules, dist)
+├── .gitignore              # Git ignore file (node_modules only)
 │
 ├── assets/                 # Static assets
 │
