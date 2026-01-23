@@ -23,7 +23,7 @@ function _safeJsonStringify(x) {
 }
 
 const VERSIONS = [
-  { id: 'future', label: GAME_FULL_LABEL, entry: './js/game/main.js' },
+  { id: 'future', label: GAME_FULL_LABEL, entry: './dist/game/main.js' },
 ];
 
 const STORAGE_KEY = "selected_game_version";
