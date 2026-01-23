@@ -8,8 +8,8 @@
 // - If multiple weeks passed since last interest, apply multiple weekly ticks
 //   with compounding and show a summary of what happened.
 
-import { getVillageEconomySummary } from "./villageEconomy.js";
-import { sanitizeGold } from "../../systems/safety.js";
+import { getVillageEconomySummary } from "./villageEconomy.ts";
+import { sanitizeGold } from "../../systems/safety.ts";
 
 const BANK_DAYS_PER_WEEK = 7;
 
