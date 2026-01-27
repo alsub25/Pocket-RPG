@@ -56,6 +56,8 @@ import { createTimeServicePlugin } from '../plugins/timeServicePlugin.js'
 import { createKingdomGovernmentPlugin } from '../plugins/kingdomGovernmentPlugin.js'
 import { createLootGeneratorPlugin } from '../plugins/lootGeneratorPlugin.js'
 import { createQuestSystemPlugin } from '../plugins/questSystemPlugin.js'
+import { createAchievementSystemPlugin } from '../plugins/achievementSystemPlugin.js'
+import { createWorldEventsSystemPlugin } from '../plugins/worldEventsSystemPlugin.js'
 
 // Refactored modules (Patch 1.2.72 - Intensive Refactor & Hardening)
 import {
@@ -20891,6 +20893,12 @@ export function bootGame(engine) {
 
         // 21) Quest system service - Engine-integrated quest state management
         _engine.use(createQuestSystemPlugin())
+
+        // 22) Achievement system service - Engine-integrated achievement tracking
+        _engine.use(createAchievementSystemPlugin())
+
+        // 23) World events system service - Engine-integrated world events
+        _engine.use(createWorldEventsSystemPlugin())
 
         // 18) Replay recorder/player (records command dispatches)
         _engine.use(createReplayBridgePlugin({ getState: () => state }))
