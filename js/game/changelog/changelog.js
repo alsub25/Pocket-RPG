@@ -3,6 +3,188 @@
 
 export const CHANGELOG = [
   {
+    "version": "1.3.0",
+    "title": "Major Content Expansion - New Game Systems",
+    "sections": [
+      {
+        "heading": "🏆 Achievement System",
+        "items": [
+          {
+            "title": "Achievement Tracking",
+            "bullets": [
+              "Added 30+ achievements across 7 categories: Combat, Progression, Wealth, Exploration, Quests, Loot, and Special",
+              "Achievements unlock based on player actions and milestones",
+              "Achievement UI modal with progress tracking and category organization",
+              "Visual feedback for unlocked vs. locked achievements",
+              "Achievement notifications when unlocking new achievements"
+            ]
+          },
+          {
+            "title": "Achievement Categories",
+            "bullets": [
+              "⚔️ Combat: Victory milestones, boss slaying, perfect victories",
+              "📈 Progression: Level achievements, talent mastery",
+              "💰 Wealth: Gold accumulation, merchant trading, banking",
+              "🗺️ Exploration: Location visits, tavern activities, gambling",
+              "📜 Quests: Quest completion milestones",
+              "📦 Loot: Item collection, rare finds, legendary drops",
+              "✨ Special: Time-based, political, companion achievements"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "🔨 Crafting & Enchanting System",
+        "items": [
+          {
+            "title": "Crafting Materials",
+            "bullets": [
+              "14 crafting materials from Common to Epic rarity",
+              "Basic materials: Wood Log, Iron Ore, Leather, Cloth",
+              "Intermediate materials: Steel Ingot, Hardened Leather, Mystic Essence",
+              "Rare materials: Mithril Ore, Dragon Scale, Enchanted Crystal",
+              "Epic materials: Star Fragment, Void Essence"
+            ]
+          },
+          {
+            "title": "Crafting Recipes",
+            "bullets": [
+              "Weapon crafting: Iron Sword, Steel Sword, Mithril Blade",
+              "Armor crafting: Leather Armor, Reinforced Armor, Dragonscale Armor",
+              "Material processing: Iron → Steel, Leather → Hardened Leather",
+              "Potion crafting: Create healing potions from materials",
+              "Level requirements for advanced recipes"
+            ]
+          },
+          {
+            "title": "Enchanting System",
+            "bullets": [
+              "Enchant equipped items with magical bonuses",
+              "Fire Enchantment: Add fire damage to weapons",
+              "Protection Enchantment: Increase armor value",
+              "Life Steal Enchantment: Add vampiric properties",
+              "Material costs for enchanting"
+            ]
+          },
+          {
+            "title": "Dismantling",
+            "bullets": [
+              "Dismantle crafted items to recover 50% of materials",
+              "Useful for recycling unwanted gear"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "🎣 Fishing Mini-Game",
+        "items": [
+          {
+            "title": "Fishing Locations",
+            "bullets": [
+              "Village River: Always available, common fish",
+              "Forest Stream: Unlocks at level 5, rarer fish",
+              "Moonlit Lake: Unlocks at level 8, legendary fish"
+            ]
+          },
+          {
+            "title": "Fish Species",
+            "bullets": [
+              "10 fish species from Common to Legendary rarity",
+              "Common: Carp, Trout, Bass",
+              "Uncommon: Salmon, Pike",
+              "Rare: Golden Carp, Giant Catfish, Crystal Fish",
+              "Epic: Moonfish (night only, magic bonuses)",
+              "Legendary: Dragonfish (powerful bonuses)"
+            ]
+          },
+          {
+            "title": "Fishing Mechanics",
+            "bullets": [
+              "Time-of-day restrictions (different fish at morning/evening/night)",
+              "Difficulty system: Harder fish are rarer but more valuable",
+              "Success rate improves with player level",
+              "Fish can be consumed for HP/buffs or sold for gold",
+              "Special fish convert to crafting materials (Crystal Fish → Enchanted Crystal)"
+            ]
+          },
+          {
+            "title": "Statistics Tracking",
+            "bullets": [
+              "Track total fish caught, unique species, success rate",
+              "Best catch recorded",
+              "Rare catch counter"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "🌍 World Events System",
+        "items": [
+          {
+            "title": "Event Types",
+            "bullets": [
+              "Positive Events: Traveling Merchant, Village Festival, Bountiful Harvest, Wandering Mage",
+              "Negative Events: Bandit Raid, Plague, Drought",
+              "Special Events: Meteor Shower, Blood Moon, Strange Aurora",
+              "11 total events with unique effects and durations"
+            ]
+          },
+          {
+            "title": "Event Effects",
+            "bullets": [
+              "Economy modifiers: Price changes, stock adjustments",
+              "Combat modifiers: Enemy power, loot bonuses",
+              "Village modifiers: Population mood, service costs",
+              "Special effects: Rare material drops, elemental bonuses"
+            ]
+          },
+          {
+            "title": "Event Mechanics",
+            "bullets": [
+              "Random event triggering with rarity-based probability",
+              "Events last 1-4 days depending on type",
+              "Cooldown period between events (3-7 days)",
+              "Event history tracking (last 10 events)",
+              "Visual notifications when events start and end"
+            ]
+          },
+          {
+            "title": "Challenge Events",
+            "bullets": [
+              "Blood Moon: Enemies 50% stronger but drop 75% more loot",
+              "Meteor Shower: Chance to find Star Fragments",
+              "Bandit Raid: Defeat bandits to end event early"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": "Technical Improvements",
+        "items": [
+          {
+            "title": "Engine Integration",
+            "bullets": [
+              "All new systems integrated with engine event system",
+              "Achievement service tracks game events for unlock conditions",
+              "World events service ticks daily and emits notifications",
+              "Proper state management through engine setState",
+              "Event-driven architecture for all new features"
+            ]
+          },
+          {
+            "title": "Save System",
+            "bullets": [
+              "Achievement progress saved and persisted",
+              "Crafting materials and recipes saved",
+              "Fishing statistics and unlocked locations saved",
+              "Active world events and history saved"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.2.90",
     "title": "Enhanced Class Complexity & Depth",
     "sections": [
