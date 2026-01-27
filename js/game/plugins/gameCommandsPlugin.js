@@ -24,10 +24,13 @@ export function createGameCommandsPlugin(deps = {}) {
     openTownHall: _fn(deps.openTownHall),
     openGovernment: _fn(deps.openGovernment),
     openElderRowan: _fn(deps.openElderRowan),
+    openWorkshop: _fn(deps.openWorkshop),
+    openFishing: _fn(deps.openFishing),
 
     // UI helpers
     openInventory: _fn(deps.openInventory),
     openSpells: _fn(deps.openSpells),
+    openAchievements: _fn(deps.openAchievements),
 
     // Combat
     combatAttack: _fn(deps.combatAttack),
@@ -103,6 +106,14 @@ export function createGameCommandsPlugin(deps = {}) {
           try { fns.openElderRowan?.(payload) } catch (_) {}
           return
         }
+        if (type === 'GAME_OPEN_WORKSHOP') {
+          try { fns.openWorkshop?.(payload) } catch (_) {}
+          return
+        }
+        if (type === 'GAME_OPEN_FISHING') {
+          try { fns.openFishing?.(payload) } catch (_) {}
+          return
+        }
 
         // ---- UI helpers --------------------------------------------------
         if (type === 'GAME_OPEN_INVENTORY') {
@@ -111,6 +122,10 @@ export function createGameCommandsPlugin(deps = {}) {
         }
         if (type === 'GAME_OPEN_SPELLS') {
           try { fns.openSpells?.(payload?.inCombat) } catch (_) {}
+          return
+        }
+        if (type === 'GAME_OPEN_ACHIEVEMENTS') {
+          try { fns.openAchievements?.(payload) } catch (_) {}
           return
         }
 

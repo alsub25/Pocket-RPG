@@ -58,6 +58,8 @@ import { createLootGeneratorPlugin } from '../plugins/lootGeneratorPlugin.js'
 import { createQuestSystemPlugin } from '../plugins/questSystemPlugin.js'
 import { createAchievementSystemPlugin } from '../plugins/achievementSystemPlugin.js'
 import { createWorldEventsSystemPlugin } from '../plugins/worldEventsSystemPlugin.js'
+import { createCraftingServicePlugin } from '../plugins/craftingServicePlugin.js'
+import { createFishingServicePlugin } from '../plugins/fishingServicePlugin.js'
 
 // Refactored modules (Patch 1.2.72 - Intensive Refactor & Hardening)
 import {
@@ -120,6 +122,7 @@ import { createItemCloner } from '../utils/itemCloner.js'
 import { scheduleAfter } from '../utils/timing.js'
 
 import { createSpellbookModal } from '../ui/spells/spellbookModal.js'
+import { createAchievementsModal } from '../ui/achievements/achievementsModal.js'
 import { openGambleModalImpl } from '../locations/village/tavernGames.js'
 import {
     DAY_PARTS,
@@ -193,6 +196,8 @@ import {
     ensureMerchantStock,
     executeMerchantBuy
 } from '../locations/village/merchant.js' // ⬅️ NEW
+import { openWorkshopModalImpl } from '../locations/village/workshop.js'
+import { openFishingSpotModalImpl } from '../locations/village/fishingSpot.js'
 import {
     generateLootDrop,
     generateArmorForSlot,
@@ -4101,6 +4106,18 @@ function renderExploreActions(actionsEl) {
         )
 
         actionsEl.appendChild(
+            makeActionButton('🔨 Workshop', () => {
+                if (!dispatchGameCommand('GAME_OPEN_WORKSHOP', {})) openWorkshopModal()
+            })
+        )
+
+        actionsEl.appendChild(
+            makeActionButton('🎣 Fishing', () => {
+                if (!dispatchGameCommand('GAME_OPEN_FISHING', {})) openFishingSpotModal()
+            })
+        )
+
+        actionsEl.appendChild(
             makeActionButton('Back', () => {
                 ui.villageActionsOpen = false
                 renderActions()
@@ -4156,6 +4173,12 @@ function renderExploreActions(actionsEl) {
     actionsEl.appendChild(
         makeActionButton('Spells', () => {
             if (!dispatchGameCommand('GAME_OPEN_SPELLS', { inCombat: false })) openSpellsModal(false)
+        })
+    )
+
+    actionsEl.appendChild(
+        makeActionButton('🏆 Achievements', () => {
+            if (!dispatchGameCommand('GAME_OPEN_ACHIEVEMENTS', {})) openAchievementsModal()
         })
     )
 
@@ -6031,6 +6054,77 @@ function openBankModal() {
 
     return _open()
 }
+
+/**
+ * Open the Crafting Workshop modal
+ */
+function openWorkshopModal() {
+    recordInput('open.workshop');
+    playDoorOpenSfx();
+    setInteriorOpen(true);
+    
+    const _open = () => openWorkshopModalImpl({
+        state,
+        openModal,
+        closeModal,
+        engine: _engine
+    });
+    
+    try {
+        if (state && state.debug && state.debug.capturePerf) {
+            return perfWrap(state, 'ui:openWorkshopModal', { area: state.area }, _open);
+        }
+    } catch (_) {}
+    
+    return _open();
+}
+
+/**
+ * Open the Fishing Spot modal
+ */
+function openFishingSpotModal() {
+    recordInput('open.fishing');
+    
+    const _open = () => openFishingSpotModalImpl({
+        state,
+        openModal,
+        closeModal,
+        engine: _engine
+    });
+    
+    try {
+        if (state && state.debug && state.debug.capturePerf) {
+            return perfWrap(state, 'ui:openFishingSpotModal', { area: state.area }, _open);
+        }
+    } catch (_) {}
+    
+    return _open();
+}
+
+/**
+ * Open the Achievements modal
+ */
+function openAchievementsModal() {
+    recordInput('open.achievements');
+    
+    const _open = () => {
+        const achievementsModal = createAchievementsModal({
+            getState: () => state,
+            openModal,
+            closeModal
+        });
+        return achievementsModal.openAchievementsModal();
+    };
+    
+    try {
+        if (state && state.debug && state.debug.capturePerf) {
+            return perfWrap(state, 'ui:openAchievementsModal', { area: state.area }, _open);
+        }
+    } catch (_) {}
+    
+    return _open();
+}
+
 /* =============================================================================
  * CHEAT MENU
  * Testing actions: spawn battles, teleport, grant items, force events, diagnostics.
@@ -20752,9 +20846,12 @@ export function bootGame(engine) {
 	            openTownHall: () => { try { openTownHallModal() } catch (_) {} },
 	            openGovernment: () => { try { openGovernmentModal() } catch (_) {} },
 	            openElderRowan: () => { try { quests && quests.openElderRowanDialog && quests.openElderRowanDialog() } catch (_) {} },
+	            openWorkshop: () => { try { openWorkshopModal() } catch (_) {} },
+	            openFishing: () => { try { openFishingSpotModal() } catch (_) {} },
 	            // UI helpers
 	            openInventory: (inCombat) => { try { openInventoryModal(!!inCombat) } catch (_) {} },
 	            openSpells: (inCombat) => { try { openSpellsModal(!!inCombat) } catch (_) {} },
+	            openAchievements: () => { try { openAchievementsModal() } catch (_) {} },
 	            // Combat
 	            combatAttack: () => { try { playerBasicAttack() } catch (_) {} },
 	            combatInterrupt: () => { try { playerInterrupt() } catch (_) {} },
@@ -20899,6 +20996,12 @@ export function bootGame(engine) {
 
         // 23) World events system service - Engine-integrated world events
         _engine.use(createWorldEventsSystemPlugin())
+
+        // 24) Crafting system service - Engine-integrated crafting
+        _engine.use(createCraftingServicePlugin())
+
+        // 25) Fishing system service - Engine-integrated fishing
+        _engine.use(createFishingServicePlugin())
 
         // 18) Replay recorder/player (records command dispatches)
         _engine.use(createReplayBridgePlugin({ getState: () => state }))
